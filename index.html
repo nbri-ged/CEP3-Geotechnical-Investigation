@@ -5,7 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>NBRI Borehole Map - CEP3 - Rambukkana - Galagedara Section</title>
 
-  
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -450,19 +449,42 @@
   .leaflet-control-layers-base span{
     color:var(--ink);
   }
-  .locate-control a{
-    width:30px !important;
-    height:30px !important;
-    line-height:30px !important;
-    text-align:center;
-    font-size:18px;
-    color:var(--accent);
-    background:#fff;
-    text-decoration:none;
+  .locate-fab-wrap{
+    margin:0 10px 24px 0 !important;
   }
-  .locate-control a.locate-active{
-    color:#fff;
-    background:var(--accent);
+  .locate-fab{
+    width:44px;
+    height:44px;
+    border-radius:50%;
+    background:#fff;
+    border:none;
+    box-shadow:0 1px 4px rgba(0,0,0,0.3), 0 0 1px rgba(0,0,0,0.3);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    cursor:pointer;
+    color:#5f6368;
+    transition:background 0.15s ease, color 0.15s ease;
+    position:relative;
+  }
+  .locate-fab:hover{
+    background:#f5f5f5;
+  }
+  .locate-fab.locate-active{
+    color:#1a73e8;
+  }
+  .locate-fab.locate-acquiring::before{
+    content:'';
+    position:absolute;
+    inset:-6px;
+    border-radius:50%;
+    border:2px solid #1a73e8;
+    opacity:0.5;
+    animation:locate-pulse 1.2s ease-out infinite;
+  }
+  @keyframes locate-pulse{
+    0%{ transform:scale(0.8); opacity:0.6; }
+    100%{ transform:scale(1.3); opacity:0; }
   }
   /* Base rules for our smart engineering labels */
   .bh-label, .pkg-label {
@@ -556,6 +578,11 @@
       <button id="kml-bh-only" class="kml-btn">&#8681; KML &mdash; BH locations only</button>
       <button id="kml-bh-road" class="kml-btn">&#8681; KML &mdash; BH locations + Road trace</button>
       <button id="pdf-map-btn" class="kml-btn">&#8681; PDF Map (current view)</button>
+      <div id="config-note" style="margin-top:4px;">
+        Tip: switch to <b>Satellite</b> or <b>Hybrid</b> view before exporting for a full
+        image background — Street/Terrain/Google Hybrid can't be captured due to
+        those providers' cross-origin restrictions (borehole positions still export either way).
+      </div>
     </div>
     <div class="block">
       <h2>Overlay Layers</h2>
@@ -634,16 +661,19 @@ const baseLayers = {
   }),
   "Satellite": L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
     maxZoom: 19,
-    attribution: 'Tiles &copy; Esri &mdash; Source: Esri, Maxar, Earthstar Geographics'
+    attribution: 'Tiles &copy; Esri &mdash; Source: Esri, Maxar, Earthstar Geographics',
+    crossOrigin: 'anonymous'
   }),
   "Hybrid": L.layerGroup([
     L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
       maxZoom: 19,
-      attribution: 'Tiles &copy; Esri &mdash; Source: Esri, Maxar, Earthstar Geographics'
+      attribution: 'Tiles &copy; Esri &mdash; Source: Esri, Maxar, Earthstar Geographics',
+      crossOrigin: 'anonymous'
     }),
     L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', {
       maxZoom: 19,
-      attribution: 'Labels &copy; Esri'
+      attribution: 'Labels &copy; Esri',
+      crossOrigin: 'anonymous'
     })
   ]),
   "Terrain": L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
@@ -671,16 +701,20 @@ let userAccuracyCircle = null;
 let userLocationWatchId = null;
 
 const LocateControl = L.Control.extend({
-  options: { position: 'topright' },
+  options: { position: 'bottomright' },
   onAdd: function(){
-    const container = L.DomUtil.create('div', 'leaflet-bar leaflet-control locate-control');
-    const btn = L.DomUtil.create('a', '', container);
-    btn.href = '#';
+    const container = L.DomUtil.create('div', 'locate-fab-wrap');
+    const btn = L.DomUtil.create('button', 'locate-fab', container);
+    btn.type = 'button';
     btn.title = 'Show my location';
-    btn.innerHTML = '&#9678;';
-    L.DomEvent.on(btn, 'click', L.DomEvent.stop).on(btn, 'click', () => {
-      toggleLocate(btn);
-    });
+    btn.setAttribute('aria-label', 'Show my location');
+    btn.innerHTML = `
+      <svg viewBox="0 0 24 24" width="20" height="20">
+        <circle cx="12" cy="12" r="3" fill="currentColor"/>
+        <path d="M12 2v3M12 19v3M2 12h3M19 12h3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      </svg>`;
+    L.DomEvent.disableClickPropagation(container);
+    L.DomEvent.on(btn, 'click', () => toggleLocate(btn));
     return container;
   }
 });
@@ -692,14 +726,14 @@ function toggleLocate(btn){
     userLocationWatchId = null;
     if (userLocationMarker) { map.removeLayer(userLocationMarker); userLocationMarker = null; }
     if (userAccuracyCircle) { map.removeLayer(userAccuracyCircle); userAccuracyCircle = null; }
-    if (btn) btn.classList.remove('locate-active');
+    if (btn) { btn.classList.remove('locate-active'); btn.classList.remove('locate-acquiring'); }
     return;
   }
   if (!navigator.geolocation){
     alert('Your browser does not support geolocation.');
     return;
   }
-  if (btn) btn.classList.add('locate-active');
+  if (btn) btn.classList.add('locate-acquiring');
   let firstFix = true;
   userLocationWatchId = navigator.geolocation.watchPosition(
     (pos) => {
@@ -723,11 +757,12 @@ function toggleLocate(btn){
       if (firstFix){
         map.setView(latlng, Math.max(map.getZoom(), 17));
         firstFix = false;
+        if (btn) { btn.classList.remove('locate-acquiring'); btn.classList.add('locate-active'); }
       }
     },
     (err) => {
       alert('Could not get your location: ' + err.message + '\n\nMake sure location access is allowed for this site, and that GPS/location services are enabled on your device.');
-      if (btn) btn.classList.remove('locate-active');
+      if (btn) { btn.classList.remove('locate-active'); btn.classList.remove('locate-acquiring'); }
       userLocationWatchId = null;
     },
     { enableHighAccuracy: true, maximumAge: 5000, timeout: 15000 }
@@ -1494,10 +1529,29 @@ function boreholesToGeoJSON(){
     const completedDate = formatDateDMY(getFirst(row, ['Borehole Completed Date','Completed Date','Completion Date','Date Completed','Finish Date','End Date']) || logDates.completed || '');
     const pdfUrl = (row['PDF Link'] || row['Log PDF'] || row['Borehole Log'] || '').trim();
 
+    const fieldsForDescription = [
+      ['Status', row['Status'] || ''],
+      ['Commence Date', commenceDate],
+      ['Completed Date', completedDate],
+      ['Easting', row['Easting'] || ''],
+      ['Northing', row['Northing'] || ''],
+      ['Elevation (m)', row['Elevation'] || ''],
+      ['Contractor', row['Contractor Done'] || row['Contractor'] || ''],
+      ['Lot', row['Lot'] || ''],
+      ['Package', row['Package'] || ''],
+      ['Termination Depth (m)', row['Termination Depth'] || ''],
+      ['Rock Level (m)', rockLevelDisplay(levels)],
+      ['Groundwater Level (m)', row['Groundwater Level'] || '']
+    ].filter(([,v]) => v !== '');
+    const descRows = fieldsForDescription.map(([k,v]) => `<tr><td><b>${k}</b></td><td>${v}</td></tr>`).join('');
+    const descriptionHtml = `<table border="1" cellpadding="4" style="border-collapse:collapse;">${descRows}</table>` +
+      (pdfUrl ? `<p><a href="${pdfUrl}">View / Download Borehole Log PDF</a></p>` : '');
+
     features.push({
       type: 'Feature',
       properties: {
         name: bhName || 'Unnamed BH',
+        description: descriptionHtml,
         Status: row['Status'] || '',
         'Commence Date': commenceDate,
         'Completed Date': completedDate,
@@ -1530,6 +1584,23 @@ function downloadTextFile(filename, text){
   setTimeout(() => URL.revokeObjectURL(url), 2000);
 }
 
+function decodeHtmlEntities(s){
+  return s.replace(/&amp;/g, '&')
+          .replace(/&lt;/g, '<')
+          .replace(/&gt;/g, '>')
+          .replace(/&quot;/g, '"')
+          .replace(/&#39;/g, "'");
+}
+
+// tokml XML-escapes the description field instead of CDATA-wrapping it, so
+// viewers show literal "<table>" text. Fix by converting escaped HTML back
+// to a proper CDATA block after generation.
+function fixKmlDescriptionsForHtml(kmlString){
+  return kmlString.replace(/<description>([\s\S]*?)<\/description>/g, (match, inner) => {
+    return '<description><![CDATA[' + decodeHtmlEntities(inner) + ']]></description>';
+  });
+}
+
 function exportKML(includeRoad){
   const bhGeoJSON = boreholesToGeoJSON();
   let combined = bhGeoJSON;
@@ -1542,7 +1613,8 @@ function exportKML(includeRoad){
     alert('Road corridor data is still loading — try again in a moment.');
     return;
   }
-  const kml = tokml(combined, { name: 'name', description: 'Status' });
+  let kml = tokml(combined, { name: 'name', description: 'description' });
+  kml = fixKmlDescriptionsForHtml(kml);
   const filename = includeRoad ? 'CEP3_Boreholes_and_RoadTrace.kml' : 'CEP3_Boreholes.kml';
   downloadTextFile(filename, kml);
 }
@@ -1664,11 +1736,48 @@ function buildAndSavePDF(rasterDataUrl, rasterW, rasterH){
 
   const visible = getVisibleFilteredRows();
 
+  // Helper: project lat/lon to page coordinates, clamped within the map rect
+  function project(lat, lon){
+    let px = mapX + ((lon - west) / (east - west)) * mapW;
+    let py = mapY + ((north - lat) / (north - south)) * mapH;
+    px = Math.max(mapX, Math.min(mapX + mapW, px));
+    py = Math.max(mapY, Math.min(mapY + mapH, py));
+    return [px, py];
+  }
+
   if (!rasterDataUrl){
-    // Vector fallback: plot BH points accurately within the map area
+    // Vector fallback: draw road trace first (so points sit on top of it)
+    if (roadCorridorGeoJSON && roadCorridorGeoJSON.features){
+      roadCorridorGeoJSON.features.forEach(feature => {
+        const geom = feature.geometry;
+        if (!geom) return;
+        const style = styleForOverlayFeature(feature);
+        const hex = style.color;
+        const rgb = [parseInt(hex.slice(1,3),16), parseInt(hex.slice(3,5),16), parseInt(hex.slice(5,7),16)];
+        doc.setDrawColor(rgb[0], rgb[1], rgb[2]);
+        doc.setLineWidth(0.25);
+
+        const lines = geom.type === 'LineString' ? [geom.coordinates]
+                    : geom.type === 'MultiLineString' ? geom.coordinates
+                    : [];
+        lines.forEach(coords => {
+          for (let i = 0; i < coords.length - 1; i++){
+            const [lon1, lat1] = coords[i];
+            const [lon2, lat2] = coords[i+1];
+            // Skip segments entirely outside the visible bounds to avoid stray lines
+            if ((lon1 < west && lon2 < west) || (lon1 > east && lon2 > east)) continue;
+            if ((lat1 < south && lat2 < south) || (lat1 > north && lat2 > north)) continue;
+            const [x1,y1] = project(lat1, lon1);
+            const [x2,y2] = project(lat2, lon2);
+            doc.line(x1, y1, x2, y2);
+          }
+        });
+      });
+    }
+
+    // Plot BH points
     visible.forEach(v => {
-      const px = mapX + ((v.lon - west) / (east - west)) * mapW;
-      const py = mapY + ((north - v.lat) / (north - south)) * mapH;
+      const [px, py] = project(v.lat, v.lon);
       const hex = colorFor(v.status);
       const rgb = [parseInt(hex.slice(1,3),16), parseInt(hex.slice(3,5),16), parseInt(hex.slice(5,7),16)];
       doc.setFillColor(rgb[0], rgb[1], rgb[2]);
@@ -1677,8 +1786,17 @@ function buildAndSavePDF(rasterDataUrl, rasterW, rasterH){
     });
     doc.setFontSize(8);
     doc.setTextColor(150,90,60);
-    doc.text('Basemap imagery could not be captured for export (cross-origin restriction) — showing borehole positions only.', mapX, mapY + mapH + 4.5);
+    doc.text('Basemap imagery not captured (this basemap does not permit export) — switch to Satellite/Hybrid view for a full image background.', mapX, mapY + mapH + 4.5);
   }
+
+  // BH-ID labels — always drawn regardless of live map zoom/label settings
+  doc.setFontSize(5.5);
+  doc.setTextColor(20,20,20);
+  visible.forEach(v => {
+    const [px, py] = project(v.lat, v.lon);
+    const name = (v.row['BH Name'] || '').trim();
+    if (name) doc.text(name, px + 1.6, py - 1.2);
+  });
 
   doc.setDrawColor(28,43,42);
   doc.setLineWidth(0.3);
