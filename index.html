@@ -909,7 +909,7 @@ function buildBoreholeLogSvg(levels){
     svg += `<line x1="${x0-4}" y1="${gwY}" x2="${x0+colW+4}" y2="${gwY}" stroke="#1e6fd9" stroke-width="1.5"/>`;
     svg += `<polygon points="${x0-4},${gwY} ${x0-8},${gwY-4} ${x0},${gwY-4}" fill="#1e6fd9"/>`;
   }
-  svg += `<text x="${x0+colW+8}" y="${y0+6}" font-family="sans-serif" font-size="10" fill="#6b6459">0.00 m (Top structural level)</text>`;
+  svg += `<text x="${x0+colW+8}" y="${y0+6}" font-family="sans-serif" font-size="10" fill="#6b6459">0.00 m (Surface level)</text>`;
   if (overburden !== null && overburden > 0 && overburden < termDepth){
     svg += `<text x="${x0+colW+8}" y="${y0+overburdenPx+3}" font-family="sans-serif" font-size="10" fill="#3a3a3a" font-weight="bold">↓ Depth ${overburden.toFixed(2)} m: Bedrock</text>`;
   }
