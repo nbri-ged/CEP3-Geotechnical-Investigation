@@ -642,6 +642,10 @@
    ============================================================ */
 const SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS8PKkh7RDdd1g5boTWjdryadGLVhDkvKUMEjScApNAeWA7TrPrcetA1YiccjQvhPfnZ8ewg1NQugfv/pub?gid=364501395&single=true&output=csv";
 const LOG_SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS8PKkh7RDdd1g5boTWjdryadGLVhDkvKUMEjScApNAeWA7TrPrcetA1YiccjQvhPfnZ8ewg1NQugfv/pub?output=csv";
+// Progress-tracking tab (gid=1476293361) — has pre-computed daily columns:
+// Z = Date, AB = Cummalative (completed count), AC = Progress Percentage.
+// PASTE the "Publish to web" CSV link for THAT SPECIFIC TAB here once you have it:
+const PROGRESS_SHEET_CSV_URL = "PASTE_PUBLISHED_CSV_LINK_FOR_GID_1476293361_HERE";
 const AUTO_REFRESH_MS = 5 * 60 * 1000;
 
 proj4.defs("EPSG:5235", "+proj=tmerc +lat_0=7.000480277777778 +lon_0=80.77171308333334 +k=0.9999238418 +x_0=500000 +y_0=500000 +ellps=evrst30 +towgs84=-0.293,766.95,87.713,0.195704,1.69507,3.47302,-0.039338 +units=m +no_defs");
@@ -671,7 +675,7 @@ let measureLines = L.polyline([], {color: '#b3541e', weight: 3, dashArray: '6, 6
 let measurePolygon = L.polygon([], {color: '#b3541e', fillColor: '#b3541e', fillOpacity: 0.15}).addTo(map);
 let measureMarkers = [];
 let timelineActiveDate = null;
-let sortedProjectDates = [];
+let progressSeries = []; // [{date, cumulative, percentage}], sourced from sheet columns Z/AB/AC
 
 const baseLayers = {
   "Street": L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -794,18 +798,28 @@ function getFirst(row, keys){
 }
 
 const MONTH_ABBR = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-function formatDateDMY(value){
-  if (!value) return '';
+function parseDateFlexible(value){
+  if (!value) return null;
   const s = String(value).trim();
-  if (!s) return '';
+  if (!s) return null;
   let d = null;
   const m = s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})$/);
   if (m){
     let [, dd, mo, yyyy] = m;
     if (yyyy.length === 2) yyyy = '20' + yyyy;
     d = new Date(parseInt(yyyy, 10), parseInt(mo, 10) - 1, parseInt(dd, 10));
-  } else { d = new Date(s); }
-  if (!d || isNaN(d.getTime())) return s;
+  } else {
+    d = new Date(s); // handles "16-Jun-2025" style textual dates too
+  }
+  if (!d || isNaN(d.getTime())) return null;
+  return d;
+}
+function formatDateDMY(value){
+  if (!value) return '';
+  const s = String(value).trim();
+  if (!s) return '';
+  const d = parseDateFlexible(s);
+  if (!d) return s;
   return `${String(d.getDate()).padStart(2,'0')} ${MONTH_ABBR[d.getMonth()]} ${d.getFullYear()}`;
 }
 
@@ -835,6 +849,38 @@ function fetchLogDates(){
       if(allRows.length > 0) initTimelineSlider();
     },
     error: (err) => console.error('Could not load log matrix profiles:', err)
+  });
+}
+
+// Loads the pre-computed daily progress table (Date / Cummalative / Progress
+// Percentage) from the progress-tracking tab, so the timeline slider and its
+// summary numbers match your official reporting exactly, rather than being
+// recalculated from individual BH dates.
+function fetchProgressSeries(){
+  if (!PROGRESS_SHEET_CSV_URL || PROGRESS_SHEET_CSV_URL.indexOf('PASTE_') === 0){
+    console.warn('PROGRESS_SHEET_CSV_URL not set yet — timeline slider will stay disabled.');
+    return;
+  }
+  Papa.parse(PROGRESS_SHEET_CSV_URL, {
+    download: true, header: true, skipEmptyLines: true,
+    complete: (results) => {
+      const series = [];
+      results.data.forEach(raw => {
+        const row = normalizeRow(raw);
+        const dateVal = row['Date'];
+        const cumVal = row['Cummalative'];
+        const pctVal = row['Progress Percentage'];
+        if (dateVal === undefined || cumVal === undefined) return;
+        const d = parseDateFlexible(dateVal);
+        const cum = toNum(cumVal);
+        if (!d || cum === null) return;
+        series.push({ date: d, cumulative: cum, percentage: toNum(pctVal) });
+      });
+      series.sort((a,b) => a.date - b.date);
+      progressSeries = series;
+      if (allRows.length > 0) initTimelineSlider();
+    },
+    error: (err) => console.error('Could not load progress series (Z/AB/AC tab):', err)
   });
 }
 
@@ -1104,45 +1150,41 @@ function initTimelineSlider() {
   const slider = document.getElementById('timeline-slider');
   const label = document.getElementById('timeline-label');
   const resetBtn = document.getElementById('timeline-reset-btn');
-  const datesSet = new Set();
-  
-  allRows.forEach(row => {
-    const bhName = (row['BH Name'] || '').trim(); const logDates = bhDatesLookup[bhName] || {};
-    const compDateStr = getFirst(row, ['Borehole Completed Date','Completed Date','Completion Date','Date Completed','Finish Date','End Date']) || logDates.completed;
-    if (compDateStr) {
-      const parsed = new Date(compDateStr); if (!isNaN(parsed.getTime())) datesSet.add(parsed.toISOString().slice(0, 10));
-    }
-  });
-  sortedProjectDates = Array.from(datesSet).sort();
-  if (sortedProjectDates.length === 0) {
-    label.textContent = "Timeline unavailable (No completion dates found)"; slider.disabled = true; return;
+
+  if (progressSeries.length === 0) {
+    label.textContent = "Timeline unavailable (progress sheet not connected yet)";
+    slider.disabled = true;
+    return;
   }
-  slider.disabled = false; slider.min = 0; slider.max = sortedProjectDates.length - 1; slider.value = sortedProjectDates.length - 1;
-  
-  slider.addEventListener('input', (e) => {
-    const idx = parseInt(e.target.value); timelineActiveDate = new Date(sortedProjectDates[idx]);
-    label.innerHTML = `📅 Date Focus: <b>${formatDateDMY(sortedProjectDates[idx])}</b>`;
-    resetBtn.style.display = 'block'; render(); updateDashboardTimelineOverride();
-  });
-  resetBtn.addEventListener('click', () => {
-    timelineActiveDate = null; slider.value = sortedProjectDates.length - 1;
-    label.textContent = "Showing All Dates (Cumulative)"; resetBtn.style.display = 'none'; render(); updateDashboard();
-  });
+  slider.disabled = false;
+  slider.min = 0;
+  slider.max = progressSeries.length - 1;
+  slider.value = progressSeries.length - 1;
+
+  slider.oninput = (e) => {
+    const idx = parseInt(e.target.value, 10);
+    const entry = progressSeries[idx];
+    timelineActiveDate = entry.date;
+    const pctText = (entry.percentage !== null) ? entry.percentage.toFixed(1) + '%' : '';
+    label.innerHTML = `📅 As of <b>${formatDateDMY(entry.date)}</b> — ${entry.cumulative} completed ${pctText ? '(' + pctText + ')' : ''}`;
+    resetBtn.style.display = 'block';
+    render();
+    updateDashboardTimelineOverride(entry);
+  };
+  resetBtn.onclick = () => {
+    timelineActiveDate = null;
+    slider.value = progressSeries.length - 1;
+    label.textContent = "Showing All Dates (Cumulative)";
+    resetBtn.style.display = 'none';
+    render();
+    updateDashboard();
+  };
 }
 
-function updateDashboardTimelineOverride() {
-  let completedCount = 0;
-  allRows.forEach(row => {
-    const bhName = (row['BH Name'] || '').trim(); const logDates = bhDatesLookup[bhName] || {};
-    const status = (row['Status'] || '').trim();
-    const compDateStr = getFirst(row, ['Borehole Completed Date','Completed Date','Completion Date','Date Completed','Finish Date','End Date']) || logDates.completed;
-    if (status === 'Completed' && compDateStr) {
-      const bhDate = new Date(compDateStr); if (!isNaN(bhDate.getTime()) && bhDate <= timelineActiveDate) completedCount++;
-    }
-  });
-  document.getElementById('dash-completed').textContent = completedCount;
-  const total = allRows.length;
-  document.getElementById('dash-progress').textContent = total > 0 ? Math.round((completedCount / total) * 100) + '%' : '0%';
+function updateDashboardTimelineOverride(entry) {
+  document.getElementById('dash-completed').textContent = entry.cumulative;
+  document.getElementById('dash-progress').textContent =
+    (entry.percentage !== null) ? entry.percentage.toFixed(1) + '%' : '—';
 }
 
 /* ============================================================
@@ -1294,14 +1336,14 @@ function setupPwaCache() {
 document.getElementById('search').addEventListener('input', render);
 ['f-status','f-contractor','f-lot','f-package'].forEach(id => document.getElementById(id).addEventListener('change', render) );
 
-fetchData(); fetchLogDates();
+fetchData(); fetchLogDates(); fetchProgressSeries();
 if (SHEET_CSV_URL && AUTO_REFRESH_MS > 0){
-  setInterval(fetchData, AUTO_REFRESH_MS); setInterval(fetchLogDates, AUTO_REFRESH_MS);
+  setInterval(fetchData, AUTO_REFRESH_MS); setInterval(fetchLogDates, AUTO_REFRESH_MS); setInterval(fetchProgressSeries, AUTO_REFRESH_MS);
 }
 
 document.getElementById('refresh-btn').addEventListener('click', () => {
   const btn = document.getElementById('refresh-btn'); btn.classList.add('spinning');
-  fetchData(); fetchLogDates(); setTimeout(() => btn.classList.remove('spinning'), 900);
+  fetchData(); fetchLogDates(); fetchProgressSeries(); setTimeout(() => btn.classList.remove('spinning'), 900);
 });
 
 /* ============================================================
