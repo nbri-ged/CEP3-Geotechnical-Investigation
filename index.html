@@ -750,6 +750,8 @@
    ============================================================ */
 const SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS8PKkh7RDdd1g5boTWjdryadGLVhDkvKUMEjScApNAeWA7TrPrcetA1YiccjQvhPfnZ8ewg1NQugfv/pub?gid=364501395&single=true&output=csv";
 const LOG_SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS8PKkh7RDdd1g5boTWjdryadGLVhDkvKUMEjScApNAeWA7TrPrcetA1YiccjQvhPfnZ8ewg1NQugfv/pub?output=csv";
+// "BH Profile" tab — real layer-by-layer stratigraphy (PointID, Depth, Bottom, Graphic)
+const BH_PROFILE_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS8PKkh7RDdd1g5boTWjdryadGLVhDkvKUMEjScApNAeWA7TrPrcetA1YiccjQvhPfnZ8ewg1NQugfv/pub?output=csv&gid=1914424732";
 // Progress-tracking tab (gid=1476293361) — has pre-computed daily columns:
 // Z = Date, AB = Cummalative (completed count), AC = Progress Percentage.
 // PASTE the "Publish to web" CSV link for THAT SPECIFIC TAB here once you have it:
@@ -938,6 +940,74 @@ function normalizeRow(row){
 }
 
 let bhDatesLookup = {};
+
+/* ============================================================
+   BH Profile log — real layer-by-layer stratigraphy
+   ============================================================ */
+// Only codes we're confident about get a friendly label; anything else
+// shows its raw code as-is rather than a guessed expansion.
+const GRAPHIC_CODE_INFO = {
+  'MS': { label: 'Sandy SILT', color: '#d9c08c' },
+  'SM': { label: 'Silty SAND', color: '#e0cfa0' },
+  'SC': { label: 'Clayey SAND', color: '#c9b280' },
+  'SP': { label: 'Poorly Graded SAND', color: '#ead9ae' },
+  'GM': { label: 'Silty GRAVEL', color: '#b8a888' },
+  'GC': { label: 'Clayey GRAVEL', color: '#a89876' },
+  'CL': { label: 'Low Plasticity CLAY', color: '#b9a88f' },
+  'CH': { label: 'High Plasticity CLAY', color: '#a08d70' },
+  'ML': { label: 'Low Plasticity SILT', color: '#ddd0ab' }
+};
+const ROCK_KEYWORDS = ['BEDROCK','ROCK','GNEISS','GRANITE','QUARTZITE','SCHIST','MARBLE','DOLERITE','CHARNOCKITE','GABBRO','LIMESTONE'];
+
+function isRockCode(code){
+  const up = (code || '').toUpperCase();
+  return ROCK_KEYWORDS.some(k => up.includes(k));
+}
+
+function graphicHashColor(code){
+  let hash = 0;
+  const s = (code || '').trim();
+  for (let i = 0; i < s.length; i++) hash = (hash * 31 + s.charCodeAt(i)) | 0;
+  const soilPalette = ['#d9c9a3','#e2d3ab','#ccb98f','#e8dcb8','#d4c299'];
+  return soilPalette[Math.abs(hash) % soilPalette.length];
+}
+
+function getGraphicInfo(code){
+  const clean = (code || '').trim();
+  const upper = clean.toUpperCase();
+  if (isRockCode(clean)){
+    return { label: clean, color: '#8f8f95', isRock: true };
+  }
+  if (GRAPHIC_CODE_INFO[upper]){
+    return { label: GRAPHIC_CODE_INFO[upper].label, color: GRAPHIC_CODE_INFO[upper].color, isRock: false };
+  }
+  return { label: clean || 'Unclassified', color: graphicHashColor(clean), isRock: false };
+}
+
+// BH Name -> [{depth, bottom, graphic}, ...] sorted by depth ascending
+let profileLayersByBH = {};
+
+function fetchBHProfileLog(){
+  Papa.parse(BH_PROFILE_CSV_URL, {
+    download: true, header: true, skipEmptyLines: true,
+    complete: (results) => {
+      const grouped = {};
+      results.data.forEach(raw => {
+        const row = normalizeRow(raw);
+        const pointId = (row['PointID'] || '').trim();
+        const depth = toNum(row['Depth']);
+        const bottom = toNum(row['Bottom']);
+        const graphic = (row['Graphic'] || '').trim();
+        if (!pointId || depth === null || bottom === null) return;
+        if (!grouped[pointId]) grouped[pointId] = [];
+        grouped[pointId].push({ depth, bottom, graphic });
+      });
+      Object.keys(grouped).forEach(k => grouped[k].sort((a,b) => a.depth - b.depth));
+      profileLayersByBH = grouped;
+    },
+    error: (err) => console.error('Could not load BH Profile log:', err)
+  });
+}
 function fetchLogDates(){
   Papa.parse(LOG_SHEET_CSV_URL, {
     download: true, header: true, skipEmptyLines: true,
@@ -1040,40 +1110,86 @@ function rockLevelDisplay(levels){
   return `Depth ${levels.overburden.toFixed(2)} m`;
 }
 
-function buildBoreholeLogSvg(levels){
-  const { termDepth, overburden, rockPx, gwDepth } = levels;
-  if (termDepth === null || termDepth <= 0) return '';
+function buildBoreholeLogSvg(levels, layers){
+  const { termDepth, overburden, gwDepth } = levels;
+  const effectiveTermDepth = (layers && layers.length)
+    ? Math.max(...layers.map(l => l.bottom))
+    : termDepth;
+  if (effectiveTermDepth === null || effectiveTermDepth <= 0) return '';
+
   const colH = 120, colW = 26, x0 = 8, y0 = 12;
-  const scale = colH / termDepth;
-  const overburdenPx = overburden !== null ? Math.min(overburden * scale, colH) : colH;
-  const rkPx = colH - overburdenPx;
+  const scale = colH / effectiveTermDepth;
   const gwPx = (gwDepth !== null) ? Math.min(Math.max(gwDepth * scale, 0), colH) : null;
-  
-  let svg = `<svg width="220" height="${colH + 24}" viewBox="0 0 220 ${colH + 24}" xmlns="http://www.w3.org/2000/svg">`;
-  svg += `<rect x="${x0}" y="${y0}" width="${colW}" height="${overburdenPx.toFixed(1)}" fill="#c9a876" stroke="#8a7350" stroke-width="0.5"/>`;
-  if (rkPx > 0.3){
-    svg += `<rect x="${x0}" y="${(y0+overburdenPx).toFixed(1)}" width="${colW}" height="${rkPx.toFixed(1)}" fill="#8f8f95" stroke="#5c5c60" stroke-width="0.5"/>`;
-    for (let hy = overburdenPx; hy < colH; hy += 10){
-      svg += `<line x1="${x0}" y1="${(y0+hy).toFixed(1)}" x2="${(x0+colW).toFixed(1)}" y2="${(y0+hy).toFixed(1)}" stroke="#5c5c60" stroke-width="0.4" opacity="0.4"/>`;
+
+  let svg = `<svg width="230" height="${colH + 24}" viewBox="0 0 230 ${colH + 24}" xmlns="http://www.w3.org/2000/svg">`;
+
+  if (layers && layers.length){
+    // Real layer-by-layer stratigraphy from the BH Profile log
+    const usedLabels = new Set();
+    layers.forEach(layer => {
+      const info = getGraphicInfo(layer.graphic);
+      const yTop = y0 + Math.min(layer.depth * scale, colH);
+      const yBot = y0 + Math.min(layer.bottom * scale, colH);
+      const h = Math.max(yBot - yTop, 0.3);
+      svg += `<rect x="${x0}" y="${yTop.toFixed(1)}" width="${colW}" height="${h.toFixed(1)}" fill="${info.color}" stroke="#6b6459" stroke-width="0.4"/>`;
+      if (info.isRock){
+        for (let hy = yTop; hy < yBot; hy += 8){
+          svg += `<line x1="${x0}" y1="${hy.toFixed(1)}" x2="${(x0+colW).toFixed(1)}" y2="${hy.toFixed(1)}" stroke="#5c5c60" stroke-width="0.4" opacity="0.4"/>`;
+        }
+      }
+      usedLabels.add(layer.graphic + '|' + info.label + '|' + info.color);
+    });
+    // Depth tick labels at each layer boundary
+    const boundaries = new Set([0]);
+    layers.forEach(l => { boundaries.add(l.depth); boundaries.add(l.bottom); });
+    Array.from(boundaries).sort((a,b)=>a-b).forEach(d => {
+      const y = y0 + Math.min(d * scale, colH);
+      svg += `<line x1="${x0-3}" y1="${y.toFixed(1)}" x2="${x0}" y2="${y.toFixed(1)}" stroke="#3a3a3a" stroke-width="0.6"/>`;
+      svg += `<text x="${x0-5}" y="${(y+2.5).toFixed(1)}" font-size="6.5" fill="#6b6459" text-anchor="end">${d.toFixed(1)}</text>`;
+    });
+  } else if (overburden !== null || effectiveTermDepth !== null){
+    // Fallback: simplified two-segment (soil / rock) version
+    const overburdenPx = overburden !== null ? Math.min(overburden * scale, colH) : colH;
+    const rkPx = colH - overburdenPx;
+    svg += `<rect x="${x0}" y="${y0}" width="${colW}" height="${overburdenPx.toFixed(1)}" fill="#c9a876" stroke="#8a7350" stroke-width="0.5"/>`;
+    if (rkPx > 0.3){
+      svg += `<rect x="${x0}" y="${(y0+overburdenPx).toFixed(1)}" width="${colW}" height="${rkPx.toFixed(1)}" fill="#8f8f95" stroke="#5c5c60" stroke-width="0.5"/>`;
+      for (let hy = overburdenPx; hy < colH; hy += 10){
+        svg += `<line x1="${x0}" y1="${(y0+hy).toFixed(1)}" x2="${(x0+colW).toFixed(1)}" y2="${(y0+hy).toFixed(1)}" stroke="#5c5c60" stroke-width="0.4" opacity="0.4"/>`;
+      }
     }
   }
+
   svg += `<rect x="${x0}" y="${y0}" width="${colW}" height="${colH.toFixed(1)}" fill="none" stroke="#3a3a3a" stroke-width="1"/>`;
+
   if (gwPx !== null){
     const gwY = (y0 + gwPx).toFixed(1);
     svg += `<line x1="${x0-4}" y1="${gwY}" x2="${x0+colW+4}" y2="${gwY}" stroke="#1e6fd9" stroke-width="1.5"/>`;
     svg += `<polygon points="${x0-4},${gwY} ${x0-8},${gwY-4} ${x0},${gwY-4}" fill="#1e6fd9"/>`;
   }
+
   svg += `<text x="${x0+colW+8}" y="${y0+6}" font-family="sans-serif" font-size="10" fill="#6b6459">0.00 m (Surface level)</text>`;
-  if (overburden !== null && overburden > 0 && overburden < termDepth){
-    svg += `<text x="${x0+colW+8}" y="${y0+overburdenPx+3}" font-family="sans-serif" font-size="10" fill="#3a3a3a" font-weight="bold">↓ Depth ${overburden.toFixed(2)} m: Bedrock</text>`;
-  }
-  svg += `<text x="${x0+colW+8}" y="${y0+colH+3}" font-family="sans-serif" font-size="10" fill="#1c2b2a" font-weight="bold">↓ Depth ${termDepth.toFixed(2)} m: Terminated</text>`;
+  svg += `<text x="${x0+colW+8}" y="${y0+colH+3}" font-family="sans-serif" font-size="10" fill="#1c2b2a" font-weight="bold">↓ Depth ${effectiveTermDepth.toFixed(2)} m: Terminated</text>`;
   svg += `</svg>`;
   return svg;
 }
 
-function buildBoreholeLogMarkup(levels){
-  const svg = buildBoreholeLogSvg(levels); if (!svg) return '';
+function buildLayerLegendHtml(layers){
+  if (!layers || !layers.length) return '';
+  const seen = {};
+  layers.forEach(l => {
+    const info = getGraphicInfo(l.graphic);
+    seen[info.label] = info.color;
+  });
+  return Object.keys(seen).map(label =>
+    `<span style="display:inline-flex; align-items:center; gap:3px; margin-right:8px; font-size:10px; color:#6b6459;">
+      <span style="width:9px; height:9px; background:${seen[label]}; border:1px solid #999; display:inline-block; border-radius:2px;"></span>${label}
+    </span>`
+  ).join('');
+}
+
+function buildBoreholeLogMarkup(levels, layers){
+  const svg = buildBoreholeLogSvg(levels, layers); if (!svg) return '';
   const overburdenTxt = levels.overburden !== null ? ('Overburden: ' + levels.overburden.toFixed(2) + 'm') : '';
   const rockTxt = levels.rockCoring !== null ? ('Rock Coring: ' + levels.rockCoring.toFixed(2) + 'm') : '';
   const rlTxt = levels.elevation !== null ? ('MSL(elev) ' + levels.elevation.toFixed(2) + 'm') : '';
@@ -1081,7 +1197,9 @@ function buildBoreholeLogMarkup(levels){
   const termRlTxt = levels.terminationLevel !== null ? ('MSL(term) ' + levels.terminationLevel.toFixed(2) + 'm') : '';
   const gwlRlTxt = levels.gwLevel !== null ? ('MSL(GWL) ' + levels.gwLevel.toFixed(2) + 'm') : '';
   const captionParts = [overburdenTxt, rockTxt, rlTxt, rockRlTxt, termRlTxt, gwlRlTxt].filter(Boolean).join(' &middot; ');
-  return `<div class="bh-log-wrap"><div class="bh-log-title">Borehole Log (schematic)</div><div class="bh-log-row">${svg}</div><div class="bh-log-caption">${captionParts}</div></div>`;
+  const legendHtml = buildLayerLegendHtml(layers);
+  const legendRow = legendHtml ? `<div style="margin-top:5px;">${legendHtml}</div>` : '';
+  return `<div class="bh-log-wrap"><div class="bh-log-title">Borehole Log (schematic)</div><div class="bh-log-row">${svg}</div><div class="bh-log-caption">${captionParts}</div>${legendRow}</div>`;
 }
 
 function popupHtml(row){
@@ -1102,7 +1220,7 @@ function popupHtml(row){
   const tableRows = rows.map(([k,v]) => `<tr><td class="k">${k}</td><td>${v}</td></tr>`).join('');
   const pdfUrl = (row['PDF Link'] || row['Log PDF'] || row['Borehole Log'] || '').trim();
   const pdfButton = pdfUrl ? `<a href="${pdfUrl}" target="_blank" rel="noopener" class="pdf-link-btn">&#128196; View / Download Borehole Log</a>` : '';
-  const logHtml = buildBoreholeLogMarkup(levels);
+  const logHtml = buildBoreholeLogMarkup(levels, profileLayersByBH[bhName]);
   
   return `<div class="popup-title">${bhName} <span class="status-pill" style="background:${colorFor(row['Status'])}">${row['Status'] || 'Planned'}</span></div><table class="popup-table">${tableRows}</table>${pdfButton}${logHtml}`;
 }
@@ -1449,14 +1567,14 @@ function setupPwaCache() {
 document.getElementById('search').addEventListener('input', render);
 ['f-status','f-contractor','f-lot','f-package'].forEach(id => document.getElementById(id).addEventListener('change', render) );
 
-fetchData(); fetchLogDates(); fetchProgressSeries();
+fetchData(); fetchLogDates(); fetchProgressSeries(); fetchBHProfileLog();
 if (SHEET_CSV_URL && AUTO_REFRESH_MS > 0){
-  setInterval(fetchData, AUTO_REFRESH_MS); setInterval(fetchLogDates, AUTO_REFRESH_MS); setInterval(fetchProgressSeries, AUTO_REFRESH_MS);
+  setInterval(fetchData, AUTO_REFRESH_MS); setInterval(fetchLogDates, AUTO_REFRESH_MS); setInterval(fetchProgressSeries, AUTO_REFRESH_MS); setInterval(fetchBHProfileLog, AUTO_REFRESH_MS);
 }
 
 document.getElementById('refresh-btn').addEventListener('click', () => {
   const btn = document.getElementById('refresh-btn'); btn.classList.add('spinning');
-  fetchData(); fetchLogDates(); fetchProgressSeries(); setTimeout(() => btn.classList.remove('spinning'), 900);
+  fetchData(); fetchLogDates(); fetchProgressSeries(); fetchBHProfileLog(); setTimeout(() => btn.classList.remove('spinning'), 900);
 });
 
 /* ============================================================
@@ -1808,6 +1926,27 @@ function computeProfilePositions(rows){
 function buildProfileSvg(rows){
   const distances = computeProfilePositions(rows);
   const levelsArr = rows.map(computeBHLevels);
+  const bhNames = rows.map(r => (r['BH Name'] || '').trim());
+  const layersArr = bhNames.map(n => profileLayersByBH[n] || null);
+
+  // Effective top-of-rock and termination elevation per BH, preferring real
+  // layer data (from the BH Profile log) over the simplified two-segment values.
+  const effectiveRockLevel = levelsArr.map((lv, i) => {
+    const layers = layersArr[i];
+    if (layers && layers.length && lv.elevation !== null){
+      const rockLayer = layers.find(l => getGraphicInfo(l.graphic).isRock);
+      if (rockLayer) return lv.elevation - rockLayer.depth;
+    }
+    return lv.rockLevel;
+  });
+  const effectiveTermLevel = levelsArr.map((lv, i) => {
+    const layers = layersArr[i];
+    if (layers && layers.length && lv.elevation !== null){
+      const maxBottom = Math.max(...layers.map(l => l.bottom));
+      return lv.elevation - maxBottom;
+    }
+    return lv.terminationLevel;
+  });
 
   const totalDist = Math.max(distances[distances.length - 1], 1);
   const padLeft = 65, padRight = 40, padTop = 40, padBottom = 50;
@@ -1816,12 +1955,11 @@ function buildProfileSvg(rows){
   const svgW = plotW + padLeft + padRight;
   const svgH = plotH + padTop + padBottom;
 
-  // Elevation range across all BHs (ground level down to lowest termination)
   let maxElev = -Infinity, minElev = Infinity;
-  levelsArr.forEach(lv => {
+  levelsArr.forEach((lv, i) => {
     if (lv.elevation !== null) maxElev = Math.max(maxElev, lv.elevation);
-    if (lv.terminationLevel !== null) minElev = Math.min(minElev, lv.terminationLevel);
-    if (lv.rockLevel !== null) minElev = Math.min(minElev, lv.rockLevel);
+    if (effectiveTermLevel[i] !== null && effectiveTermLevel[i] !== undefined) minElev = Math.min(minElev, effectiveTermLevel[i]);
+    if (effectiveRockLevel[i] !== null && effectiveRockLevel[i] !== undefined) minElev = Math.min(minElev, effectiveRockLevel[i]);
   });
   if (!isFinite(maxElev) || !isFinite(minElev)){ maxElev = 100; minElev = 80; }
   const elevPad = (maxElev - minElev) * 0.12 || 2;
@@ -1834,7 +1972,6 @@ function buildProfileSvg(rows){
   let svg = `<svg width="${svgW}" height="${svgH}" viewBox="0 0 ${svgW} ${svgH}" xmlns="http://www.w3.org/2000/svg" font-family="Inter, sans-serif">`;
   svg += `<rect x="0" y="0" width="${svgW}" height="${svgH}" fill="#ffffff"/>`;
 
-  // Elevation gridlines + labels
   const gridSteps = 6;
   for (let i = 0; i <= gridSteps; i++){
     const elev = minElev + (elevRange / gridSteps) * i;
@@ -1845,17 +1982,13 @@ function buildProfileSvg(rows){
   svg += `<text x="16" y="${(padTop+plotH/2).toFixed(1)}" font-size="11" fill="#1c2b2a" font-weight="700" transform="rotate(-90 16 ${(padTop+plotH/2).toFixed(1)})" text-anchor="middle">Elevation (m, RL)</text>`;
   svg += `<text x="${(padLeft+plotW/2).toFixed(1)}" y="${(svgH-10).toFixed(1)}" font-size="11" fill="#1c2b2a" font-weight="700" text-anchor="middle">Distance along section (m)</text>`;
 
-  // Column width
   const colW = Math.min(34, plotW / Math.max(rows.length, 1) * 0.5);
 
-  // Collect boundary points for connecting profile lines
-  const groundPts = [], rockPts = [], termPts = [], gwPts = [];
-
+  const groundPts = [], rockPts = [], gwPts = [];
   levelsArr.forEach((lv, i) => {
     const x = xPos(distances[i]);
     if (lv.elevation !== null) groundPts.push([x, yPos(lv.elevation)]);
-    if (lv.rockLevel !== null) rockPts.push([x, yPos(lv.rockLevel)]);
-    if (lv.terminationLevel !== null) termPts.push([x, yPos(lv.terminationLevel)]);
+    if (effectiveRockLevel[i] !== null && effectiveRockLevel[i] !== undefined) rockPts.push([x, yPos(effectiveRockLevel[i])]);
     if (lv.gwLevel !== null) gwPts.push([x, yPos(lv.gwLevel)]);
   });
 
@@ -1863,62 +1996,81 @@ function buildProfileSvg(rows){
     return pts.map((p,i) => (i===0?'M':'L') + p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' ');
   }
 
-  // Interpreted rock surface (bedrock profile) — dashed brown line joining rock levels
   if (rockPts.length >= 2){
     svg += `<path d="${polylinePath(rockPts)}" fill="none" stroke="#7a2f1e" stroke-width="1.6" stroke-dasharray="6,4"/>`;
   }
-  // Groundwater table profile — dashed blue line
   if (gwPts.length >= 2){
     svg += `<path d="${polylinePath(gwPts)}" fill="none" stroke="#1e6fd9" stroke-width="1.4" stroke-dasharray="4,3"/>`;
   }
 
-  // Draw each borehole column (soil + rock), on top of the connecting lines
+  const usedGraphicLabels = {};
+
   levelsArr.forEach((lv, i) => {
     const x = xPos(distances[i]);
-    const bhName = (rows[i]['BH Name'] || '').trim();
+    const bhName = bhNames[i];
+    const layers = layersArr[i];
+    const yGround = lv.elevation !== null ? yPos(lv.elevation) : null;
+    const yTerm = (effectiveTermLevel[i] !== null && effectiveTermLevel[i] !== undefined) ? yPos(effectiveTermLevel[i]) : null;
 
-    if (lv.elevation !== null && lv.terminationLevel !== null){
-      const yGround = yPos(lv.elevation);
-      const yRock = lv.rockLevel !== null ? yPos(lv.rockLevel) : yGround;
-      const yTerm = yPos(lv.terminationLevel);
+    if (yGround === null || yTerm === null){
+      svg += `<text x="${x.toFixed(1)}" y="${(padTop-10).toFixed(1)}" font-size="9" fill="#c0523f" text-anchor="middle">${bhName} (missing Elevation or depth data)</text>`;
+      return;
+    }
 
-      // Soil segment
+    if (layers && layers.length){
+      // Real layer-by-layer stratigraphy
+      layers.forEach(layer => {
+        const info = getGraphicInfo(layer.graphic);
+        const yTop = yPos(lv.elevation - layer.depth);
+        const yBot = yPos(lv.elevation - layer.bottom);
+        svg += `<rect x="${(x-colW/2).toFixed(1)}" y="${yTop.toFixed(1)}" width="${colW.toFixed(1)}" height="${Math.max(yBot-yTop,0.3).toFixed(1)}" fill="${info.color}" stroke="#6b6459" stroke-width="0.5"/>`;
+        if (info.isRock){
+          for (let hy = yTop; hy < yBot; hy += 8){
+            svg += `<line x1="${(x-colW/2).toFixed(1)}" y1="${hy.toFixed(1)}" x2="${(x+colW/2).toFixed(1)}" y2="${hy.toFixed(1)}" stroke="#5c5c60" stroke-width="0.4" opacity="0.4"/>`;
+          }
+        }
+        usedGraphicLabels[info.label] = info.color;
+      });
+    } else {
+      // Fallback: simplified two-segment version
+      const yRock = (effectiveRockLevel[i] !== null && effectiveRockLevel[i] !== undefined) ? yPos(effectiveRockLevel[i]) : yGround;
       svg += `<rect x="${(x-colW/2).toFixed(1)}" y="${yGround.toFixed(1)}" width="${colW.toFixed(1)}" height="${Math.max(yRock-yGround,0).toFixed(1)}" fill="#c9a876" stroke="#8a7350" stroke-width="0.6"/>`;
-      // Rock segment
       if (yTerm > yRock){
         svg += `<rect x="${(x-colW/2).toFixed(1)}" y="${yRock.toFixed(1)}" width="${colW.toFixed(1)}" height="${(yTerm-yRock).toFixed(1)}" fill="#8f8f95" stroke="#5c5c60" stroke-width="0.6"/>`;
         for (let hy = yRock; hy < yTerm; hy += 9){
           svg += `<line x1="${(x-colW/2).toFixed(1)}" y1="${hy.toFixed(1)}" x2="${(x+colW/2).toFixed(1)}" y2="${hy.toFixed(1)}" stroke="#5c5c60" stroke-width="0.4" opacity="0.4"/>`;
         }
       }
-      svg += `<rect x="${(x-colW/2).toFixed(1)}" y="${yGround.toFixed(1)}" width="${colW.toFixed(1)}" height="${(yTerm-yGround).toFixed(1)}" fill="none" stroke="#3a3a3a" stroke-width="0.8"/>`;
-
-      // Groundwater tick on this column
-      if (lv.gwLevel !== null){
-        const yGw = yPos(lv.gwLevel);
-        svg += `<line x1="${(x-colW/2-3).toFixed(1)}" y1="${yGw.toFixed(1)}" x2="${(x+colW/2+3).toFixed(1)}" y2="${yGw.toFixed(1)}" stroke="#1e6fd9" stroke-width="1.2"/>`;
-      }
-
-      // BH label + key values above the column
-      svg += `<text x="${x.toFixed(1)}" y="${(yGround-22).toFixed(1)}" font-size="10.5" font-weight="700" fill="#1c2b2a" text-anchor="middle">${bhName}</text>`;
-      svg += `<text x="${x.toFixed(1)}" y="${(yGround-9).toFixed(1)}" font-size="8.5" fill="#6b6459" text-anchor="middle">GL ${lv.elevation.toFixed(1)}m</text>`;
-      svg += `<text x="${x.toFixed(1)}" y="${(yTerm+13).toFixed(1)}" font-size="8" fill="#6b6459" text-anchor="middle">Term ${lv.terminationLevel.toFixed(1)}m</text>`;
-    } else {
-      svg += `<text x="${x.toFixed(1)}" y="${(padTop-10).toFixed(1)}" font-size="9" fill="#c0523f" text-anchor="middle">${bhName} (incomplete data)</text>`;
+      usedGraphicLabels['Overburden (soil)'] = '#c9a876';
+      usedGraphicLabels['Rock'] = '#8f8f95';
     }
+
+    svg += `<rect x="${(x-colW/2).toFixed(1)}" y="${yGround.toFixed(1)}" width="${colW.toFixed(1)}" height="${(yTerm-yGround).toFixed(1)}" fill="none" stroke="#3a3a3a" stroke-width="0.8"/>`;
+
+    if (lv.gwLevel !== null){
+      const yGw = yPos(lv.gwLevel);
+      svg += `<line x1="${(x-colW/2-3).toFixed(1)}" y1="${yGw.toFixed(1)}" x2="${(x+colW/2+3).toFixed(1)}" y2="${yGw.toFixed(1)}" stroke="#1e6fd9" stroke-width="1.2"/>`;
+    }
+
+    svg += `<text x="${x.toFixed(1)}" y="${(yGround-22).toFixed(1)}" font-size="10.5" font-weight="700" fill="#1c2b2a" text-anchor="middle">${bhName}</text>`;
+    svg += `<text x="${x.toFixed(1)}" y="${(yGround-9).toFixed(1)}" font-size="8.5" fill="#6b6459" text-anchor="middle">GL ${lv.elevation.toFixed(1)}m</text>`;
+    svg += `<text x="${x.toFixed(1)}" y="${(yTerm+13).toFixed(1)}" font-size="8" fill="#6b6459" text-anchor="middle">Term ${effectiveTermLevel[i].toFixed(1)}m</text>`;
   });
 
-  // Ground surface profile line (on top of everything)
   if (groundPts.length >= 2){
     svg += `<path d="${polylinePath(groundPts)}" fill="none" stroke="#2f6f5e" stroke-width="2"/>`;
   }
 
-  // Legend
+  // Legend — built from whatever layer types actually appear, plus fixed lines
   const legX = padLeft, legY = svgH - 20;
-  svg += `<rect x="${legX}" y="${legY-8}" width="14" height="8" fill="#c9a876" stroke="#8a7350" stroke-width="0.5"/><text x="${legX+18}" y="${legY-1}" font-size="9" fill="#1c2b2a">Overburden (soil)</text>`;
-  svg += `<rect x="${legX+130}" y="${legY-8}" width="14" height="8" fill="#8f8f95" stroke="#5c5c60" stroke-width="0.5"/><text x="${legX+148}" y="${legY-1}" font-size="9" fill="#1c2b2a">Rock</text>`;
-  svg += `<line x1="${legX+200}" y1="${legY-4}" x2="${legX+216}" y2="${legY-4}" stroke="#1e6fd9" stroke-width="1.4" stroke-dasharray="4,3"/><text x="${legX+220}" y="${legY-1}" font-size="9" fill="#1c2b2a">Groundwater table</text>`;
-  svg += `<line x1="${legX+330}" y1="${legY-4}" x2="${legX+346}" y2="${legY-4}" stroke="#7a2f1e" stroke-width="1.6" stroke-dasharray="6,4"/><text x="${legX+350}" y="${legY-1}" font-size="9" fill="#1c2b2a">Interpreted rock surface</text>`;
+  let lx = legX;
+  Object.keys(usedGraphicLabels).forEach(label => {
+    svg += `<rect x="${lx}" y="${legY-8}" width="14" height="8" fill="${usedGraphicLabels[label]}" stroke="#6b6459" stroke-width="0.5"/><text x="${lx+18}" y="${legY-1}" font-size="9" fill="#1c2b2a">${label}</text>`;
+    lx += 18 + label.length * 5.2 + 14;
+  });
+  svg += `<line x1="${lx}" y1="${legY-4}" x2="${lx+16}" y2="${legY-4}" stroke="#1e6fd9" stroke-width="1.4" stroke-dasharray="4,3"/><text x="${lx+20}" y="${legY-1}" font-size="9" fill="#1c2b2a">Groundwater table</text>`;
+  lx += 20 + 'Groundwater table'.length * 5.2 + 16;
+  svg += `<line x1="${lx}" y1="${legY-4}" x2="${lx+16}" y2="${legY-4}" stroke="#7a2f1e" stroke-width="1.6" stroke-dasharray="6,4"/><text x="${lx+20}" y="${legY-1}" font-size="9" fill="#1c2b2a">Interpreted rock surface</text>`;
 
   svg += `</svg>`;
   return svg;
