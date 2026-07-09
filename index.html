@@ -678,6 +678,16 @@
       <h2>Legend &mdash; Status</h2>
       <div id="legend"></div>
     </div>
+
+    <div class="block">
+        <h2>Legend &mdash; Lithology</h2>
+        <div id="litho-legend">
+            <div class="legend-item"><span class="swatch" style="background:#e0c090; border-radius: 2px;"></span> <span>MS (Micaceous Sand)</span></div>
+            <div class="legend-item"><span class="swatch" style="background:#d2b48c; border-radius: 2px;"></span> <span>SM (Silty Sand)</span></div>
+            <div class="legend-item"><span class="swatch" style="background:#808080; border-radius: 2px;"></span> <span>Gneissic Bedrock</span></div>
+        </div>
+    </div>
+
     <div class="block">
       <h2>Legend &mdash; Package <span style="font-weight:400; text-transform:none; letter-spacing:0;">(zoomed out)</span></h2>
       <div id="package-legend"></div>
@@ -750,17 +760,15 @@
    ============================================================ */
 const SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS8PKkh7RDdd1g5boTWjdryadGLVhDkvKUMEjScApNAeWA7TrPrcetA1YiccjQvhPfnZ8ewg1NQugfv/pub?gid=364501395&single=true&output=csv";
 const LOG_SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS8PKkh7RDdd1g5boTWjdryadGLVhDkvKUMEjScApNAeWA7TrPrcetA1YiccjQvhPfnZ8ewg1NQugfv/pub?output=csv";
-// Progress-tracking tab (gid=1476293361) — has pre-computed daily columns:
-// Z = Date, AB = Cummalative (completed count), AC = Progress Percentage.
-// PASTE the "Publish to web" CSV link for THAT SPECIFIC TAB here once you have it:
 const PROGRESS_SHEET_CSV_URL = "PASTE_PUBLISHED_CSV_LINK_FOR_GID_1476293361_HERE";
+
+// LITHOLOGY DATA URL - "BH Profile" tab
+// PUBLISH YOUR "BH Profile" TAB TO THE WEB AS CSV AND PASTE HERE:
+const LITHO_SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS8PKkh7RDdd1g5boTWjdryadGLVhDkvKUMEjScApNAeWA7TrPrcetA1YiccjQvhPfnZ8ewg1NQugfv/pub?gid=1588665383&single=true&output=csv";
+
 const AUTO_REFRESH_MS = 5 * 60 * 1000;
 
 proj4.defs("EPSG:5235", "+proj=tmerc +lat_0=7.000480277777778 +lon_0=80.77171308333334 +k=0.9999238418 +x_0=500000 +y_0=500000 +ellps=evrst30 +towgs84=-0.293,766.95,87.713,0.195704,1.69507,3.47302,-0.039338 +units=m +no_defs");
-
-const SAMPLE_CSV = `BH Name,Easting,Northing,Elevation,TF,Status,Contractor,Difficulty,Lot,Package,Status-N,Termination Depth,Rock Coring,Groundwater Level
-BH-MT-08,457534.196,539950.47,99.929,TRUE,Completed,NBRI,Paddy Field,Lot 0,Package 2A,2,15,12,2
-BH-MT-07,457571.239,539966.16,100.505,TRUE,Completed,NBRI,Paddy Field,Lot 0,Package 2A,2,15,9,1`;
 
 const STATUS_COLORS = {
   "Completed": "#2f6f5e",
@@ -772,117 +780,40 @@ const STATUS_COLORS = {
   "default": "#4c6a72"
 };
 
+const LITHO_COLORS = {
+    "MS": "#e0c090",
+    "SM": "#d2b48c",
+    "GNEISSIC BEDROCK": "#808080",
+    "DEFAULT": "#d3d3d3"
+};
+
 const map = L.map('map', { zoomControl: true }).setView([7.45, 80.6], 12);
 
 /* ============================================================
-   NEW UTILITY CONTROL STATE FLAGS
+   STATE
    ============================================================ */
+let lithoMap = {}; // BH Name -> Array of layers [{depth, bottom, graphic}]
 let isMeasuring = false;
 let measurePoints = [];
 let measureLines = L.polyline([], {color: '#b3541e', weight: 3, dashArray: '6, 6'}).addTo(map);
 let measurePolygon = L.polygon([], {color: '#b3541e', fillColor: '#b3541e', fillOpacity: 0.15}).addTo(map);
 let measureMarkers = [];
 let timelineActiveDate = null;
-let progressSeries = []; // [{date, cumulative, percentage}], sourced from sheet columns Z/AB/AC
+let progressSeries = []; 
 
 const baseLayers = {
-  "Street": L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    maxZoom: 19, attribution: '&copy; OpenStreetMap contributors'
-  }),
-  "Satellite": L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-    maxZoom: 19, attribution: 'Tiles &copy; Esri', crossOrigin: 'anonymous'
-  }),
-  "Hybrid": L.layerGroup([
-    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-      maxZoom: 19, crossOrigin: 'anonymous'
-    }),
-    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', {
-      maxZoom: 19, crossOrigin: 'anonymous'
-    })
-  ]),
-  "Terrain": L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
-    maxZoom: 17, attribution: 'Style &copy; OpenTopoMap'
-  }),
-  "Google Hybrid": L.tileLayer('https://{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
-    maxZoom: 20, subdomains: ['mt0', 'mt1', 'mt2', 'mt3'], attribution: '&copy; Google'
-  })
+  "Street": L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }),
+  "Satellite": L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19 }),
+  "Google Hybrid": L.tileLayer('https://{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', { maxZoom: 20, subdomains: ['mt0', 'mt1', 'mt2', 'mt3'] })
 };
 
 baseLayers["Street"].addTo(map);
-const layersControl = L.control.layers(baseLayers, {}, {
-  position: 'topright', collapsed: window.matchMedia('(max-width: 768px)').matches
-}).addTo(map);
-
-/* ============================================================
-   Locate Me
-   ============================================================ */
-let userLocationMarker = null;
-let userAccuracyCircle = null;
-let userLocationWatchId = null;
-
-const LocateControl = L.Control.extend({
-  options: { position: 'bottomright' },
-  onAdd: function(){
-    const container = L.DomUtil.create('div', 'locate-fab-wrap');
-    const btn = L.DomUtil.create('button', 'locate-fab', container);
-    btn.type = 'button'; btn.title = 'Show my location';
-    btn.innerHTML = `<svg viewBox="0 0 24 24" width="20" height="20"><circle cx="12" cy="12" r="3" fill="currentColor"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>`;
-    L.DomEvent.disableClickPropagation(container);
-    L.DomEvent.on(btn, 'click', () => toggleLocate(btn));
-    return container;
-  }
-});
-map.addControl(new LocateControl());
-
-function toggleLocate(btn){
-  if (userLocationWatchId !== null){
-    navigator.geolocation.clearWatch(userLocationWatchId); userLocationWatchId = null;
-    if (userLocationMarker) { map.removeLayer(userLocationMarker); userLocationMarker = null; }
-    if (userAccuracyCircle) { map.removeLayer(userAccuracyCircle); userAccuracyCircle = null; }
-    if (btn) { btn.classList.remove('locate-active', 'locate-acquiring'); }
-    return;
-  }
-  if (!navigator.geolocation) { alert('Browser doesn\'t support geolocation.'); return; }
-  if (btn) btn.classList.add('locate-acquiring');
-  let firstFix = true;
-  userLocationWatchId = navigator.geolocation.watchPosition(
-    (pos) => {
-      const { latitude, longitude, accuracy } = pos.coords;
-      const latlng = [latitude, longitude];
-      if (!userLocationMarker){
-        userLocationMarker = L.circleMarker(latlng, { radius: 7, color: '#fff', weight: 2, fillColor: '#1e6fd9', fillOpacity: 1 }).addTo(map).bindPopup('Accuracy: &plusmn;' + Math.round(accuracy) + 'm');
-      } else { userLocationMarker.setLatLng(latlng); }
-      if (!userAccuracyCircle){
-        userAccuracyCircle = L.circle(latlng, { radius: accuracy, color: '#1e6fd9', weight: 1, fillColor: '#1e6fd9', fillOpacity: 0.12 }).addTo(map);
-      } else { userAccuracyCircle.setLatLng(latlng).setRadius(accuracy); }
-      if (firstFix){
-        map.setView(latlng, Math.max(map.getZoom(), 17)); firstFix = false;
-        if (btn) { btn.classList.remove('locate-acquiring'); btn.classList.add('locate-active'); }
-      }
-    },
-    (err) => {
-      alert('Could not acquire connection layout: ' + err.message);
-      if (btn) btn.classList.remove('locate-active', 'locate-acquiring');
-      userLocationWatchId = null;
-    },
-    { enableHighAccuracy: true, maximumAge: 5000, timeout: 15000 }
-  );
-}
+const layersControl = L.control.layers(baseLayers, {}, { position: 'topright' }).addTo(map);
 
 const markersLayer = L.layerGroup();
 map.addLayer(markersLayer);
 
-const LABEL_MIN_ZOOM = 18;
-function updateLabelVisibility(){
-  const zoom = map.getZoom();
-  const mapDiv = document.getElementById('map');
-  mapDiv.classList.toggle('show-pkg-labels', zoom >= 12 && zoom < LABEL_MIN_ZOOM);
-  mapDiv.classList.toggle('show-bh-labels', zoom >= LABEL_MIN_ZOOM);
-}
-map.on('zoomend', updateLabelVisibility);
-
 let allRows = [];
-let markers = [];
 
 function setStatus(text, cls){
   document.getElementById('status-text').textContent = text;
@@ -898,46 +829,43 @@ function toNum(v){
   return isNaN(n) ? null : n;
 }
 
-function getFirst(row, keys){
-  for (const k of keys){
-    const v = row[k]; if (v !== undefined && v !== null && String(v).trim() !== '') return String(v).trim();
-  }
-  return '';
-}
-
-const MONTH_ABBR = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-function parseDateFlexible(value){
-  if (!value) return null;
-  const s = String(value).trim();
-  if (!s) return null;
-  let d = null;
-  const m = s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})$/);
-  if (m){
-    let [, dd, mo, yyyy] = m;
-    if (yyyy.length === 2) yyyy = '20' + yyyy;
-    d = new Date(parseInt(yyyy, 10), parseInt(mo, 10) - 1, parseInt(dd, 10));
-  } else {
-    d = new Date(s); // handles "16-Jun-2025" style textual dates too
-  }
-  if (!d || isNaN(d.getTime())) return null;
-  return d;
-}
-function formatDateDMY(value){
-  if (!value) return '';
-  const s = String(value).trim();
-  if (!s) return '';
-  const d = parseDateFlexible(s);
-  if (!d) return s;
-  return `${String(d.getDate()).padStart(2,'0')} ${MONTH_ABBR[d.getMonth()]} ${d.getFullYear()}`;
-}
-
 function normalizeRow(row){
   const out = {};
   for (const k in row){ out[k.replace(/\s+/g, ' ').trim()] = row[k]; }
   return out;
 }
 
-let bhDatesLookup = {};
+function getLithoColor(graphic) {
+    if (!graphic) return LITHO_COLORS.DEFAULT;
+    const g = graphic.toUpperCase();
+    if (g.includes("GNEISSIC")) return LITHO_COLORS["GNEISSIC BEDROCK"];
+    return LITHO_COLORS[g] || LITHO_COLORS.DEFAULT;
+}
+
+/* ============================================================
+   DATA FETCHING
+   ============================================================ */
+function fetchLithology(){
+    Papa.parse(LITHO_SHEET_CSV_URL, {
+        download: true, header: true, skipEmptyLines: true,
+        complete: (results) => {
+            const map = {};
+            results.data.forEach(raw => {
+                const bhId = (raw['PointID'] || raw['BH Name'] || '').trim();
+                if (!bhId) return;
+                if (!map[bhId]) map[bhId] = [];
+                map[bhId].push({
+                    depth: parseFloat(raw['Depth']) || 0,
+                    bottom: parseFloat(raw['Bottom']) || 0,
+                    graphic: (raw['Graphic'] || '').trim()
+                });
+            });
+            lithoMap = map;
+            render(); // Refresh popups/logs once litho data arrives
+        }
+    });
+}
+
 function fetchLogDates(){
   Papa.parse(LOG_SHEET_CSV_URL, {
     download: true, header: true, skipEmptyLines: true,
@@ -945,82 +873,38 @@ function fetchLogDates(){
       const map = {};
       results.data.forEach(raw => {
         const row = normalizeRow(raw);
-        const status = (row['Status of the Borehole'] || '').trim();
         const bhId = (row['Borehole ID'] || '').trim();
-        if (!bhId || status !== 'Completed') return;
+        if (!bhId) return;
         map[bhId] = {
           commence: (row['Borehole Commence Date'] || '').trim(),
           completed: (row['Date'] || '').trim()
         };
       });
       bhDatesLookup = map;
-      if(allRows.length > 0) initTimelineSlider();
-    },
-    error: (err) => console.error('Could not load log matrix profiles:', err)
+    }
   });
 }
 
-// Loads the pre-computed daily progress table (Date / Cummalative / Progress
-// Percentage) from the progress-tracking tab, so the timeline slider and its
-// summary numbers match your official reporting exactly, rather than being
-// recalculated from individual BH dates.
-function fetchProgressSeries(){
-  if (!PROGRESS_SHEET_CSV_URL || PROGRESS_SHEET_CSV_URL.indexOf('PASTE_') === 0){
-    console.warn('PROGRESS_SHEET_CSV_URL not set yet — timeline slider will stay disabled.');
-    return;
-  }
-  Papa.parse(PROGRESS_SHEET_CSV_URL, {
+function fetchData(){
+  Papa.parse(SHEET_CSV_URL, {
     download: true, header: true, skipEmptyLines: true,
     complete: (results) => {
-      const series = [];
-      results.data.forEach(raw => {
-        const row = normalizeRow(raw);
-        const dateVal = row['Date'];
-        const cumVal = row['Cummalative'];
-        const pctVal = row['Progress Percentage'];
-        if (dateVal === undefined || cumVal === undefined) return;
-        const d = parseDateFlexible(dateVal);
-        const cum = toNum(cumVal);
-        if (!d || cum === null) return;
-        series.push({ date: d, cumulative: cum, percentage: toNum(pctVal) });
-      });
-      series.sort((a,b) => a.date - b.date);
-      progressSeries = series;
-      if (allRows.length > 0) initTimelineSlider();
-    },
-    error: (err) => console.error('Could not load progress series (Z/AB/AC tab):', err)
+      allRows = results.data.map(normalizeRow);
+      loadRows(allRows);
+      setStatus('Live — synced ' + new Date().toLocaleTimeString(), 'ok');
+      document.getElementById('dash-updated').textContent = new Date().toLocaleTimeString();
+    }
   });
 }
 
+/* ============================================================
+   UTILITIES
+   ============================================================ */
 function convertToLatLon(easting, northing){
   try {
     const [lon, lat] = proj4('EPSG:5235', 'WGS84', [easting, northing]);
     return { lat, lon };
   } catch(e){ return null; }
-}
-
-function colorFor(status){ return STATUS_COLORS[status] || STATUS_COLORS.default; }
-
-const PACKAGE_PALETTE = ['#4c6ef5', '#e8590c', '#2b8a3e', '#c2255c', '#5f3dc4', '#0c8599', '#e67700', '#495057', '#087f5b', '#a61e4d'];
-function colorForPackage(pkg){
-  const s = (pkg || '').trim(); if (!s) return '#8a8370';
-  let hash = 0; for (let i = 0; i < s.length; i++){ hash = (hash * 31 + s.charCodeAt(i)) | 0; }
-  return PACKAGE_PALETTE[Math.abs(hash) % PACKAGE_PALETTE.length];
-}
-
-function makeIcon(status, pkg) {
-  const statusColor = colorFor(status);
-  const pkgColor = colorForPackage(pkg);
-  const opacity = (status === "Cancelled") ? "0.5" : "1.0";
-  return L.divIcon({
-    className: '',
-    html: `
-      <div style="position:relative;width:18px;height:18px;">
-        <div class="bh-dot-package" style="position:absolute; top:2px; left:2px; width:14px; height:14px; border-radius:50%; background:${pkgColor}; border:2px solid #ffffff; box-shadow:0 0 0 2px ${pkgColor}, 0 2px 5px rgba(0,0,0,0.4); opacity:${opacity};"></div>
-        <div class="bh-dot-status" style="position:absolute; top:2px; left:2px; width:14px; height:14px; border-radius:50%; background:${statusColor}; border:2px solid #ffffff; box-shadow:0 0 0 2px ${statusColor}, 0 2px 5px rgba(0,0,0,0.4); opacity:${opacity};"></div>
-      </div>`,
-    iconSize: [18, 18], iconAnchor: [9, 9], popupAnchor: [0, -9]
-  });
 }
 
 function computeBHLevels(row){
@@ -1035,963 +919,225 @@ function computeBHLevels(row){
   return { elevation, termDepth, rockCoring, gwDepth, overburden, rockLevel, terminationLevel, gwLevel };
 }
 
-function rockLevelDisplay(levels){
-  if (levels.overburden === null) return '—';
-  return `Depth ${levels.overburden.toFixed(2)} m`;
-}
-
-function buildBoreholeLogSvg(levels){
-  const { termDepth, overburden, rockPx, gwDepth } = levels;
-  if (termDepth === null || termDepth <= 0) return '';
-  const colH = 120, colW = 26, x0 = 8, y0 = 12;
-  const scale = colH / termDepth;
-  const overburdenPx = overburden !== null ? Math.min(overburden * scale, colH) : colH;
-  const rkPx = colH - overburdenPx;
-  const gwPx = (gwDepth !== null) ? Math.min(Math.max(gwDepth * scale, 0), colH) : null;
+/* ============================================================
+   SCHEMATIC LOG GENERATION (ENHANCED)
+   ============================================================ */
+function buildBoreholeLogSvg(bhName, levels){
+  const layers = lithoMap[bhName];
+  const termDepth = levels.termDepth || (layers && layers.length > 0 ? layers[layers.length-1].bottom : 0);
   
-  let svg = `<svg width="220" height="${colH + 24}" viewBox="0 0 220 ${colH + 24}" xmlns="http://www.w3.org/2000/svg">`;
-  svg += `<rect x="${x0}" y="${y0}" width="${colW}" height="${overburdenPx.toFixed(1)}" fill="#c9a876" stroke="#8a7350" stroke-width="0.5"/>`;
-  if (rkPx > 0.3){
-    svg += `<rect x="${x0}" y="${(y0+overburdenPx).toFixed(1)}" width="${colW}" height="${rkPx.toFixed(1)}" fill="#8f8f95" stroke="#5c5c60" stroke-width="0.5"/>`;
-    for (let hy = overburdenPx; hy < colH; hy += 10){
-      svg += `<line x1="${x0}" y1="${(y0+hy).toFixed(1)}" x2="${(x0+colW).toFixed(1)}" y2="${(y0+hy).toFixed(1)}" stroke="#5c5c60" stroke-width="0.4" opacity="0.4"/>`;
-    }
+  if (!termDepth || termDepth <= 0) return '';
+  const colH = 140, colW = 26, x0 = 8, y0 = 12;
+  const scale = colH / termDepth;
+  
+  let svg = `<svg width="220" height="${colH + 30}" viewBox="0 0 220 ${colH + 30}" xmlns="http://www.w3.org/2000/svg">`;
+  
+  if (layers && layers.length > 0) {
+      // Build from "BH Profile" tab layers
+      layers.forEach(layer => {
+          const h = (layer.bottom - layer.depth) * scale;
+          const y = (layer.depth * scale) + y0;
+          svg += `<rect x="${x0}" y="${y.toFixed(1)}" width="${colW}" height="${h.toFixed(1)}" fill="${getLithoColor(layer.graphic)}" stroke="#3a3a3a" stroke-width="0.5"/>`;
+      });
+  } else {
+      // Fallback to basic Overburden/Rock if detailed layers not found
+      const overburdenPx = levels.overburden !== null ? Math.min(levels.overburden * scale, colH) : colH;
+      const rkPx = colH - overburdenPx;
+      svg += `<rect x="${x0}" y="${y0}" width="${colW}" height="${overburdenPx.toFixed(1)}" fill="#c9a876" stroke="#8a7350" stroke-width="0.5"/>`;
+      if (rkPx > 0.3) svg += `<rect x="${x0}" y="${(y0+overburdenPx).toFixed(1)}" width="${colW}" height="${rkPx.toFixed(1)}" fill="#8f8f95" stroke="#5c5c60" stroke-width="0.5"/>`;
   }
-  svg += `<rect x="${x0}" y="${y0}" width="${colW}" height="${colH.toFixed(1)}" fill="none" stroke="#3a3a3a" stroke-width="1"/>`;
-  if (gwPx !== null){
-    const gwY = (y0 + gwPx).toFixed(1);
+  
+  // Outer frame
+  svg += `<rect x="${x0}" y="${y0}" width="${colW}" height="${colH.toFixed(1)}" fill="none" stroke="#1c2b2a" stroke-width="1.2"/>`;
+  
+  // Groundwater
+  if (levels.gwDepth !== null){
+    const gwY = y0 + (levels.gwDepth * scale);
     svg += `<line x1="${x0-4}" y1="${gwY}" x2="${x0+colW+4}" y2="${gwY}" stroke="#1e6fd9" stroke-width="1.5"/>`;
     svg += `<polygon points="${x0-4},${gwY} ${x0-8},${gwY-4} ${x0},${gwY-4}" fill="#1e6fd9"/>`;
   }
-  svg += `<text x="${x0+colW+8}" y="${y0+6}" font-family="sans-serif" font-size="10" fill="#6b6459">0.00 m (Surface level)</text>`;
-  if (overburden !== null && overburden > 0 && overburden < termDepth){
-    svg += `<text x="${x0+colW+8}" y="${y0+overburdenPx+3}" font-family="sans-serif" font-size="10" fill="#3a3a3a" font-weight="bold">↓ Depth ${overburden.toFixed(2)} m: Bedrock</text>`;
+
+  // Text Labels
+  svg += `<text x="${x0+colW+8}" y="${y0+4}" font-family="sans-serif" font-size="10" fill="#6b6459">0.00 m (GL)</text>`;
+  if (layers && layers.length > 0) {
+      layers.forEach(l => {
+          svg += `<text x="${x0+colW+8}" y="${(y0 + l.bottom * scale + 3).toFixed(1)}" font-family="sans-serif" font-size="9" fill="#1c2b2a">Depth ${l.bottom}m: ${l.graphic}</text>`;
+      });
+  } else {
+      svg += `<text x="${x0+colW+8}" y="${y0+colH+3}" font-family="sans-serif" font-size="10" fill="#1c2b2a" font-weight="bold">Term: ${termDepth.toFixed(2)}m</text>`;
   }
-  svg += `<text x="${x0+colW+8}" y="${y0+colH+3}" font-family="sans-serif" font-size="10" fill="#1c2b2a" font-weight="bold">↓ Depth ${termDepth.toFixed(2)} m: Terminated</text>`;
+  
   svg += `</svg>`;
   return svg;
-}
-
-function buildBoreholeLogMarkup(levels){
-  const svg = buildBoreholeLogSvg(levels); if (!svg) return '';
-  const overburdenTxt = levels.overburden !== null ? ('Overburden: ' + levels.overburden.toFixed(2) + 'm') : '';
-  const rockTxt = levels.rockCoring !== null ? ('Rock Coring: ' + levels.rockCoring.toFixed(2) + 'm') : '';
-  const rlTxt = levels.elevation !== null ? ('MSL(elev) ' + levels.elevation.toFixed(2) + 'm') : '';
-  const rockRlTxt = levels.rockLevel !== null ? ('MSL(rock) ' + levels.rockLevel.toFixed(2) + 'm') : '';
-  const termRlTxt = levels.terminationLevel !== null ? ('MSL(term) ' + levels.terminationLevel.toFixed(2) + 'm') : '';
-  const gwlRlTxt = levels.gwLevel !== null ? ('MSL(GWL) ' + levels.gwLevel.toFixed(2) + 'm') : '';
-  const captionParts = [overburdenTxt, rockTxt, rlTxt, rockRlTxt, termRlTxt, gwlRlTxt].filter(Boolean).join(' &middot; ');
-  return `<div class="bh-log-wrap"><div class="bh-log-title">Borehole Log (schematic)</div><div class="bh-log-row">${svg}</div><div class="bh-log-caption">${captionParts}</div></div>`;
 }
 
 function popupHtml(row){
   const levels = computeBHLevels(row);
   const bhName = (row['BH Name'] || '').trim();
-  const logDates = bhDatesLookup[bhName] || {};
-  const commenceDate = formatDateDMY(getFirst(row, ['Borehole Commence Date','Commence Date','Date Commenced','Commencement Date','Start Date','Started Date']) || logDates.commence || '');
-  const completedDate = formatDateDMY(getFirst(row, ['Borehole Completed Date','Completed Date','Completion Date','Date Completed','Finish Date','End Date']) || logDates.completed || '');
+  const tableRows = [
+    ['Elevation', row['Elevation'] + ' m'],
+    ['Termination', row['Termination Depth'] + ' m'],
+    ['Contractor', row['Contractor']]
+  ].map(([k,v]) => `<tr><td class="k">${k}</td><td>${v}</td></tr>`).join('');
   
-  const rows = [
-    ['Commence Date', commenceDate], ['Completed Date', completedDate],
-    ['Easting', row['Easting']], ['Northing', row['Northing']], ['Elevation (m)', row['Elevation']],
-    ['Contractor', row['Contractor Done'] || row['Contractor']], ['Lot', row['Lot']], ['Package', row['Package']],
-    ['Termination Depth (m)', row['Termination Depth']], ['Rock Level (m)', rockLevelDisplay(levels)],
-    ['Groundwater Level (m)', row['Groundwater Level']]
-  ].filter(([k,v]) => v !== undefined && v !== null && String(v).trim() !== '');
+  const logHtml = `<div class="bh-log-wrap"><div class="bh-log-title">Schematic Lithology</div><div class="bh-log-row">${buildBoreholeLogSvg(bhName, levels)}</div></div>`;
   
-  const tableRows = rows.map(([k,v]) => `<tr><td class="k">${k}</td><td>${v}</td></tr>`).join('');
-  const pdfUrl = (row['PDF Link'] || row['Log PDF'] || row['Borehole Log'] || '').trim();
-  const pdfButton = pdfUrl ? `<a href="${pdfUrl}" target="_blank" rel="noopener" class="pdf-link-btn">&#128196; View / Download Borehole Log</a>` : '';
-  const logHtml = buildBoreholeLogMarkup(levels);
-  
-  return `<div class="popup-title">${bhName} <span class="status-pill" style="background:${colorFor(row['Status'])}">${row['Status'] || 'Planned'}</span></div><table class="popup-table">${tableRows}</table>${pdfButton}${logHtml}`;
+  return `<div class="popup-title">${bhName}</div><table class="popup-table">${tableRows}</table>${logHtml}`;
 }
 
-function populateSelect(id, vals){
-  const s = document.getElementById(id); if (!s) return;
-  const currentSelected = s.value;
-  s.innerHTML = '<option value="">All</option>' + vals.map(v => `<option value="${v}">${v}</option>`).join('');
-  s.value = currentSelected;
-}
-
-function buildLegend(rows){
-  const counts = { "Completed": 0, "In Progress": 0, "Planned": 0, "Cancelled": 0 };
-  rows.forEach(r => {
-    let s = (r['Status'] || '').trim();
-    if (s === 'Ongoing') s = 'In Progress';
-    if (counts[s] !== undefined) counts[s]++;
-  });
-  const el = document.getElementById('legend'); if (!el) return;
-  el.innerHTML = Object.keys(counts).map(k => `<div class="legend-item"><span class="swatch" style="background:${colorFor(k)}"></span><span>${k}</span><span class="legend-count">${counts[k]}</span></div>`).join('');
-}
-
-function buildPackageLegend(rows){
-  const counts = {}; rows.forEach(r => { const p = (r['Package'] || '').trim(); if (p) counts[p] = (counts[p] || 0) + 1; });
-  const packages = Object.keys(counts).sort();
-  const el = document.getElementById('package-legend'); if (!el) return;
-  el.innerHTML = packages.map(p => `<div class="legend-item"><span class="swatch" style="background:${colorForPackage(p)}"></span><span>${p}</span><span class="legend-count">${counts[p]}</span></div>`).join('');
-}
-
+/* ============================================================
+   CORE LOGIC
+   ============================================================ */
 function render(){
-  const searchTerm = document.getElementById('search').value.trim().toLowerCase();
-  const fStatus = document.getElementById('f-status').value;
-  const fContractor = document.getElementById('f-contractor').value;
-  const fLot = document.getElementById('f-lot').value;
-  const fPackage = document.getElementById('f-package').value;
-  
-  markersLayer.clearLayers(); markers = [];
-  let shown = 0; const bounds = []; const labeledPackages = new Set();
-  
+  markersLayer.clearLayers();
   allRows.forEach(row => {
-    const status = row['Status'] || '';
-    const contractor = row['Contractor Done'] || row['Contractor'] || '';
-    const lot = row['Lot'] || ''; const pkg = row['Package'] || ''; const name = row['BH Name'] || '';
-    
-    if (fStatus && status !== fStatus) return;
-    if (fContractor && contractor !== fContractor) return;
-    if (fLot && lot !== fLot) return;
-    if (fPackage && pkg !== fPackage) return;
-    if (searchTerm){
-      const hay = `${name} ${lot} ${pkg} ${contractor}`.toLowerCase(); if (!hay.includes(searchTerm)) return;
-    }
-    
-    /* NEW: CRITICAL CHRONOLOGICAL TIMELINE FILTER CHECKPOINT */
-    if (timelineActiveDate) {
-      const bhName = name.trim(); const logDates = bhDatesLookup[bhName] || {};
-      const compDateStr = getFirst(row, ['Borehole Completed Date','Completed Date','Completion Date','Date Completed','Finish Date','End Date']) || logDates.completed;
-      if (status === 'Completed') {
-        if (!compDateStr) return;
-        const bhDate = new Date(compDateStr);
-        if (!isNaN(bhDate.getTime()) && bhDate > timelineActiveDate) return;
-      }
-    }
-    
-    const e = toNum(row['Easting']); const n = toNum(row['Northing']); if (e === null || n === null) return;
+    const e = toNum(row['Easting']), n = toNum(row['Northing']);
+    if (!e || !n) return;
     const ll = convertToLatLon(e, n); if (!ll) return;
     
-    const marker = L.marker([ll.lat, ll.lon], { icon: makeIcon(status, pkg) });
-    marker.bindPopup(popupHtml(row), { maxWidth: 280 });
-    marker.on('click', () => {
-      if (profileSelectMode){
-        toggleProfileSelection(name.trim());
-      }
+    const marker = L.circleMarker([ll.lat, ll.lon], {
+        radius: 7, fillColor: STATUS_COLORS[row.Status] || "#777", color: "#fff", weight: 1, fillOpacity: 0.9
     });
-    
-    const cleanPkgName = pkg.trim();
-    if (cleanPkgName && !labeledPackages.has(cleanPkgName)) {
-      marker.bindTooltip(`📦 ${cleanPkgName}`, { permanent: true, direction: 'top', offset: [0, -9], className: 'pkg-label' });
-      labeledPackages.add(cleanPkgName);
-    } else {
-      marker.bindTooltip(name, { permanent: true, direction: 'top', offset: [0, -9], className: 'bh-label' });
-    }
-    markersLayer.addLayer(marker); bounds.push([ll.lat, ll.lon]); shown++;
+    marker.bindPopup(popupHtml(row), { maxWidth: 280 });
+    marker.on('click', () => { if(profileSelectMode) toggleProfileSelection(row['BH Name'].trim()); });
+    markersLayer.addLayer(marker);
   });
-  
-  document.getElementById('count').textContent = `${shown} of ${allRows.length} boreholes shown`;
-  if (bounds.length && !window.hasInitialZoomed){
-    map.fitBounds(bounds, { padding: [40,40], maxZoom: 16 }); window.hasInitialZoomed = true;
-  }
-  updateLabelVisibility();
-}
-
-function uniqueVals(rows, key){ return [...new Set(rows.map(r => (r[key] || '').trim()).filter(v => v))].sort(); }
-
-function updateDashboard(){
-  const total = allRows.length; let completed = 0, inProgress = 0, cancelled = 0;
-  allRows.forEach(r => {
-    const s = (r['Status'] || '').trim();
-    if (s === 'Completed') completed++; else if (s === 'In Progress' || s === 'Ongoing') inProgress++; else if (s === 'Cancelled') cancelled++;
-  });
-  const remaining = Math.max(total - completed - inProgress - cancelled, 0);
-  const progressPct = total > 0 ? Math.round((completed / total) * 100) : 0;
-  document.getElementById('dash-total').textContent = total;
-  document.getElementById('dash-completed').textContent = completed;
-  document.getElementById('dash-inprogress').textContent = inProgress;
-  document.getElementById('dash-remaining').textContent = remaining;
-  document.getElementById('dash-progress').textContent = progressPct + '%';
 }
 
 function loadRows(rows){
-  allRows = rows.map(normalizeRow).filter(r => r['BH Name'] && r['BH Name'].trim());
-  populateSelect('f-status', uniqueVals(allRows, 'Status'));
-  populateSelect('f-contractor', uniqueVals(allRows, 'Contractor Done').length ? uniqueVals(allRows,'Contractor Done') : uniqueVals(allRows,'Contractor'));
-  populateSelect('f-lot', uniqueVals(allRows, 'Lot'));
-  populateSelect('f-package', uniqueVals(allRows, 'Package'));
-  populateSelect('report-package-select', uniqueVals(allRows, 'Package'));
-  buildLegend(allRows); buildPackageLegend(allRows); updateDashboard(); render();
-  setupPwaCache();
-}
-
-function fetchData(){
-  if (!navigator.onLine) {
-    const localRowsData = localStorage.getItem('nbri_allrows_cache');
-    const localDatesData = localStorage.getItem('nbri_dates_cache');
-    const cacheStamp = localStorage.getItem('nbri_cache_timestamp');
-    if (localRowsData) {
-      window.loadedFromOfflineCache = true;
-      allRows = JSON.parse(localRowsData);
-      bhDatesLookup = localDatesData ? JSON.parse(localDatesData) : {};
-      loadRows(allRows);
-      setStatus(`Offline Mode — Cached: ${formatDateDMY(cacheStamp)}`, 'err');
-      document.getElementById('dash-updated').textContent = "Offline Storage Mode";
-      return;
-    }
-  }
-  if (SHEET_CSV_URL){
-    setStatus('Refreshing from Google Sheet…');
-    Papa.parse(SHEET_CSV_URL, {
-      download: true, header: true, skipEmptyLines: true,
-      complete: (results) => {
-        loadRows(results.data); setStatus('Live — synced ' + new Date().toLocaleTimeString(), 'ok');
-        document.getElementById('dash-updated').textContent = formatDateDMY(new Date()) + ', ' + new Date().toLocaleTimeString();
-      },
-      error: (err) => {
-        console.error(err); setStatus('Could not reach sheet — showing sample data', 'err');
-        Papa.parse(SAMPLE_CSV, { header:true, skipEmptyLines:true, complete: r => loadRows(r.data) });
-      }
-    });
-  } else {
-    Papa.parse(SAMPLE_CSV, { header:true, skipEmptyLines:true, complete: r => loadRows(r.data) });
-    setStatus('Sample data (not connected to a live sheet)');
-  }
-}
-
-/* ============================================================
-   NEW UTILITY: ADVANCED ENGINEERING PROGRESS TIMELINE CONTROL
-   ============================================================ */
-function initTimelineSlider() {
-  const slider = document.getElementById('timeline-slider');
-  const label = document.getElementById('timeline-label');
-  const resetBtn = document.getElementById('timeline-reset-btn');
-
-  if (progressSeries.length === 0) {
-    label.textContent = "Timeline unavailable (progress sheet not connected yet)";
-    slider.disabled = true;
-    return;
-  }
-  slider.disabled = false;
-  slider.min = 0;
-  slider.max = progressSeries.length - 1;
-  slider.value = progressSeries.length - 1;
-
-  slider.oninput = (e) => {
-    const idx = parseInt(e.target.value, 10);
-    const entry = progressSeries[idx];
-    timelineActiveDate = entry.date;
-    const pctText = (entry.percentage !== null) ? entry.percentage.toFixed(1) + '%' : '';
-    label.innerHTML = `📅 As of <b>${formatDateDMY(entry.date)}</b> — ${entry.cumulative} completed ${pctText ? '(' + pctText + ')' : ''}`;
-    resetBtn.style.display = 'block';
-    render();
-    updateDashboardTimelineOverride(entry);
-  };
-  resetBtn.onclick = () => {
-    timelineActiveDate = null;
-    slider.value = progressSeries.length - 1;
-    label.textContent = "Showing All Dates (Cumulative)";
-    resetBtn.style.display = 'none';
-    render();
     updateDashboard();
-  };
+    render();
 }
 
-function updateDashboardTimelineOverride(entry) {
-  document.getElementById('dash-completed').textContent = entry.cumulative;
-  document.getElementById('dash-progress').textContent =
-    (entry.percentage !== null) ? entry.percentage.toFixed(1) + '%' : '—';
-}
-
-/* ============================================================
-   NEW UTILITY: GEODESIC DISTANCE / SURFACE AREA MEASUREMENT
-   ============================================================ */
-document.getElementById('measure-btn').addEventListener('click', function() {
-  isMeasuring = !isMeasuring; const panel = document.getElementById('measure-output');
-  if (isMeasuring) {
-    this.textContent = "🛑 Stop Measuring / Clear"; this.style.background = "#c0523f"; this.style.color = "#fff";
-    panel.style.display = "block"; map.getContainer().style.cursor = 'crosshair';
-    map.on('click', onMeasureMapClick); map.on('dblclick', finishMeasureArea); map.doubleClickZoom.disable();
-  } else {
-    this.textContent = "📏 Enable Distance/Area Ruler"; this.style.background = ""; this.style.color = ""; this.style.borderColor = "var(--accent)";
-    panel.style.display = "none"; map.getContainer().style.cursor = '';
-    map.off('click', onMeasureMapClick); map.off('dblclick', finishMeasureArea); map.doubleClickZoom.enable();
-    clearMeasurements();
-  }
-});
-
-function onMeasureMapClick(e) {
-  const latlng = e.latlng; measurePoints.push(latlng);
-  const dot = L.circleMarker(latlng, {radius: 5, color: '#b3541e', fillColor: '#fff', fillOpacity: 1, weight: 2}).addTo(map);
-  measureMarkers.push(dot); measureLines.setLatLngs(measurePoints); measurePolygon.setLatLngs(measurePoints);
-  calculateMeasurementOutput();
-}
-
-function calculateMeasurementOutput() {
-  if (measurePoints.length < 2) {
-    document.getElementById('measure-output').innerHTML = "Click next point... Double-click to lock area calculation."; return;
-  }
-  let totalDistance = 0;
-  for (let i = 1; i < measurePoints.length; i++) { totalDistance += measurePoints[i-1].distanceTo(measurePoints[i]); }
-  let outputHtml = `<b>Total Length:</b> ${totalDistance.toFixed(2)} m`;
-  if (measurePoints.length >= 3) {
-    const areaM2 = geodesicArea(measurePoints);
-    outputHtml += `<br><b>Enclosed Area:</b> ${(areaM2 / 10000).toFixed(3)} Hectares (${areaM2.toFixed(1)} m²)`;
-  }
-  document.getElementById('measure-output').innerHTML = outputHtml;
-}
-
-function finishMeasureArea() {
-  if (measurePoints.length > 2) {
-    measurePoints.push(measurePoints[0]); measureLines.setLatLngs(measurePoints); measurePolygon.setLatLngs(measurePoints); calculateMeasurementOutput();
-  }
-}
-
-function clearMeasurements() {
-  measurePoints = []; measureLines.setLatLngs([]); measurePolygon.setLatLngs([]);
-  measureMarkers.forEach(m => map.removeLayer(m)); measureMarkers = [];
-  document.getElementById('measure-output').innerHTML = "Click points on the map to measure.";
-}
-
-function geodesicArea(latLngs) {
-  const RADIUS = 6378137; let area = 0;
-  if (latLngs.length > 2) {
-    for (let i = 0; i < latLngs.length; i++) {
-      const p1 = latLngs[i]; const p2 = latLngs[(i + 1) % latLngs.length];
-      area += (p2.lng - p1.lng) * Math.PI / 180 * (2 + Math.sin(p1.lat * Math.PI / 180) + Math.sin(p2.lat * Math.PI / 180));
-    }
-    area = area * RADIUS * RADIUS / 2;
-  }
-  return Math.abs(area);
+function updateDashboard(){
+  document.getElementById('dash-total').textContent = allRows.length;
+  document.getElementById('dash-completed').textContent = allRows.filter(r => r.Status === 'Completed').length;
 }
 
 /* ============================================================
-   NEW UTILITY: EXCEL / SPREADSHEET MATRIX EXPORT PIPELINE
+   2D PROFILE GENERATOR (ENHANCED WITH LAYERS)
    ============================================================ */
-document.getElementById('export-csv-btn').addEventListener('click', () => {
-  if (!allRows || allRows.length === 0) { alert("No structured rows loaded."); return; }
-  const csvString = Papa.unparse(allRows);
-  const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
-  const downloadUrl = URL.createObjectURL(blob);
-  const targetLink = document.createElement("a");
-  targetLink.href = downloadUrl; targetLink.download = `NBRI_Borehole_Master_Data_${new Date().toISOString().slice(0,10)}.csv`;
-  document.body.appendChild(targetLink); targetLink.click(); document.body.removeChild(targetLink);
-});
-
-/* ============================================================
-   NEW UTILITY: PRINT-FRIENDLY BATCH SCHEMATIC PDF GENERATION
-   ============================================================ */
-document.getElementById('pkg-report-btn').addEventListener('click', () => {
-  const selectedPkg = document.getElementById('report-package-select').value;
-  if (!selectedPkg) { alert("Please select a construction Package first."); return; }
-  
-  const { jsPDF } = window.jspdf; const doc = new jsPDF('p', 'mm', 'a4');
-  const pageW = 210, pageH = 297, margin = 16; let currentY = margin;
-  const targetRows = allRows.filter(r => (r['Package'] || '').trim() === selectedPkg);
-  
-  doc.setFillColor(28, 43, 42); doc.rect(margin, currentY, pageW - (margin * 2), 14, 'F');
-  doc.setFontSize(11); doc.setTextColor(246, 244, 238);
-  doc.text(`GEOTECHNICAL INVESTIGATION EXECUTIVE SUMMARY REPORT`, margin + 5, currentY + 9);
-  
-  currentY += 22; doc.setTextColor(28, 43, 42); doc.setFontSize(10);
-  doc.text(`Project Corridor Segment: CEP3 (Rambukkana - Galagedara Section)`, margin, currentY);
-  doc.text(`Target Package Classification: ${selectedPkg}`, margin, currentY + 5);
-  doc.text(`Total Documented Boreholes: ${targetRows.length}`, margin, currentY + 10);
-  doc.text(`Generated Timestamp: ${new Date().toLocaleDateString()} — Geotechnical Division`, margin, currentY + 15);
-  currentY += 24;
-  
-  targetRows.forEach((bh, index) => {
-    if (currentY > pageH - 55) { doc.addPage(); currentY = margin; }
-    doc.setDrawColor(216, 210, 194); doc.setLineWidth(0.4); doc.line(margin, currentY, pageW - margin, currentY);
-    currentY += 6; doc.setFont(undefined, 'bold'); doc.setFontSize(10);
-    doc.text(`${index + 1}. Borehole ID Reference: ${bh['BH Name'] || 'N/A'}`, margin, currentY);
-    currentY += 5; doc.setFont(undefined, 'normal'); doc.setFontSize(8.5);
-    
-    const levels = computeBHLevels(bh);
-    const textLines = [
-      `Easting: ${bh['Easting'] || '—'}  |  Northing: ${bh['Northing'] || '—'}  |  Elevation: ${bh['Elevation'] || '—'} m (MSL)`,
-      `Status: ${bh['Status'] || 'Planned'}  |  Contractor assigned: ${bh['ContractorDone'] || bh['Contractor'] || 'NBRI'}`,
-      `Termination Depth: ${bh['Termination Depth'] || '—'} m  |  Water Table Level: ${bh['Groundwater Level'] || '—'} m`,
-      `Overburden Horizon: ${levels.overburden !== null ? levels.overburden.toFixed(2) + ' m' : '—'}  |  Bedrock Depth Level: ${rockLevelDisplay(levels)}`
-    ];
-    textLines.forEach(line => { doc.text(line, margin + 4, currentY); currentY += 4; });
-    
-    if (levels.termDepth > 0) {
-      const colH = 16, colW = 5, x0 = margin + 145, y0 = currentY - 18;
-      const scale = colH / levels.termDepth;
-      const soilH = levels.overburden !== null ? Math.min(levels.overburden * scale, colH) : colH;
-      const rkH = colH - soilH;
-      doc.setFillColor(201, 168, 118); doc.rect(x0, y0, colW, soilH, 'F');
-      if (rkH > 0) { doc.setFillColor(143, 143, 149); doc.rect(x0, y0 + soilH, colW, rkH, 'F'); }
-      doc.setDrawColor(58, 58, 58); doc.setLineWidth(0.2); doc.rect(x0, y0, colW, colH, 'S');
-      doc.setFontSize(7); doc.text(`0.00m`, x0 + colW + 2, y0 + 2); doc.text(`${levels.termDepth}m (Term)`, x0 + colW + 2, y0 + colH);
-    }
-    currentY += 4;
-  });
-  
-  for (let i = 1; i <= doc.getNumberOfPages(); i++) {
-    doc.setPage(i); doc.setFontSize(7.5); doc.setTextColor(120, 120, 120);
-    doc.text(`© National Building Research Institute — Report Compilation Package ${selectedPkg} — Page ${i} of ${doc.getNumberOfPages()}`, margin, pageH - 6);
-  }
-  doc.save(`NBRI_Geotechnical_Report_Package_${selectedPkg}.pdf`);
-});
-
-/* ============================================================
-   NEW UTILITY: LOCAL STORAGE OFFLINE APP DATA SYNC INDEX
-   ============================================================ */
-function setupPwaCache() {
-  if (allRows && allRows.length > 0 && !window.loadedFromOfflineCache) {
-    try {
-      localStorage.setItem('nbri_allrows_cache', JSON.stringify(allRows));
-      localStorage.setItem('nbri_dates_cache', JSON.stringify(bhDatesLookup));
-      localStorage.setItem('nbri_cache_timestamp', new Date().toISOString());
-    } catch(e) { console.warn("Storage limits hit while caching dataset:", e); }
-  }
-}
-
-document.getElementById('search').addEventListener('input', render);
-['f-status','f-contractor','f-lot','f-package'].forEach(id => document.getElementById(id).addEventListener('change', render) );
-
-fetchData(); fetchLogDates(); fetchProgressSeries();
-if (SHEET_CSV_URL && AUTO_REFRESH_MS > 0){
-  setInterval(fetchData, AUTO_REFRESH_MS); setInterval(fetchLogDates, AUTO_REFRESH_MS); setInterval(fetchProgressSeries, AUTO_REFRESH_MS);
-}
-
-document.getElementById('refresh-btn').addEventListener('click', () => {
-  const btn = document.getElementById('refresh-btn'); btn.classList.add('spinning');
-  fetchData(); fetchLogDates(); fetchProgressSeries(); setTimeout(() => btn.classList.remove('spinning'), 900);
-});
-
-/* ============================================================
-   AutoCAD Color Index & Overlays Parsing Infrastructure
-   ============================================================ */
-const ACI_COLORS = { 1:"#ff0000",2:"#ffff00",3:"#00ff00",4:"#00ffff",5:"#0000ff",6:"#ff00ff",7:"#1a1a1a",8:"#808080",9:"#c0c0c0" };
-const OVERLAY_LINE_WEIGHT_PX = 2.0;
-function dashArrayForLinetype(lt){
-  const s = String(lt).toLowerCase();
-  if (s.includes('dash') || s.includes('hidden')) return '6, 5';
-  if (s.includes('dot')) return '1, 5';
-  if (s.includes('center')) return '10, 4, 2, 4';
-  return null;
-}
-function styleForOverlayFeature(feature){
-  const props = feature.properties || {};
-  let color = '#b3541e';
-  if (props.Color !== undefined){
-    const aci = parseInt(props.Color); if (!isNaN(aci) && ACI_COLORS[aci]) color = ACI_COLORS[aci];
-  } else if (props.stroke){ color = props.stroke; }
-  const lt = props.Linetype || props.EntLinetyp || '';
-  return { color: color, weight: OVERLAY_LINE_WEIGHT_PX, dashArray: dashArrayForLinetype(lt), opacity: 0.95, fillColor: color, fillOpacity: 0.15 };
-}
-
-let overlayCount = 0;
-function addOverlayLayer(name, geojson, fitToBounds){
-  if (fitToBounds === undefined) fitToBounds = true;
-  let layer;
-  try {
-    layer = L.geoJSON(geojson, {
-      style: styleForOverlayFeature,
-      pointToLayer: (feature, latlng) => {
-        const s = styleForOverlayFeature(feature);
-        return L.circleMarker(latlng, { radius: 5, color: s.color, weight: 1.5, fillColor: s.color, fillOpacity: 0.85 });
-      }
-    });
-  } catch (err) { alert('Could not draw "' + name + '": ' + err.message); return; }
-  overlayCount++; const label = overlayCount + '. ' + name;
-  layer.addTo(map); layersControl.addOverlay(layer, label);
-  if (fitToBounds){
-    try { const b = layer.getBounds(); if (b.isValid()) map.fitBounds(b, { padding: [40, 40] }); } catch (e) {}
-  }
-}
-
-function loadOverlayFile(file){
-  const ext = file.name.split('.').pop().toLowerCase();
-  if (ext === 'kml'){
-    const reader = new FileReader();
-    reader.onload = () => {
-      try { const dom = new DOMParser().parseFromString(reader.result, 'text/xml'); addOverlayLayer(file.name, toGeoJSON.kml(dom)); } catch (err) { alert('Could not parse KML: ' + err.message); }
-    };
-    reader.readAsText(file);
-  } else if (ext === 'geojson' || ext === 'json'){
-    const reader = new FileReader();
-    reader.onload = () => {
-      try { addOverlayLayer(file.name, JSON.parse(reader.result)); } catch (err) { alert('Could not parse GeoJSON: ' + err.message); }
-    };
-    reader.readAsText(file);
-  } else if (ext === 'zip'){
-    const reader = new FileReader();
-    reader.onload = () => { shp(reader.result).then(geojson => addOverlayLayer(file.name, geojson)).catch(err => alert('Zipped Shapefile error: ' + err.message)); };
-    reader.readAsArrayBuffer(file);
-  }
-}
-
-const PERMANENT_OVERLAYS = [ { name: "CEP3 Road Corridor", url: "Polyline_cep32.zip" } ];
-let roadCorridorGeoJSON = null;
-function loadPermanentOverlays(){
-  PERMANENT_OVERLAYS.forEach(o => {
-    fetch(o.url).then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.arrayBuffer(); })
-    .then(buf => shp(buf)).then(geojson => { roadCorridorGeoJSON = geojson; addOverlayLayer(o.name, geojson, false); })
-    .catch(err => console.error('Could not load permanent overlay:', err));
-  });
-}
-loadPermanentOverlays();
-document.getElementById('overlay-file').addEventListener('change', (e) => { Array.from(e.target.files).forEach(loadOverlayFile); e.target.value = ''; });
-
-const appEl = document.getElementById('app');
-const isMobile = () => window.matchMedia('(max-width: 768px)').matches;
-function toggleSidebar(){
-  const btn = document.getElementById('sidebar-toggle');
-  if (isMobile()){
-    appEl.classList.toggle('sidebar-open-mobile'); const open = appEl.classList.contains('sidebar-open-mobile');
-    btn.innerHTML = open ? '&times;' : '&#9776;';
-  } else { appEl.classList.toggle('sidebar-collapsed-desktop'); }
-  setTimeout(() => map.invalidateSize(), 260);
-}
-document.getElementById('sidebar-toggle').addEventListener('click', toggleSidebar);
-document.getElementById('sidebar-backdrop').addEventListener('click', () => {
-  appEl.classList.remove('sidebar-open-mobile'); document.getElementById('sidebar-toggle').innerHTML = '&#9776;';
-});
-if (isMobile()){ appEl.classList.remove('sidebar-open-mobile'); }
-
-/* ============================================================
-   KML Data Structure Exporters
-   ============================================================ */
-function boreholesToGeoJSON(){
-  const features = [];
-  allRows.forEach(row => {
-    const e = toNum(row['Easting']); const n = toNum(row['Northing']); if (e === null || n === null) return;
-    const ll = convertToLatLon(e, n); if (!ll) return;
-    const levels = computeBHLevels(row); const bhName = (row['BH Name'] || '').trim();
-    const logDates = bhDatesLookup[bhName] || {};
-    const commenceDate = formatDateDMY(getFirst(row, ['Borehole Commence Date','Commence Date','Date Commenced','Commencement Date','Start Date']) || logDates.commence || '');
-    const completedDate = formatDateDMY(getFirst(row, ['Borehole Completed Date','Completed Date','Completion Date','Date Completed','Finish Date']) || logDates.completed || '');
-    const pdfUrl = (row['PDF Link'] || row['Log PDF'] || row['Borehole Log'] || '').trim();
-    
-    let descRows = `<tr><td><b>Property</b></td><td><b>Value</b></td></tr><tr><td>Commence Date</td><td>${commenceDate}</td></tr><tr><td>Completed Date</td><td>${completedDate}</td></tr><tr><td>Easting</td><td>${row['Easting'] || ''}</td></tr><tr><td>Northing</td><td>${row['Northing'] || ''}</td></tr><tr><td>Elevation (m)</td><td>${row['Elevation'] || ''}</td></tr><tr><td>Contractor</td><td>${row['Contractor Done'] || row['Contractor'] || ''}</td></tr><tr><td>Lot</td><td>${row['Lot'] || ''}</td></tr><tr><td>Package</td><td>${row['Package'] || ''}</td></tr><tr><td>Termination Depth (m)</td><td>${row['Termination Depth'] || ''}</td></tr><tr><td>Rock Level (m)</td><td>${rockLevelDisplay(levels)}</td></tr><tr><td>Groundwater Level (m)</td><td>${row['Groundwater Level'] || ''}</td></tr>`;
-    let descriptionHtml = `<p><b>NBRI Borehole Node Metadata</b></p><table border="1" cellpadding="4" style="border-collapse:collapse;">${descRows}</table>` + (pdfUrl ? `<p><a href="${pdfUrl}">View Borehole Log PDF</a></p>` : '');
-    
-    features.push({
-      type: 'Feature',
-      properties: { name: bhName || 'Unnamed BH', description: descriptionHtml, Status: row['Status'] || '', 'Commence Date': commenceDate, 'Completed Date': completedDate, Easting: row['Easting'] || '', Northing: row['Northing'] || '', 'Elevation (m)': row['Elevation'] || '', Contractor: row['Contractor Done'] || row['Contractor'] || '', Lot: row['Lot'] || '', Package: row['Package'] || '', 'Termination Depth (m)': row['Termination Depth'] || '', 'Rock Level (m)': rockLevelDisplay(levels), 'Groundwater Level (m)': row['Groundwater Level'] || '', 'PDF Link': pdfUrl },
-      geometry: { type: 'Point', coordinates: [ll.lon, ll.lat] }
-    });
-  });
-  return { type: 'FeatureCollection', features };
-}
-
-function downloadTextFile(filename, text){
-  const blob = new Blob([text], { type: 'application/vnd.google-earth.kml+xml' });
-  const url = URL.createObjectURL(blob); const a = document.createElement('a');
-  a.href = url; a.download = filename; document.body.appendChild(a); a.click(); document.body.removeChild(a);
-  setTimeout(() => URL.revokeObjectURL(url), 2000);
-}
-function decodeHtmlEntities(s){ return s.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'"); }
-function fixKmlDescriptionsForHtml(kmlString){
-  return kmlString.replace(/<description>([\s\S]*?)<\/description>/g, (match, inner) => { return '<description><![CDATA[' + decodeHtmlEntities(inner) + ']]></description>'; });
-}
-
-function exportKML(includeRoad){
-  const bhGeoJSON = boreholesToGeoJSON();
-  if (includeRoad && roadCorridorGeoJSON){
-    const mixed = { type: 'FeatureCollection', features: [...roadCorridorGeoJSON.features, ...bhGeoJSON.features] };
-    let kml = tokml(mixed, { name: 'name', description: 'description' });
-    downloadTextFile('CEP3_Boreholes_And_Road_Trace.kml', fixKmlDescriptionsForHtml(kml));
-  } else {
-    let kml = tokml(bhGeoJSON, { name: 'name', description: 'description' });
-    downloadTextFile('CEP3_Boreholes_Locations_Only.kml', fixKmlDescriptionsForHtml(kml));
-  }
-}
-document.getElementById('kml-bh-only').addEventListener('click', () => exportKML(false));
-document.getElementById('kml-bh-road').addEventListener('click', () => exportKML(true));
-
-function getVisibleFilteredRows(){
-  const out = []; const bounds = map.getBounds();
-  const searchTerm = document.getElementById('search').value.trim().toLowerCase();
-  const fStatus = document.getElementById('f-status').value;
-  const fContractor = document.getElementById('f-contractor').value;
-  const fLot = document.getElementById('f-lot').value;
-  const fPackage = document.getElementById('f-package').value;
-  
-  allRows.forEach(row => {
-    const status = row['Status'] || ''; const contractor = row['Contractor Done'] || row['Contractor'] || '';
-    const lot = row['Lot'] || ''; const pkg = row['Package'] || ''; const name = row['BH Name'] || '';
-    if (fStatus && status !== fStatus) return;
-    if (fContractor && contractor !== fContractor) return;
-    if (fLot && lot !== fLot) return;
-    if (fPackage && pkg !== fPackage) return;
-    if (searchTerm){
-      const hay = `${name} ${lot} ${pkg} ${contractor}`.toLowerCase(); if (!hay.includes(searchTerm)) return;
-    }
-    const e = toNum(row['Easting']); const n = toNum(row['Northing']); if (e === null || n === null) return;
-    const ll = convertToLatLon(e, n); if (!ll) return;
-    if (!bounds.contains([ll.lat, ll.lon])) return;
-    out.push({ row, lat: ll.lat, lon: ll.lon, status });
-  });
-  return out;
-}
-
-function niceScaleMeters(target){
-  const steps = [1,2,5,10,20,50,100,200,500,1000,2000,5000,10000];
-  let best = steps[0]; for (const s of steps){ if (s <= target) best = s; } return best;
-}
-function drawNorthArrow(doc, x, y, size){
-  doc.setDrawColor(28,43,42); doc.setFillColor(28,43,42);
-  doc.triangle(x, y - size, x - size*0.35, y + size*0.5, x + size*0.35, y + size*0.5, 'F');
-  doc.setFontSize(9); doc.text('N', x, y + size*0.5 + 4);
-}
-function drawScaleBar(doc, x, y, metersPerMm){
-  const targetWidthMm = 30; const targetMeters = targetWidthMm * metersPerMm;
-  const scaleMeters = niceScaleMeters(targetMeters); const scaleWidthMm = scaleMeters / metersPerMm;
-  doc.setDrawColor(28,43,42); doc.setLineWidth(1.0); doc.line(x, y, x + scaleWidthMm, y);
-  doc.line(x, y - 1.5, x, y + 1.5); doc.line(x + scaleWidthMm, y - 1.5, x + scaleWidthMm, y + 1.5);
-  doc.setFontSize(7.5); doc.setTextColor(28,43,42);
-  doc.text(scaleMeters >= 1000 ? (scaleMeters/1000)+' km' : scaleMeters+' m', x + scaleWidthMm + 3, y + 1);
-}
-
-function buildAndSavePDF(rasterDataUrl, canvasW, canvasH){
-  const { jsPDF } = window.jspdf; const doc = new jsPDF('l', 'mm', 'a4');
-  const pageW = 297, pageH = 210, margin = 12;
-  
-  doc.setFillColor(28,43,42); doc.rect(margin, margin, pageW - margin*2, 14, 'F');
-  doc.setFont('Inter', 'bold'); doc.setFontSize(13); doc.setTextColor(246,244,238);
-  doc.text('NBRI BOREHOLE LOCATION MAP — EXPRESSWAY SEGMENT CEP3', margin + 6, margin + 9.5);
-  
-  const mapX = margin, mapY = margin + 18, mapW = 195, mapH = pageH - margin*2 - 18;
-  doc.setFont('Inter', 'normal'); doc.setFontSize(8.5); doc.setTextColor(107,100,89);
-  doc.text('Current View | Generated ' + formatDateDMY(new Date()) + ', ' + new Date().toLocaleTimeString(), margin, margin + 16);
-  
-  doc.setFillColor(246,244,238); doc.rect(mapX, mapY, mapW, mapH, 'F');
-  const bounds = map.getBounds();
-  const west = bounds.getWest(), east = bounds.getEast(), north = bounds.getNorth(), south = bounds.getSouth();
-  if (rasterDataUrl){ try { doc.addImage(rasterDataUrl, 'PNG', mapX, mapY, mapW, mapH); } catch(e){ rasterDataUrl = null; } }
-  
-  const visible = getVisibleFilteredRows();
-  function project(lat, lon){
-    let px = mapX + ((lon - west) / (east - west)) * mapW; let py = mapY + ((north - lat) / (north - south)) * mapH;
-    return [Math.max(mapX, Math.min(mapX + mapW, px)), Math.max(mapY, Math.min(mapY + mapH, py))];
-  }
-  
-  if (!rasterDataUrl && roadCorridorGeoJSON && roadCorridorGeoJSON.features){
-    roadCorridorGeoJSON.features.forEach(feature => {
-      const geom = feature.geometry; if (!geom) return;
-      const style = styleForOverlayFeature(feature); const hex = style.color;
-      const rgb = [parseInt(hex.slice(1,3),16), parseInt(hex.slice(3,5),16), parseInt(hex.slice(5,7),16)];
-      doc.setDrawColor(rgb[0], rgb[1], rgb[2]); doc.setLineWidth(0.25);
-      if(geom.type === 'LineString'){
-        let lastPt = null;
-        geom.coordinates.forEach(c => {
-          const pt = project(c[1], c[0]); if(lastPt) doc.line(lastPt[0], lastPt[1], pt[0], pt[1]); lastPt = pt;
-        });
-      }
-    });
-  }
-  
-  doc.setFontSize(6.5); doc.setTextColor(28,43,42);
-  visible.forEach(v => {
-    const [px, py] = project(v.lat, v.lon); const hex = colorFor(v.status);
-    const rgb = [parseInt(hex.slice(1,3),16), parseInt(hex.slice(3,5),16), parseInt(hex.slice(5,7),16)];
-    doc.setFillColor(rgb[0], rgb[1], rgb[2]); doc.setDrawColor(255,255,255); doc.setLineWidth(0.3); doc.circle(px, py, 1.4, 'FD');
-    const name = (v.row['BH Name'] || '').trim(); if (name) doc.text(name, px + 1.6, py - 1.2);
-  });
-  
-  doc.setDrawColor(28,43,42); doc.setLineWidth(0.3); doc.rect(mapX, mapY, mapW, mapH);
-  drawNorthArrow(doc, mapX + mapW - 10, mapY + 14, 5);
-  drawScaleBar(doc, mapX + 6, mapY + mapH - 6, (map.distance(L.latLng((north+south)/2, west), L.latLng((north+south)/2, east)) / mapW));
-  
-  const legX = mapX + mapW + 8, legYStart = mapY + 4, legendW = pageW - margin - legX;
-  doc.setFillColor(255,255,255); doc.setDrawColor(216,210,194); doc.rect(legX - 2, legYStart - 2, legendW + 2, pageH - margin - legYStart, 'F');
-  
-  let legY = legYStart + 4; doc.setFontSize(9); doc.setTextColor(28,43,42); doc.text('LEGEND — BOREHOLES', legX, legY); legY += 6;
-  Object.keys(STATUS_COLORS).forEach(k => {
-    if (k === 'default') return; const hex = STATUS_COLORS[k];
-    const rgb = [parseInt(hex.slice(1,3),16), parseInt(hex.slice(3,5),16), parseInt(hex.slice(5,7),16)];
-    doc.setFillColor(rgb[0], rgb[1], rgb[2]); doc.circle(legX + 2, legY - 1, 1.4, 'F');
-    doc.setFontSize(8); doc.text(k, legX + 6, legY); legY += 5.5;
-  });
-  legY += 2; doc.setDrawColor(216,210,194); doc.line(legX, legY - 4, legX + legendW - 8, legY - 4);
-  doc.setFont(undefined, 'bold'); doc.text('Total visible: ' + visible.length, legX, legY);
-  
-  doc.setFontSize(7.5); doc.setTextColor(120,120,120); doc.setFont(undefined, 'normal');
-  doc.text('© National Building Research Institute — Geotechnical Engineering Division', margin, pageH - 5);
-  doc.save('CEP3_Map_' + new Date().toISOString().slice(0,10) + '.pdf');
-}
-
-function exportMapPDF(){
-  const btn = document.getElementById('pdf-map-btn'); const originalText = btn.textContent;
-  btn.textContent = 'Generating PDF…'; btn.disabled = true;
-  try {
-    leafletImage(map, (err, canvas) => {
-      let dataUrl = null;
-      if (!err && canvas){ try { dataUrl = canvas.toDataURL('image/png'); } catch(e){ dataUrl = null; } }
-      buildAndSavePDF(dataUrl, canvas ? canvas.width : null, canvas ? canvas.height : null);
-      btn.textContent = originalText; btn.disabled = false;
-    });
-  } catch(e) { btn.textContent = originalText; btn.disabled = false; }
-}
-document.getElementById('pdf-map-btn').addEventListener('click', exportMapPDF);
-
-/* ============================================================
-   Borehole Profile — 2D Cross-Section
-   Select 2+ boreholes on the map (in the order you want them
-   across the section), then generate a geological profile
-   showing overburden, rock, groundwater, and termination —
-   positioned by real distance and elevation (RL).
-   ============================================================ */
-let profileSelectMode = false;
-let profileSelectedNames = [];
-
-const profileSelectBtn = document.getElementById('profile-select-btn');
-profileSelectBtn.addEventListener('click', () => {
-  profileSelectMode = !profileSelectMode;
-  profileSelectBtn.classList.toggle('profile-active', profileSelectMode);
-  profileSelectBtn.textContent = profileSelectMode ? '✅ Click Boreholes Now (tap again to stop)' : '📍 Select Boreholes on Map';
-});
-
-function toggleProfileSelection(bhName){
-  const idx = profileSelectedNames.indexOf(bhName);
-  if (idx === -1){
-    profileSelectedNames.push(bhName);
-  } else {
-    profileSelectedNames.splice(idx, 1);
-  }
-  updateProfileChips();
-}
-
-function updateProfileChips(){
-  const wrap = document.getElementById('profile-selected-list');
-  const chipsEl = document.getElementById('profile-chips');
-  if (profileSelectedNames.length === 0){
-    wrap.style.display = 'none';
-    return;
-  }
-  wrap.style.display = 'block';
-  chipsEl.innerHTML = profileSelectedNames.map((n, i) =>
-    `<span class="profile-chip" data-name="${n}">${i+1}. ${n} &times;</span>`
-  ).join('');
-  chipsEl.querySelectorAll('.profile-chip').forEach(chip => {
-    chip.addEventListener('click', () => toggleProfileSelection(chip.getAttribute('data-name')));
-  });
-}
-
-document.getElementById('profile-clear-btn').addEventListener('click', () => {
-  profileSelectedNames = [];
-  updateProfileChips();
-});
-
-document.getElementById('profile-generate-btn').addEventListener('click', () => {
-  if (profileSelectedNames.length < 2){
-    alert('Select at least 2 boreholes first (click them on the map while "Select Boreholes on Map" is active).');
-    return;
-  }
-  const rows = profileSelectedNames
-    .map(n => allRows.find(r => (r['BH Name'] || '').trim() === n))
-    .filter(Boolean);
-  showProfileModal(rows);
-});
-
-function computeProfilePositions(rows){
-  // Cumulative real-world distance (m) along the selection order, using each
-  // BH's actual Easting/Northing — not just plotting them evenly spaced.
-  const points = rows.map(row => {
-    const e = toNum(row['Easting']), n = toNum(row['Northing']);
-    const ll = (e !== null && n !== null) ? convertToLatLon(e, n) : null;
-    return { row, latlng: ll ? L.latLng(ll.lat, ll.lon) : null };
-  });
-  let cumDist = 0;
-  const positions = [];
-  points.forEach((p, i) => {
-    if (i > 0 && points[i-1].latlng && p.latlng){
-      cumDist += points[i-1].latlng.distanceTo(p.latlng);
-    }
-    positions.push(cumDist);
-  });
-  return positions;
-}
-
 function buildProfileSvg(rows){
   const distances = computeProfilePositions(rows);
   const levelsArr = rows.map(computeBHLevels);
 
   const totalDist = Math.max(distances[distances.length - 1], 1);
-  const padLeft = 65, padRight = 40, padTop = 40, padBottom = 50;
-  const plotW = Math.max(600, Math.min(1400, totalDist * 0.15 + rows.length * 90));
-  const plotH = 420;
+  const padLeft = 70, padRight = 40, padTop = 50, padBottom = 60;
+  const plotW = Math.max(800, totalDist * 0.2); 
+  const plotH = 400;
   const svgW = plotW + padLeft + padRight;
   const svgH = plotH + padTop + padBottom;
 
-  // Elevation range across all BHs (ground level down to lowest termination)
   let maxElev = -Infinity, minElev = Infinity;
   levelsArr.forEach(lv => {
     if (lv.elevation !== null) maxElev = Math.max(maxElev, lv.elevation);
-    if (lv.terminationLevel !== null) minElev = Math.min(minElev, lv.terminationLevel);
-    if (lv.rockLevel !== null) minElev = Math.min(minElev, lv.rockLevel);
+    const bhName = (rows[levelsArr.indexOf(lv)]['BH Name'] || '').trim();
+    const layers = lithoMap[bhName];
+    const floor = lv.terminationLevel || (layers ? lv.elevation - layers[layers.length-1].bottom : lv.elevation - 20);
+    minElev = Math.min(minElev, floor);
   });
-  if (!isFinite(maxElev) || !isFinite(minElev)){ maxElev = 100; minElev = 80; }
-  const elevPad = (maxElev - minElev) * 0.12 || 2;
-  maxElev += elevPad; minElev -= elevPad;
+  maxElev += 5; minElev -= 5;
   const elevRange = maxElev - minElev;
 
-  function xPos(dist){ return padLeft + (totalDist > 0 ? (dist / totalDist) * plotW : plotW/2 * (rows.length===1?1:0)); }
+  function xPos(dist){ return padLeft + (dist / totalDist) * plotW; }
   function yPos(elev){ return padTop + ((maxElev - elev) / elevRange) * plotH; }
 
-  let svg = `<svg width="${svgW}" height="${svgH}" viewBox="0 0 ${svgW} ${svgH}" xmlns="http://www.w3.org/2000/svg" font-family="Inter, sans-serif">`;
-  svg += `<rect x="0" y="0" width="${svgW}" height="${svgH}" fill="#ffffff"/>`;
+  let svg = `<svg width="${svgW}" height="${svgH}" viewBox="0 0 ${svgW} ${svgH}" xmlns="http://www.w3.org/2000/svg">`;
+  svg += `<rect width="100%" height="100%" fill="#fff"/>`;
 
-  // Elevation gridlines + labels
-  const gridSteps = 6;
-  for (let i = 0; i <= gridSteps; i++){
-    const elev = minElev + (elevRange / gridSteps) * i;
-    const y = yPos(elev);
-    svg += `<line x1="${padLeft}" y1="${y.toFixed(1)}" x2="${padLeft+plotW}" y2="${y.toFixed(1)}" stroke="#e5e0d3" stroke-width="1"/>`;
-    svg += `<text x="${padLeft-8}" y="${(y+3).toFixed(1)}" font-size="10" fill="#6b6459" text-anchor="end">${elev.toFixed(1)}</text>`;
+  // Grid
+  for (let i = 0; i <= 10; i++){
+      const el = minElev + (elevRange/10)*i;
+      const y = yPos(el);
+      svg += `<line x1="${padLeft}" y1="${y}" x2="${padLeft+plotW}" y2="${y}" stroke="#eee" />`;
+      svg += `<text x="${padLeft-10}" y="${y+4}" font-size="10" text-anchor="end">${el.toFixed(1)}m</text>`;
   }
-  svg += `<text x="16" y="${(padTop+plotH/2).toFixed(1)}" font-size="11" fill="#1c2b2a" font-weight="700" transform="rotate(-90 16 ${(padTop+plotH/2).toFixed(1)})" text-anchor="middle">Elevation (m, RL)</text>`;
-  svg += `<text x="${(padLeft+plotW/2).toFixed(1)}" y="${(svgH-10).toFixed(1)}" font-size="11" fill="#1c2b2a" font-weight="700" text-anchor="middle">Distance along section (m)</text>`;
 
-  // Column width
-  const colW = Math.min(34, plotW / Math.max(rows.length, 1) * 0.5);
+  const colW = 20;
+  const groundPts = [];
 
-  // Collect boundary points for connecting profile lines
-  const groundPts = [], rockPts = [], termPts = [], gwPts = [];
+  // Draw BH Columns with Layers
+  rows.forEach((row, i) => {
+      const bhName = row['BH Name'].trim();
+      const lv = levelsArr[i];
+      const x = xPos(distances[i]);
+      const layers = lithoMap[bhName];
+      const gl = lv.elevation;
+      groundPts.push([x, yPos(gl)]);
 
-  levelsArr.forEach((lv, i) => {
-    const x = xPos(distances[i]);
-    if (lv.elevation !== null) groundPts.push([x, yPos(lv.elevation)]);
-    if (lv.rockLevel !== null) rockPts.push([x, yPos(lv.rockLevel)]);
-    if (lv.terminationLevel !== null) termPts.push([x, yPos(lv.terminationLevel)]);
-    if (lv.gwLevel !== null) gwPts.push([x, yPos(lv.gwLevel)]);
+      if (layers) {
+          layers.forEach(layer => {
+              const topY = yPos(gl - layer.depth);
+              const botY = yPos(gl - layer.bottom);
+              svg += `<rect x="${x-colW/2}" y="${topY}" width="${colW}" height="${botY-topY}" fill="${getLithoColor(layer.graphic)}" stroke="#333" stroke-width="0.5" />`;
+          });
+      } else {
+          // Fallback
+          const termY = yPos(lv.terminationLevel || gl - 20);
+          svg += `<rect x="${x-colW/2}" y="${yPos(gl)}" width="${colW}" height="${termY - yPos(gl)}" fill="#ddd" stroke="#333" />`;
+      }
+      
+      // BH Name Label
+      svg += `<text x="${x}" y="${yPos(gl)-15}" font-size="11" font-weight="bold" text-anchor="middle">${bhName}</text>`;
   });
 
-  function polylinePath(pts){
-    return pts.map((p,i) => (i===0?'M':'L') + p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' ');
-  }
-
-  // Interpreted rock surface (bedrock profile) — dashed brown line joining rock levels
-  if (rockPts.length >= 2){
-    svg += `<path d="${polylinePath(rockPts)}" fill="none" stroke="#7a2f1e" stroke-width="1.6" stroke-dasharray="6,4"/>`;
-  }
-  // Groundwater table profile — dashed blue line
-  if (gwPts.length >= 2){
-    svg += `<path d="${polylinePath(gwPts)}" fill="none" stroke="#1e6fd9" stroke-width="1.4" stroke-dasharray="4,3"/>`;
-  }
-
-  // Draw each borehole column (soil + rock), on top of the connecting lines
-  levelsArr.forEach((lv, i) => {
-    const x = xPos(distances[i]);
-    const bhName = (rows[i]['BH Name'] || '').trim();
-
-    if (lv.elevation !== null && lv.terminationLevel !== null){
-      const yGround = yPos(lv.elevation);
-      const yRock = lv.rockLevel !== null ? yPos(lv.rockLevel) : yGround;
-      const yTerm = yPos(lv.terminationLevel);
-
-      // Soil segment
-      svg += `<rect x="${(x-colW/2).toFixed(1)}" y="${yGround.toFixed(1)}" width="${colW.toFixed(1)}" height="${Math.max(yRock-yGround,0).toFixed(1)}" fill="#c9a876" stroke="#8a7350" stroke-width="0.6"/>`;
-      // Rock segment
-      if (yTerm > yRock){
-        svg += `<rect x="${(x-colW/2).toFixed(1)}" y="${yRock.toFixed(1)}" width="${colW.toFixed(1)}" height="${(yTerm-yRock).toFixed(1)}" fill="#8f8f95" stroke="#5c5c60" stroke-width="0.6"/>`;
-        for (let hy = yRock; hy < yTerm; hy += 9){
-          svg += `<line x1="${(x-colW/2).toFixed(1)}" y1="${hy.toFixed(1)}" x2="${(x+colW/2).toFixed(1)}" y2="${hy.toFixed(1)}" stroke="#5c5c60" stroke-width="0.4" opacity="0.4"/>`;
-        }
-      }
-      svg += `<rect x="${(x-colW/2).toFixed(1)}" y="${yGround.toFixed(1)}" width="${colW.toFixed(1)}" height="${(yTerm-yGround).toFixed(1)}" fill="none" stroke="#3a3a3a" stroke-width="0.8"/>`;
-
-      // Groundwater tick on this column
-      if (lv.gwLevel !== null){
-        const yGw = yPos(lv.gwLevel);
-        svg += `<line x1="${(x-colW/2-3).toFixed(1)}" y1="${yGw.toFixed(1)}" x2="${(x+colW/2+3).toFixed(1)}" y2="${yGw.toFixed(1)}" stroke="#1e6fd9" stroke-width="1.2"/>`;
-      }
-
-      // BH label + key values above the column
-      svg += `<text x="${x.toFixed(1)}" y="${(yGround-22).toFixed(1)}" font-size="10.5" font-weight="700" fill="#1c2b2a" text-anchor="middle">${bhName}</text>`;
-      svg += `<text x="${x.toFixed(1)}" y="${(yGround-9).toFixed(1)}" font-size="8.5" fill="#6b6459" text-anchor="middle">GL ${lv.elevation.toFixed(1)}m</text>`;
-      svg += `<text x="${x.toFixed(1)}" y="${(yTerm+13).toFixed(1)}" font-size="8" fill="#6b6459" text-anchor="middle">Term ${lv.terminationLevel.toFixed(1)}m</text>`;
-    } else {
-      svg += `<text x="${x.toFixed(1)}" y="${(padTop-10).toFixed(1)}" font-size="9" fill="#c0523f" text-anchor="middle">${bhName} (incomplete data)</text>`;
-    }
-  });
-
-  // Ground surface profile line (on top of everything)
-  if (groundPts.length >= 2){
-    svg += `<path d="${polylinePath(groundPts)}" fill="none" stroke="#2f6f5e" stroke-width="2"/>`;
-  }
-
-  // Legend
-  const legX = padLeft, legY = svgH - 20;
-  svg += `<rect x="${legX}" y="${legY-8}" width="14" height="8" fill="#c9a876" stroke="#8a7350" stroke-width="0.5"/><text x="${legX+18}" y="${legY-1}" font-size="9" fill="#1c2b2a">Overburden (soil)</text>`;
-  svg += `<rect x="${legX+130}" y="${legY-8}" width="14" height="8" fill="#8f8f95" stroke="#5c5c60" stroke-width="0.5"/><text x="${legX+148}" y="${legY-1}" font-size="9" fill="#1c2b2a">Rock</text>`;
-  svg += `<line x1="${legX+200}" y1="${legY-4}" x2="${legX+216}" y2="${legY-4}" stroke="#1e6fd9" stroke-width="1.4" stroke-dasharray="4,3"/><text x="${legX+220}" y="${legY-1}" font-size="9" fill="#1c2b2a">Groundwater table</text>`;
-  svg += `<line x1="${legX+330}" y1="${legY-4}" x2="${legX+346}" y2="${legY-4}" stroke="#7a2f1e" stroke-width="1.6" stroke-dasharray="6,4"/><text x="${legX+350}" y="${legY-1}" font-size="9" fill="#1c2b2a">Interpreted rock surface</text>`;
+  // Connect ground line
+  let pathD = "M" + groundPts.map(p => p[0]+","+p[1]).join(" L");
+  svg += `<path d="${pathD}" fill="none" stroke="#2f6f5e" stroke-width="2.5" />`;
 
   svg += `</svg>`;
   return svg;
 }
 
-function showProfileModal(rows){
-  const svg = buildProfileSvg(rows);
-  document.getElementById('profile-modal-body').innerHTML = svg;
-  document.getElementById('profile-modal-backdrop').classList.add('open');
+/* ============================================================
+   INIT
+   ============================================================ */
+let profileSelectMode = false;
+let profileSelectedNames = [];
+
+document.getElementById('profile-select-btn').onclick = () => {
+    profileSelectMode = !profileSelectMode;
+    document.getElementById('profile-select-btn').classList.toggle('profile-active');
+};
+
+function toggleProfileSelection(name){
+    const idx = profileSelectedNames.indexOf(name);
+    if(idx === -1) profileSelectedNames.push(name);
+    else profileSelectedNames.splice(idx, 1);
+    updateProfileChips();
 }
 
-document.getElementById('profile-close-btn').addEventListener('click', () => {
-  document.getElementById('profile-modal-backdrop').classList.remove('open');
-});
-document.getElementById('profile-modal-backdrop').addEventListener('click', (e) => {
-  if (e.target.id === 'profile-modal-backdrop'){
-    document.getElementById('profile-modal-backdrop').classList.remove('open');
-  }
-});
+function updateProfileChips(){
+    const list = document.getElementById('profile-selected-list');
+    const chips = document.getElementById('profile-chips');
+    list.style.display = profileSelectedNames.length > 0 ? 'block' : 'none';
+    chips.innerHTML = profileSelectedNames.map(n => `<span class="profile-chip" onclick="toggleProfileSelection('${n}')">${n} &times;</span>`).join('');
+}
 
-document.getElementById('profile-download-btn').addEventListener('click', () => {
-  const svgEl = document.querySelector('#profile-modal-body svg');
-  if (!svgEl) return;
-  const svgData = new XMLSerializer().serializeToString(svgEl);
-  const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
-  const url = URL.createObjectURL(svgBlob);
-  const img = new Image();
-  img.onload = () => {
-    const canvas = document.createElement('canvas');
-    canvas.width = svgEl.viewBox.baseVal.width * 2;
-    canvas.height = svgEl.viewBox.baseVal.height * 2;
-    const ctx = canvas.getContext('2d');
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.scale(2, 2);
-    ctx.drawImage(img, 0, 0);
-    URL.revokeObjectURL(url);
-    canvas.toBlob(blob => {
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = 'CEP3_Borehole_Profile_' + new Date().toISOString().slice(0,10) + '.png';
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-    });
-  };
-  img.src = url;
-});
-</script>
+function computeProfilePositions(rows){
+  const points = rows.map(row => {
+    const e = toNum(row['Easting']), n = toNum(row['Northing']);
+    const ll = convertToLatLon(e, n);
+    return L.latLng(ll.lat, ll.lon);
+  });
+  let d = 0; const pos = [0];
+  for(let i=1; i<points.length; i++) { d += points[i-1].distanceTo(points[i]); pos.push(d); }
+  return pos;
+}
 
-<script>
-  if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-      const swCode = `
-        const CACHE_NAME = 'nbri-borehole-map-v1';
-        const ASSETS = [
-          './', './index_2.html',
-          'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css',
-          'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js',
-          'https://unpkg.com/papaparse@5.4.1/papaparse.min.js',
-          'https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.9.2/proj4.js',
-          'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap'
-        ];
-        self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE_NAME).then(c => c.addAll(ASSETS)).then(self.skipWaiting())); });
-        self.addEventListener('fetch', e => {
-          if (e.request.url.includes('google.com/spreadsheets')) return;
-          e.respondWith(caches.match(e.request).then(res => res || fetch(e.request)));
-        });
-      `;
-      const blob = new Blob([swCode], {type: 'application/javascript'});
-      navigator.serviceWorker.register(URL.createObjectURL(blob)).catch(err => console.error('SW init failed:', err));
-    });
-  }
+document.getElementById('profile-generate-btn').onclick = () => {
+    const rows = profileSelectedNames.map(n => allRows.find(r => r['BH Name'].trim() === n)).filter(Boolean);
+    document.getElementById('profile-modal-body').innerHTML = buildProfileSvg(rows);
+    document.getElementById('profile-modal-backdrop').classList.add('open');
+};
+
+document.getElementById('profile-close-btn').onclick = () => document.getElementById('profile-modal-backdrop').classList.remove('open');
+
+// Global trigger
+fetchData();
+fetchLithology();
+fetchLogDates();
+
 </script>
 </body>
 </html>
