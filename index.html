@@ -508,6 +508,83 @@
   #map .bh-dot-status { display: none; }
   #map.show-bh-labels .bh-dot-package { display: none; }
   #map.show-bh-labels .bh-dot-status { display: block; }
+
+  .profile-chip{
+    display:inline-flex;
+    align-items:center;
+    gap:5px;
+    background:var(--accent);
+    color:#fff;
+    padding:3px 9px;
+    border-radius:14px;
+    font-size:11px;
+    font-weight:600;
+    cursor:pointer;
+  }
+  .profile-chip:hover{
+    background:var(--accent-dark);
+  }
+  #profile-select-btn.profile-active{
+    background:var(--accent-2);
+    color:#fff;
+    border-color:var(--accent-2);
+  }
+  #profile-modal-backdrop{
+    display:none;
+    position:fixed;
+    inset:0;
+    background:rgba(0,0,0,0.55);
+    z-index:2000;
+    align-items:center;
+    justify-content:center;
+  }
+  #profile-modal-backdrop.open{
+    display:flex;
+  }
+  #profile-modal{
+    background:#fff;
+    border-radius:10px;
+    max-width:95vw;
+    max-height:92vh;
+    width:1000px;
+    display:flex;
+    flex-direction:column;
+    box-shadow:var(--shadow-md);
+    overflow:hidden;
+  }
+  #profile-modal-header{
+    background:var(--ink);
+    color:#fff;
+    padding:12px 16px;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    font-weight:700;
+    font-size:14px;
+  }
+  #profile-modal-header button{
+    background:rgba(255,255,255,0.12);
+    border:1px solid rgba(255,255,255,0.25);
+    color:#fff;
+    border-radius:6px;
+    padding:5px 10px;
+    font-size:12px;
+    cursor:pointer;
+    margin-left:8px;
+  }
+  #profile-modal-header button:hover{
+    background:rgba(255,255,255,0.22);
+  }
+  #profile-close-btn{
+    font-size:18px !important;
+    line-height:1;
+    padding:2px 10px !important;
+  }
+  #profile-modal-body{
+    padding:16px;
+    overflow:auto;
+    background:#fafaf7;
+  }
 </style>
 </head>
 <body>
@@ -580,6 +657,24 @@
     </div>
 
     <div class="block">
+      <h2>Borehole Profile (2D Cross-Section)</h2>
+      <button id="profile-select-btn" class="kml-btn" style="border-color: var(--accent-2); color: var(--accent-2);">
+        📍 Select Boreholes on Map
+      </button>
+      <div id="profile-selected-list" style="margin-top:8px; display:none;">
+        <div style="font-size:11.5px; color:var(--muted); margin-bottom:4px;">Selected (in order) — click a chip to remove:</div>
+        <div id="profile-chips" style="display:flex; flex-wrap:wrap; gap:4px; margin-bottom:8px;"></div>
+        <button id="profile-clear-btn" class="kml-btn" style="padding:4px 8px; text-align:center;">Clear Selection</button>
+        <button id="profile-generate-btn" class="kml-btn" style="margin-top:6px; padding:6px 8px; text-align:center; background:var(--accent); color:#fff;">
+          📐 Generate Profile (min. 2 BHs)
+        </button>
+      </div>
+      <div style="font-size:11px; color:var(--muted); margin-top:6px;">
+        Tip: click boreholes on the map in the order you want them to appear across the profile (e.g. left to right along a road/section line).
+      </div>
+    </div>
+
+    <div class="block">
       <h2>Legend &mdash; Status</h2>
       <div id="legend"></div>
     </div>
@@ -625,6 +720,19 @@
     </div>
   </div>
   <div id="map"></div>
+</div>
+
+<div id="profile-modal-backdrop">
+  <div id="profile-modal">
+    <div id="profile-modal-header">
+      <span>Borehole Profile — 2D Cross-Section</span>
+      <div>
+        <button id="profile-download-btn">&#8681; Download PNG</button>
+        <button id="profile-close-btn">&times;</button>
+      </div>
+    </div>
+    <div id="profile-modal-body"></div>
+  </div>
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -1063,6 +1171,11 @@ function render(){
     
     const marker = L.marker([ll.lat, ll.lon], { icon: makeIcon(status, pkg) });
     marker.bindPopup(popupHtml(row), { maxWidth: 280 });
+    marker.on('click', () => {
+      if (profileSelectMode){
+        toggleProfileSelection(name.trim());
+      }
+    });
     
     const cleanPkgName = pkg.trim();
     if (cleanPkgName && !labeledPackages.has(cleanPkgName)) {
@@ -1613,6 +1726,247 @@ function exportMapPDF(){
   } catch(e) { btn.textContent = originalText; btn.disabled = false; }
 }
 document.getElementById('pdf-map-btn').addEventListener('click', exportMapPDF);
+
+/* ============================================================
+   Borehole Profile — 2D Cross-Section
+   Select 2+ boreholes on the map (in the order you want them
+   across the section), then generate a geological profile
+   showing overburden, rock, groundwater, and termination —
+   positioned by real distance and elevation (RL).
+   ============================================================ */
+let profileSelectMode = false;
+let profileSelectedNames = [];
+
+const profileSelectBtn = document.getElementById('profile-select-btn');
+profileSelectBtn.addEventListener('click', () => {
+  profileSelectMode = !profileSelectMode;
+  profileSelectBtn.classList.toggle('profile-active', profileSelectMode);
+  profileSelectBtn.textContent = profileSelectMode ? '✅ Click Boreholes Now (tap again to stop)' : '📍 Select Boreholes on Map';
+});
+
+function toggleProfileSelection(bhName){
+  const idx = profileSelectedNames.indexOf(bhName);
+  if (idx === -1){
+    profileSelectedNames.push(bhName);
+  } else {
+    profileSelectedNames.splice(idx, 1);
+  }
+  updateProfileChips();
+}
+
+function updateProfileChips(){
+  const wrap = document.getElementById('profile-selected-list');
+  const chipsEl = document.getElementById('profile-chips');
+  if (profileSelectedNames.length === 0){
+    wrap.style.display = 'none';
+    return;
+  }
+  wrap.style.display = 'block';
+  chipsEl.innerHTML = profileSelectedNames.map((n, i) =>
+    `<span class="profile-chip" data-name="${n}">${i+1}. ${n} &times;</span>`
+  ).join('');
+  chipsEl.querySelectorAll('.profile-chip').forEach(chip => {
+    chip.addEventListener('click', () => toggleProfileSelection(chip.getAttribute('data-name')));
+  });
+}
+
+document.getElementById('profile-clear-btn').addEventListener('click', () => {
+  profileSelectedNames = [];
+  updateProfileChips();
+});
+
+document.getElementById('profile-generate-btn').addEventListener('click', () => {
+  if (profileSelectedNames.length < 2){
+    alert('Select at least 2 boreholes first (click them on the map while "Select Boreholes on Map" is active).');
+    return;
+  }
+  const rows = profileSelectedNames
+    .map(n => allRows.find(r => (r['BH Name'] || '').trim() === n))
+    .filter(Boolean);
+  showProfileModal(rows);
+});
+
+function computeProfilePositions(rows){
+  // Cumulative real-world distance (m) along the selection order, using each
+  // BH's actual Easting/Northing — not just plotting them evenly spaced.
+  const points = rows.map(row => {
+    const e = toNum(row['Easting']), n = toNum(row['Northing']);
+    const ll = (e !== null && n !== null) ? convertToLatLon(e, n) : null;
+    return { row, latlng: ll ? L.latLng(ll.lat, ll.lon) : null };
+  });
+  let cumDist = 0;
+  const positions = [];
+  points.forEach((p, i) => {
+    if (i > 0 && points[i-1].latlng && p.latlng){
+      cumDist += points[i-1].latlng.distanceTo(p.latlng);
+    }
+    positions.push(cumDist);
+  });
+  return positions;
+}
+
+function buildProfileSvg(rows){
+  const distances = computeProfilePositions(rows);
+  const levelsArr = rows.map(computeBHLevels);
+
+  const totalDist = Math.max(distances[distances.length - 1], 1);
+  const padLeft = 65, padRight = 40, padTop = 40, padBottom = 50;
+  const plotW = Math.max(600, Math.min(1400, totalDist * 0.15 + rows.length * 90));
+  const plotH = 420;
+  const svgW = plotW + padLeft + padRight;
+  const svgH = plotH + padTop + padBottom;
+
+  // Elevation range across all BHs (ground level down to lowest termination)
+  let maxElev = -Infinity, minElev = Infinity;
+  levelsArr.forEach(lv => {
+    if (lv.elevation !== null) maxElev = Math.max(maxElev, lv.elevation);
+    if (lv.terminationLevel !== null) minElev = Math.min(minElev, lv.terminationLevel);
+    if (lv.rockLevel !== null) minElev = Math.min(minElev, lv.rockLevel);
+  });
+  if (!isFinite(maxElev) || !isFinite(minElev)){ maxElev = 100; minElev = 80; }
+  const elevPad = (maxElev - minElev) * 0.12 || 2;
+  maxElev += elevPad; minElev -= elevPad;
+  const elevRange = maxElev - minElev;
+
+  function xPos(dist){ return padLeft + (totalDist > 0 ? (dist / totalDist) * plotW : plotW/2 * (rows.length===1?1:0)); }
+  function yPos(elev){ return padTop + ((maxElev - elev) / elevRange) * plotH; }
+
+  let svg = `<svg width="${svgW}" height="${svgH}" viewBox="0 0 ${svgW} ${svgH}" xmlns="http://www.w3.org/2000/svg" font-family="Inter, sans-serif">`;
+  svg += `<rect x="0" y="0" width="${svgW}" height="${svgH}" fill="#ffffff"/>`;
+
+  // Elevation gridlines + labels
+  const gridSteps = 6;
+  for (let i = 0; i <= gridSteps; i++){
+    const elev = minElev + (elevRange / gridSteps) * i;
+    const y = yPos(elev);
+    svg += `<line x1="${padLeft}" y1="${y.toFixed(1)}" x2="${padLeft+plotW}" y2="${y.toFixed(1)}" stroke="#e5e0d3" stroke-width="1"/>`;
+    svg += `<text x="${padLeft-8}" y="${(y+3).toFixed(1)}" font-size="10" fill="#6b6459" text-anchor="end">${elev.toFixed(1)}</text>`;
+  }
+  svg += `<text x="16" y="${(padTop+plotH/2).toFixed(1)}" font-size="11" fill="#1c2b2a" font-weight="700" transform="rotate(-90 16 ${(padTop+plotH/2).toFixed(1)})" text-anchor="middle">Elevation (m, RL)</text>`;
+  svg += `<text x="${(padLeft+plotW/2).toFixed(1)}" y="${(svgH-10).toFixed(1)}" font-size="11" fill="#1c2b2a" font-weight="700" text-anchor="middle">Distance along section (m)</text>`;
+
+  // Column width
+  const colW = Math.min(34, plotW / Math.max(rows.length, 1) * 0.5);
+
+  // Collect boundary points for connecting profile lines
+  const groundPts = [], rockPts = [], termPts = [], gwPts = [];
+
+  levelsArr.forEach((lv, i) => {
+    const x = xPos(distances[i]);
+    if (lv.elevation !== null) groundPts.push([x, yPos(lv.elevation)]);
+    if (lv.rockLevel !== null) rockPts.push([x, yPos(lv.rockLevel)]);
+    if (lv.terminationLevel !== null) termPts.push([x, yPos(lv.terminationLevel)]);
+    if (lv.gwLevel !== null) gwPts.push([x, yPos(lv.gwLevel)]);
+  });
+
+  function polylinePath(pts){
+    return pts.map((p,i) => (i===0?'M':'L') + p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' ');
+  }
+
+  // Interpreted rock surface (bedrock profile) — dashed brown line joining rock levels
+  if (rockPts.length >= 2){
+    svg += `<path d="${polylinePath(rockPts)}" fill="none" stroke="#7a2f1e" stroke-width="1.6" stroke-dasharray="6,4"/>`;
+  }
+  // Groundwater table profile — dashed blue line
+  if (gwPts.length >= 2){
+    svg += `<path d="${polylinePath(gwPts)}" fill="none" stroke="#1e6fd9" stroke-width="1.4" stroke-dasharray="4,3"/>`;
+  }
+
+  // Draw each borehole column (soil + rock), on top of the connecting lines
+  levelsArr.forEach((lv, i) => {
+    const x = xPos(distances[i]);
+    const bhName = (rows[i]['BH Name'] || '').trim();
+
+    if (lv.elevation !== null && lv.terminationLevel !== null){
+      const yGround = yPos(lv.elevation);
+      const yRock = lv.rockLevel !== null ? yPos(lv.rockLevel) : yGround;
+      const yTerm = yPos(lv.terminationLevel);
+
+      // Soil segment
+      svg += `<rect x="${(x-colW/2).toFixed(1)}" y="${yGround.toFixed(1)}" width="${colW.toFixed(1)}" height="${Math.max(yRock-yGround,0).toFixed(1)}" fill="#c9a876" stroke="#8a7350" stroke-width="0.6"/>`;
+      // Rock segment
+      if (yTerm > yRock){
+        svg += `<rect x="${(x-colW/2).toFixed(1)}" y="${yRock.toFixed(1)}" width="${colW.toFixed(1)}" height="${(yTerm-yRock).toFixed(1)}" fill="#8f8f95" stroke="#5c5c60" stroke-width="0.6"/>`;
+        for (let hy = yRock; hy < yTerm; hy += 9){
+          svg += `<line x1="${(x-colW/2).toFixed(1)}" y1="${hy.toFixed(1)}" x2="${(x+colW/2).toFixed(1)}" y2="${hy.toFixed(1)}" stroke="#5c5c60" stroke-width="0.4" opacity="0.4"/>`;
+        }
+      }
+      svg += `<rect x="${(x-colW/2).toFixed(1)}" y="${yGround.toFixed(1)}" width="${colW.toFixed(1)}" height="${(yTerm-yGround).toFixed(1)}" fill="none" stroke="#3a3a3a" stroke-width="0.8"/>`;
+
+      // Groundwater tick on this column
+      if (lv.gwLevel !== null){
+        const yGw = yPos(lv.gwLevel);
+        svg += `<line x1="${(x-colW/2-3).toFixed(1)}" y1="${yGw.toFixed(1)}" x2="${(x+colW/2+3).toFixed(1)}" y2="${yGw.toFixed(1)}" stroke="#1e6fd9" stroke-width="1.2"/>`;
+      }
+
+      // BH label + key values above the column
+      svg += `<text x="${x.toFixed(1)}" y="${(yGround-22).toFixed(1)}" font-size="10.5" font-weight="700" fill="#1c2b2a" text-anchor="middle">${bhName}</text>`;
+      svg += `<text x="${x.toFixed(1)}" y="${(yGround-9).toFixed(1)}" font-size="8.5" fill="#6b6459" text-anchor="middle">GL ${lv.elevation.toFixed(1)}m</text>`;
+      svg += `<text x="${x.toFixed(1)}" y="${(yTerm+13).toFixed(1)}" font-size="8" fill="#6b6459" text-anchor="middle">Term ${lv.terminationLevel.toFixed(1)}m</text>`;
+    } else {
+      svg += `<text x="${x.toFixed(1)}" y="${(padTop-10).toFixed(1)}" font-size="9" fill="#c0523f" text-anchor="middle">${bhName} (incomplete data)</text>`;
+    }
+  });
+
+  // Ground surface profile line (on top of everything)
+  if (groundPts.length >= 2){
+    svg += `<path d="${polylinePath(groundPts)}" fill="none" stroke="#2f6f5e" stroke-width="2"/>`;
+  }
+
+  // Legend
+  const legX = padLeft, legY = svgH - 20;
+  svg += `<rect x="${legX}" y="${legY-8}" width="14" height="8" fill="#c9a876" stroke="#8a7350" stroke-width="0.5"/><text x="${legX+18}" y="${legY-1}" font-size="9" fill="#1c2b2a">Overburden (soil)</text>`;
+  svg += `<rect x="${legX+130}" y="${legY-8}" width="14" height="8" fill="#8f8f95" stroke="#5c5c60" stroke-width="0.5"/><text x="${legX+148}" y="${legY-1}" font-size="9" fill="#1c2b2a">Rock</text>`;
+  svg += `<line x1="${legX+200}" y1="${legY-4}" x2="${legX+216}" y2="${legY-4}" stroke="#1e6fd9" stroke-width="1.4" stroke-dasharray="4,3"/><text x="${legX+220}" y="${legY-1}" font-size="9" fill="#1c2b2a">Groundwater table</text>`;
+  svg += `<line x1="${legX+330}" y1="${legY-4}" x2="${legX+346}" y2="${legY-4}" stroke="#7a2f1e" stroke-width="1.6" stroke-dasharray="6,4"/><text x="${legX+350}" y="${legY-1}" font-size="9" fill="#1c2b2a">Interpreted rock surface</text>`;
+
+  svg += `</svg>`;
+  return svg;
+}
+
+function showProfileModal(rows){
+  const svg = buildProfileSvg(rows);
+  document.getElementById('profile-modal-body').innerHTML = svg;
+  document.getElementById('profile-modal-backdrop').classList.add('open');
+}
+
+document.getElementById('profile-close-btn').addEventListener('click', () => {
+  document.getElementById('profile-modal-backdrop').classList.remove('open');
+});
+document.getElementById('profile-modal-backdrop').addEventListener('click', (e) => {
+  if (e.target.id === 'profile-modal-backdrop'){
+    document.getElementById('profile-modal-backdrop').classList.remove('open');
+  }
+});
+
+document.getElementById('profile-download-btn').addEventListener('click', () => {
+  const svgEl = document.querySelector('#profile-modal-body svg');
+  if (!svgEl) return;
+  const svgData = new XMLSerializer().serializeToString(svgEl);
+  const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
+  const url = URL.createObjectURL(svgBlob);
+  const img = new Image();
+  img.onload = () => {
+    const canvas = document.createElement('canvas');
+    canvas.width = svgEl.viewBox.baseVal.width * 2;
+    canvas.height = svgEl.viewBox.baseVal.height * 2;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.scale(2, 2);
+    ctx.drawImage(img, 0, 0);
+    URL.revokeObjectURL(url);
+    canvas.toBlob(blob => {
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'CEP3_Borehole_Profile_' + new Date().toISOString().slice(0,10) + '.png';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    });
+  };
+  img.src = url;
+});
 </script>
 
 <script>
