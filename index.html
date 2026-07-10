@@ -299,6 +299,74 @@
     font-variant-numeric:tabular-nums;
     font-weight:600;
   }
+  .legend-panel{
+    background:#fff;
+    border-radius:8px;
+    box-shadow:var(--shadow-md);
+    border:1px solid var(--line);
+    width:210px;
+    max-width:60vw;
+    overflow:hidden;
+    font-family:'Inter',sans-serif;
+  }
+  .legend-panel-header{
+    padding:8px 11px;
+    font-size:12px;
+    font-weight:700;
+    color:var(--ink);
+    cursor:pointer;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    background:var(--paper);
+    user-select:none;
+  }
+  .legend-panel-header:hover{
+    background:#efece2;
+  }
+  .legend-panel-arrow{
+    color:var(--muted);
+    font-size:10px;
+  }
+  .legend-panel-body{
+    padding:10px 11px;
+    max-height:48vh;
+    overflow-y:auto;
+    border-top:1px solid var(--line);
+  }
+  .legend-panel.collapsed .legend-panel-body{
+    display:none;
+  }
+  .legend-section-title{
+    font-size:10px;
+    text-transform:uppercase;
+    letter-spacing:0.06em;
+    color:var(--muted);
+    font-weight:700;
+    margin:10px 0 6px 0;
+  }
+  .legend-section-title:first-child{
+    margin-top:0;
+  }
+  .legend-package-note{
+    font-weight:400;
+    text-transform:none;
+    letter-spacing:0;
+  }
+  @media (max-width: 768px){
+    .legend-panel{
+      width:170px;
+      max-width:55vw;
+    }
+    .legend-panel-header{
+      font-size:11px;
+      padding:6px 9px;
+    }
+    .legend-panel-body{
+      padding:8px 9px;
+      max-height:40vh;
+    }
+  }
   .swatch{
     width:11px;height:11px;border-radius:50%;
     flex-shrink:0;
@@ -675,15 +743,6 @@
     </div>
 
     <div class="block">
-      <h2>Legend &mdash; Status</h2>
-      <div id="legend"></div>
-    </div>
-    <div class="block">
-      <h2>Legend &mdash; Package <span style="font-weight:400; text-transform:none; letter-spacing:0;">(zoomed out)</span></h2>
-      <div id="package-legend"></div>
-    </div>
-    
-    <div class="block">
       <h2>Download Map Data</h2>
       <button id="kml-bh-only" class="kml-btn">&#8681; KML &mdash; BH locations only</button>
       <button id="kml-bh-road" class="kml-btn">&#8681; KML &mdash; BH locations + Road trace</button>
@@ -836,6 +895,34 @@ const LocateControl = L.Control.extend({
 });
 map.addControl(new LocateControl());
 
+/* ============================================================
+   Legend Panel — collapsible, top-right (stacks below layer switcher)
+   ============================================================ */
+const LegendPanelControl = L.Control.extend({
+  options: { position: 'topright' },
+  onAdd: function(){
+    const container = L.DomUtil.create('div', 'legend-panel collapsed');
+    container.innerHTML = `
+      <div class="legend-panel-header" id="legend-panel-toggle">
+        <span>📊 Legend</span><span class="legend-panel-arrow">&#9656;</span>
+      </div>
+      <div class="legend-panel-body">
+        <div class="legend-section-title">Status</div>
+        <div id="legend"></div>
+        <div class="legend-section-title">Package <span class="legend-package-note">(zoomed out view)</span></div>
+        <div id="package-legend"></div>
+      </div>`;
+    L.DomEvent.disableClickPropagation(container);
+    L.DomEvent.on(container.querySelector('#legend-panel-toggle'), 'click', () => {
+      container.classList.toggle('collapsed');
+      const arrow = container.querySelector('.legend-panel-arrow');
+      arrow.innerHTML = container.classList.contains('collapsed') ? '&#9656;' : '&#9662;';
+    });
+    return container;
+  }
+});
+map.addControl(new LegendPanelControl());
+
 function toggleLocate(btn){
   if (userLocationWatchId !== null){
     navigator.geolocation.clearWatch(userLocationWatchId); userLocationWatchId = null;
@@ -947,15 +1034,15 @@ let bhDatesLookup = {};
 // Only codes we're confident about get a friendly label; anything else
 // shows its raw code as-is rather than a guessed expansion.
 const GRAPHIC_CODE_INFO = {
-  'MS': { label: 'Sandy SILT', color: '#d9c08c' },
-  'SM': { label: 'Silty SAND', color: '#e0cfa0' },
-  'SC': { label: 'Clayey SAND', color: '#c9b280' },
-  'SP': { label: 'Poorly Graded SAND', color: '#ead9ae' },
-  'GM': { label: 'Silty GRAVEL', color: '#b8a888' },
-  'GC': { label: 'Clayey GRAVEL', color: '#a89876' },
-  'CL': { label: 'Low Plasticity CLAY', color: '#b9a88f' },
-  'CH': { label: 'High Plasticity CLAY', color: '#a08d70' },
-  'ML': { label: 'Low Plasticity SILT', color: '#ddd0ab' }
+  'MS': { label: 'Sandy SILT', color: '#c9a84e' },
+  'SM': { label: 'Silty SAND', color: '#e0b23c' },
+  'SC': { label: 'Clayey SAND', color: '#9c7a3a' },
+  'SP': { label: 'Poorly Graded SAND', color: '#f0d98a' },
+  'GM': { label: 'Silty GRAVEL', color: '#8a7a63' },
+  'GC': { label: 'Clayey GRAVEL', color: '#5f5240' },
+  'CL': { label: 'Low Plasticity CLAY', color: '#bd6b46' },
+  'CH': { label: 'High Plasticity CLAY', color: '#8a4530' },
+  'ML': { label: 'Low Plasticity SILT', color: '#a8b06a' }
 };
 const ROCK_KEYWORDS = ['BEDROCK','ROCK','GNEISS','GRANITE','QUARTZITE','SCHIST','MARBLE','DOLERITE','CHARNOCKITE','GABBRO','LIMESTONE'];
 
@@ -968,7 +1055,7 @@ function graphicHashColor(code){
   let hash = 0;
   const s = (code || '').trim();
   for (let i = 0; i < s.length; i++) hash = (hash * 31 + s.charCodeAt(i)) | 0;
-  const soilPalette = ['#d9c9a3','#e2d3ab','#ccb98f','#e8dcb8','#d4c299'];
+  const soilPalette = ['#c9975a','#7a9e6e','#b06a9e','#5a8ca8','#c96a5a','#9e8a4a'];
   return soilPalette[Math.abs(hash) % soilPalette.length];
 }
 
@@ -1117,11 +1204,11 @@ function buildBoreholeLogSvg(levels, layers){
     : termDepth;
   if (effectiveTermDepth === null || effectiveTermDepth <= 0) return '';
 
-  const colH = 120, colW = 26, x0 = 8, y0 = 12;
+  const colH = 130, colW = 26, x0 = 36, y0 = 14;
   const scale = colH / effectiveTermDepth;
   const gwPx = (gwDepth !== null) ? Math.min(Math.max(gwDepth * scale, 0), colH) : null;
 
-  let svg = `<svg width="230" height="${colH + 24}" viewBox="0 0 230 ${colH + 24}" xmlns="http://www.w3.org/2000/svg">`;
+  let svg = `<svg width="260" height="${colH + 26}" viewBox="0 0 260 ${colH + 26}" xmlns="http://www.w3.org/2000/svg">`;
 
   if (layers && layers.length){
     // Real layer-by-layer stratigraphy from the BH Profile log
@@ -1144,8 +1231,8 @@ function buildBoreholeLogSvg(levels, layers){
     layers.forEach(l => { boundaries.add(l.depth); boundaries.add(l.bottom); });
     Array.from(boundaries).sort((a,b)=>a-b).forEach(d => {
       const y = y0 + Math.min(d * scale, colH);
-      svg += `<line x1="${x0-3}" y1="${y.toFixed(1)}" x2="${x0}" y2="${y.toFixed(1)}" stroke="#3a3a3a" stroke-width="0.6"/>`;
-      svg += `<text x="${x0-5}" y="${(y+2.5).toFixed(1)}" font-size="6.5" fill="#6b6459" text-anchor="end">${d.toFixed(1)}</text>`;
+      svg += `<line x1="${x0-4}" y1="${y.toFixed(1)}" x2="${x0}" y2="${y.toFixed(1)}" stroke="#3a3a3a" stroke-width="0.7"/>`;
+      svg += `<text x="${x0-7}" y="${(y+2.8).toFixed(1)}" font-size="8.5" fill="#3a3a3a" text-anchor="end">${d.toFixed(1)}</text>`;
     });
   } else if (overburden !== null || effectiveTermDepth !== null){
     // Fallback: simplified two-segment (soil / rock) version
@@ -1949,7 +2036,7 @@ function buildProfileSvg(rows){
   });
 
   const totalDist = Math.max(distances[distances.length - 1], 1);
-  const padLeft = 65, padRight = 40, padTop = 40, padBottom = 50;
+  const padLeft = 65, padRight = 40, padTop = 40, padBottom = 62;
   const plotW = Math.max(600, Math.min(1400, totalDist * 0.15 + rows.length * 90));
   const plotH = 420;
   const svgW = plotW + padLeft + padRight;
@@ -1982,6 +2069,22 @@ function buildProfileSvg(rows){
   svg += `<text x="16" y="${(padTop+plotH/2).toFixed(1)}" font-size="11" fill="#1c2b2a" font-weight="700" transform="rotate(-90 16 ${(padTop+plotH/2).toFixed(1)})" text-anchor="middle">Elevation (m, RL)</text>`;
   svg += `<text x="${(padLeft+plotW/2).toFixed(1)}" y="${(svgH-10).toFixed(1)}" font-size="11" fill="#1c2b2a" font-weight="700" text-anchor="middle">Distance along section (m)</text>`;
 
+  // Distance axis ticks — nice round intervals, with a baseline along the bottom
+  const axisY = padTop + plotH;
+  svg += `<line x1="${padLeft}" y1="${axisY}" x2="${padLeft+plotW}" y2="${axisY}" stroke="#3a3a3a" stroke-width="1"/>`;
+  const targetTickMeters = totalDist / Math.max(Math.round(plotW / 90), 1);
+  const tickStep = niceScaleMeters(Math.max(targetTickMeters, 1));
+  for (let d = 0; d <= totalDist + 0.001; d += tickStep){
+    const x = xPos(d);
+    svg += `<line x1="${x.toFixed(1)}" y1="${axisY}" x2="${x.toFixed(1)}" y2="${(axisY+4).toFixed(1)}" stroke="#3a3a3a" stroke-width="1"/>`;
+    svg += `<text x="${x.toFixed(1)}" y="${(axisY+15).toFixed(1)}" font-size="8.5" fill="#6b6459" text-anchor="middle">${Math.round(d)}</text>`;
+  }
+  // Also mark each BH's exact position along the axis
+  distances.forEach(d => {
+    const x = xPos(d);
+    svg += `<line x1="${x.toFixed(1)}" y1="${axisY}" x2="${x.toFixed(1)}" y2="${(axisY+4).toFixed(1)}" stroke="#2f6f5e" stroke-width="1.5"/>`;
+  });
+
   const colW = Math.min(34, plotW / Math.max(rows.length, 1) * 0.5);
 
   const groundPts = [], rockPts = [], gwPts = [];
@@ -2001,6 +2104,38 @@ function buildProfileSvg(rows){
   }
   if (gwPts.length >= 2){
     svg += `<path d="${polylinePath(gwPts)}" fill="none" stroke="#1e6fd9" stroke-width="1.4" stroke-dasharray="4,3"/>`;
+  }
+
+  // Interpreted correlation lines between adjacent boreholes — connects matching
+  // soil/rock layer types where both boreholes share that code (dashed, since
+  // correlation between BHs is inferred, not measured). Layers that don't
+  // appear in the neighboring BH simply aren't connected (a "pinch-out").
+  let correlationLinesDrawn = false;
+  for (let i = 0; i < rows.length - 1; i++){
+    const layersA = layersArr[i], layersB = layersArr[i+1];
+    const elevA = levelsArr[i].elevation, elevB = levelsArr[i+1].elevation;
+    if (!layersA || !layersB || elevA === null || elevB === null) continue;
+
+    const topDepthByCodeA = {};
+    layersA.forEach(l => {
+      const key = (l.graphic || '').trim().toUpperCase();
+      if (!(key in topDepthByCodeA)) topDepthByCodeA[key] = l.depth;
+    });
+    const topDepthByCodeB = {};
+    layersB.forEach(l => {
+      const key = (l.graphic || '').trim().toUpperCase();
+      if (!(key in topDepthByCodeB)) topDepthByCodeB[key] = l.depth;
+    });
+
+    const xA = xPos(distances[i]), xB = xPos(distances[i+1]);
+    Object.keys(topDepthByCodeA).forEach(code => {
+      if (!(code in topDepthByCodeB)) return; // pinches out — no line drawn
+      const yA = yPos(elevA - topDepthByCodeA[code]);
+      const yB = yPos(elevB - topDepthByCodeB[code]);
+      const info = getGraphicInfo(code);
+      svg += `<line x1="${xA.toFixed(1)}" y1="${yA.toFixed(1)}" x2="${xB.toFixed(1)}" y2="${yB.toFixed(1)}" stroke="${info.color}" stroke-width="1.1" stroke-dasharray="3,3" opacity="0.75"/>`;
+      correlationLinesDrawn = true;
+    });
   }
 
   const usedGraphicLabels = {};
@@ -2071,6 +2206,9 @@ function buildProfileSvg(rows){
   svg += `<line x1="${lx}" y1="${legY-4}" x2="${lx+16}" y2="${legY-4}" stroke="#1e6fd9" stroke-width="1.4" stroke-dasharray="4,3"/><text x="${lx+20}" y="${legY-1}" font-size="9" fill="#1c2b2a">Groundwater table</text>`;
   lx += 20 + 'Groundwater table'.length * 5.2 + 16;
   svg += `<line x1="${lx}" y1="${legY-4}" x2="${lx+16}" y2="${legY-4}" stroke="#7a2f1e" stroke-width="1.6" stroke-dasharray="6,4"/><text x="${lx+20}" y="${legY-1}" font-size="9" fill="#1c2b2a">Interpreted rock surface</text>`;
+  if (correlationLinesDrawn){
+    svg += `<text x="${legX}" y="${legY+11}" font-size="8.5" fill="#6b6459" font-style="italic">Thin dashed lines (colored by layer type) = interpreted correlation between boreholes — breaks where a layer pinches out.</text>`;
+  }
 
   svg += `</svg>`;
   return svg;
