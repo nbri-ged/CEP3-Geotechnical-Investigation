@@ -904,7 +904,7 @@ function fetchCEP4BHs(){
           radius: 5, color: '#fff', weight: 1.5, fillColor: '#7048e8', fillOpacity: 0.9
         });
         marker.bindPopup(`<div class="popup-title">${bhId}</div><span class="status-pill" style="background:#7048e8;">CEP4</span><table class="popup-table" style="margin-top:8px;"><tr><td class="k">Easting</td><td>${x}</td></tr><tr><td class="k">Northing</td><td>${y}</td></tr></table>`);
-        marker.bindTooltip(bhId, { direction: 'top', offset: [0,-6], className: 'bh-label', permanent: false });
+        marker.bindTooltip(bhId, { direction: 'top', offset: [0,-6], className: 'bh-label', permanent: true });
         cep4Layer.addLayer(marker);
         count++;
       });
