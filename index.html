@@ -653,6 +653,17 @@
     overflow:auto;
     background:#fafaf7;
   }
+  .overlay-anno-label{
+    background:rgba(255,255,255,0.85);
+    border:1px solid #7a2f1e;
+    color:#3a1a10;
+    font-size:10.5px;
+    font-weight:600;
+    padding:1px 5px;
+    border-radius:3px;
+    box-shadow:none;
+  }
+  .overlay-anno-label::before{ display:none; }
 </style>
 </head>
 <body>
@@ -1716,9 +1727,9 @@ function dashArrayForLinetype(lt){
   if (s.includes('center')) return '10, 4, 2, 4';
   return null;
 }
-function styleForOverlayFeature(feature){
+function styleForOverlayFeature(feature, defaultColor){
   const props = feature.properties || {};
-  let color = '#b3541e';
+  let color = defaultColor || '#b3541e';
   if (props.Color !== undefined){
     const aci = parseInt(props.Color); if (!isNaN(aci) && ACI_COLORS[aci]) color = ACI_COLORS[aci];
   } else if (props.stroke){ color = props.stroke; }
@@ -1726,16 +1737,46 @@ function styleForOverlayFeature(feature){
   return { color: color, weight: OVERLAY_LINE_WEIGHT_PX, dashArray: dashArrayForLinetype(lt), opacity: 0.95, fillColor: color, fillOpacity: 0.15 };
 }
 
+// Common attribute names used for text annotations exported from CAD/GIS tools
+const ANNOTATION_TEXT_FIELDS = ['Text','TextString','TEXT','Label','LABEL','Note','NOTE','Annotation','Desc','Description','Name','NAME'];
+function findAnnotationText(props){
+  for (const f of ANNOTATION_TEXT_FIELDS){
+    if (props[f] !== undefined && props[f] !== null && String(props[f]).trim() !== '') return String(props[f]).trim();
+  }
+  return null;
+}
+function popupHtmlForFeature(feature){
+  const props = feature.properties || {};
+  const keys = Object.keys(props).filter(k => props[k] !== null && props[k] !== undefined && String(props[k]).trim() !== '');
+  if (!keys.length) return null;
+  let html = '<div style="font-size:12px; max-width:220px;">';
+  keys.forEach(k => { html += `<div><strong>${k}:</strong> ${props[k]}</div>`; });
+  html += '</div>';
+  return html;
+}
+
 let overlayCount = 0;
-function addOverlayLayer(name, geojson, fitToBounds){
+function addOverlayLayer(name, geojson, fitToBounds, opts){
   if (fitToBounds === undefined) fitToBounds = true;
+  opts = opts || {};
+  const defaultColor = opts.color || null;
+  const showLabels = !!opts.showLabels;
   let layer;
   try {
     layer = L.geoJSON(geojson, {
-      style: styleForOverlayFeature,
+      style: (feature) => styleForOverlayFeature(feature, defaultColor),
       pointToLayer: (feature, latlng) => {
-        const s = styleForOverlayFeature(feature);
-        return L.circleMarker(latlng, { radius: 5, color: s.color, weight: 1.5, fillColor: s.color, fillOpacity: 0.85 });
+        const s = styleForOverlayFeature(feature, defaultColor);
+        const text = showLabels ? findAnnotationText(feature.properties || {}) : null;
+        const marker = L.circleMarker(latlng, { radius: 5, color: s.color, weight: 1.5, fillColor: s.color, fillOpacity: 0.85 });
+        if (text){
+          marker.bindTooltip(text, { permanent: true, direction: 'right', offset: [6, 0], className: 'overlay-anno-label' });
+        }
+        return marker;
+      },
+      onEachFeature: (feature, lyr) => {
+        const html = popupHtmlForFeature(feature);
+        if (html) lyr.bindPopup(html);
       }
     });
   } catch (err) { alert('Could not draw "' + name + '": ' + err.message); return; }
@@ -1744,6 +1785,7 @@ function addOverlayLayer(name, geojson, fitToBounds){
   if (fitToBounds){
     try { const b = layer.getBounds(); if (b.isValid()) map.fitBounds(b, { padding: [40, 40] }); } catch (e) {}
   }
+  return layer;
 }
 
 function loadOverlayFile(file){
@@ -1767,13 +1809,20 @@ function loadOverlayFile(file){
   }
 }
 
-const PERMANENT_OVERLAYS = [ { name: "CEP3 Road Corridor", url: "Polyline_cep32.zip" } ];
+const PERMANENT_OVERLAYS = [
+  { name: "CEP3 Road Corridor", url: "Polyline_cep32.zip" },
+  { name: "CEP4 Road Trace", url: "CEP4Lines.zip", color: "#1e6fd9" },
+  { name: "Annotations", url: "Anno.zip", color: "#7a2f1e", showLabels: true }
+];
 let roadCorridorGeoJSON = null;
 function loadPermanentOverlays(){
   PERMANENT_OVERLAYS.forEach(o => {
     fetch(o.url).then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.arrayBuffer(); })
-    .then(buf => shp(buf)).then(geojson => { roadCorridorGeoJSON = geojson; addOverlayLayer(o.name, geojson, false); })
-    .catch(err => console.error('Could not load permanent overlay:', err));
+    .then(buf => shp(buf)).then(geojson => {
+      if (o.name === "CEP3 Road Corridor") roadCorridorGeoJSON = geojson;
+      addOverlayLayer(o.name, geojson, false, { color: o.color, showLabels: o.showLabels });
+    })
+    .catch(err => console.error('Could not load permanent overlay "' + o.name + '":', err));
   });
 }
 loadPermanentOverlays();
