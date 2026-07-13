@@ -811,6 +811,11 @@ const SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS8PKkh7R
 const LOG_SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS8PKkh7RDdd1g5boTWjdryadGLVhDkvKUMEjScApNAeWA7TrPrcetA1YiccjQvhPfnZ8ewg1NQugfv/pub?output=csv";
 // "BH Profile" tab — real layer-by-layer stratigraphy (PointID, Depth, Bottom, Graphic)
 const BH_PROFILE_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS8PKkh7RDdd1g5boTWjdryadGLVhDkvKUMEjScApNAeWA7TrPrcetA1YiccjQvhPfnZ8ewg1NQugfv/pub?output=csv&gid=1914424732";
+// "CEP 4 BH IDs" tab — separate project phase, point IDs + SLD99 coordinates only
+const CEP4_BH_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS8PKkh7RDdd1g5boTWjdryadGLVhDkvKUMEjScApNAeWA7TrPrcetA1YiccjQvhPfnZ8ewg1NQugfv/pub?output=csv&gid=1030712797";
+// "CEP 4 BH IDs" tab — separate project, just BH_ID/POINT_X/POINT_Y (SLD99), ~762 points.
+// PASTE the "Publish to web" CSV link for THAT SPECIFIC TAB here once you have it:
+const CEP4_SHEET_CSV_URL = "PASTE_PUBLISHED_CSV_LINK_FOR_GID_1030712797_HERE";
 // Progress-tracking tab (gid=1476293361) — has pre-computed daily columns:
 // Z = Date, AB = Cummalative (completed count), AC = Progress Percentage.
 // PASTE the "Publish to web" CSV link for THAT SPECIFIC TAB here once you have it:
@@ -873,6 +878,41 @@ baseLayers["Street"].addTo(map);
 const layersControl = L.control.layers(baseLayers, {}, {
   position: 'topright', collapsed: window.matchMedia('(max-width: 768px)').matches
 }).addTo(map);
+
+/* ============================================================
+   CEP4 BH IDs — separate project phase, toggleable overlay
+   (point IDs + SLD99 coordinates only, no status/detail data)
+   ============================================================ */
+const cep4Layer = L.layerGroup(); // NOT added to map by default — off until toggled on
+layersControl.addOverlay(cep4Layer, 'CEP4 BHs (separate project)');
+
+function fetchCEP4BHs(){
+  Papa.parse(CEP4_BH_CSV_URL, {
+    download: true, header: true, skipEmptyLines: true,
+    complete: (results) => {
+      cep4Layer.clearLayers();
+      let count = 0;
+      results.data.forEach(raw => {
+        const row = normalizeRow(raw);
+        const bhId = (row['BH_ID'] || row['BH ID'] || row['PointID'] || '').trim();
+        const x = toNum(row['POINT_X'] || row['Point_X'] || row['Easting']);
+        const y = toNum(row['POINT_Y'] || row['Point_Y'] || row['Northing']);
+        if (!bhId || x === null || y === null) return;
+        const ll = convertToLatLon(x, y);
+        if (!ll) return;
+        const marker = L.circleMarker([ll.lat, ll.lon], {
+          radius: 5, color: '#fff', weight: 1.5, fillColor: '#7048e8', fillOpacity: 0.9
+        });
+        marker.bindPopup(`<div class="popup-title">${bhId}</div><span class="status-pill" style="background:#7048e8;">CEP4</span><table class="popup-table" style="margin-top:8px;"><tr><td class="k">Easting</td><td>${x}</td></tr><tr><td class="k">Northing</td><td>${y}</td></tr></table>`);
+        marker.bindTooltip(bhId, { direction: 'top', offset: [0,-6], className: 'bh-label', permanent: false });
+        cep4Layer.addLayer(marker);
+        count++;
+      });
+      console.log('CEP4 BHs loaded:', count);
+    },
+    error: (err) => console.error('Could not load CEP4 BH IDs:', err)
+  });
+}
 
 /* ============================================================
    Locate Me
@@ -1654,14 +1694,14 @@ function setupPwaCache() {
 document.getElementById('search').addEventListener('input', render);
 ['f-status','f-contractor','f-lot','f-package'].forEach(id => document.getElementById(id).addEventListener('change', render) );
 
-fetchData(); fetchLogDates(); fetchProgressSeries(); fetchBHProfileLog();
+fetchData(); fetchLogDates(); fetchProgressSeries(); fetchBHProfileLog(); fetchCEP4BHs();
 if (SHEET_CSV_URL && AUTO_REFRESH_MS > 0){
-  setInterval(fetchData, AUTO_REFRESH_MS); setInterval(fetchLogDates, AUTO_REFRESH_MS); setInterval(fetchProgressSeries, AUTO_REFRESH_MS); setInterval(fetchBHProfileLog, AUTO_REFRESH_MS);
+  setInterval(fetchData, AUTO_REFRESH_MS); setInterval(fetchLogDates, AUTO_REFRESH_MS); setInterval(fetchProgressSeries, AUTO_REFRESH_MS); setInterval(fetchBHProfileLog, AUTO_REFRESH_MS); setInterval(fetchCEP4BHs, AUTO_REFRESH_MS);
 }
 
 document.getElementById('refresh-btn').addEventListener('click', () => {
   const btn = document.getElementById('refresh-btn'); btn.classList.add('spinning');
-  fetchData(); fetchLogDates(); fetchProgressSeries(); fetchBHProfileLog(); setTimeout(() => btn.classList.remove('spinning'), 900);
+  fetchData(); fetchLogDates(); fetchProgressSeries(); fetchBHProfileLog(); fetchCEP4BHs(); setTimeout(() => btn.classList.remove('spinning'), 900);
 });
 
 /* ============================================================
