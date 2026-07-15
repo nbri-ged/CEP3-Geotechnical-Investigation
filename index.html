@@ -736,6 +736,20 @@
     </div>
 
     <div class="block">
+      <h2>Calibrate Alignment</h2>
+      <div style="font-size:11.5px; color:var(--muted); margin-bottom:6px;">
+        If BH points / the road trace look shifted from satellite imagery, fix it here: switch to the Satellite basemap, click a point on the map you KNOW is correct (a converted BH marker or trace vertex), then click where that same feature actually is on the imagery.
+      </div>
+      <button id="calibrate-btn" class="kml-btn" style="border-color: var(--accent-2); color: var(--accent-2);">
+        📍 Start Calibration
+      </button>
+      <button id="calibrate-reset-btn" class="kml-btn" style="border-color:#999; color:#999; margin-top:6px;">
+        ↺ Reset Calibration
+      </button>
+      <div id="calibrate-output" style="font-size:11.5px; color:var(--muted); margin-top:6px; display:none; background:var(--paper); padding:6px; border-radius:6px; border:1px dashed var(--line);"></div>
+    </div>
+
+    <div class="block">
       <h2>Borehole Profile (2D Cross-Section)</h2>
       <button id="profile-select-btn" class="kml-btn" style="border-color: var(--accent-2); color: var(--accent-2);">
         📍 Select Boreholes on Map
@@ -1201,10 +1215,31 @@ function fetchProgressSeries(){
   });
 }
 
+// --- Local calibration offset -------------------------------------------
+// The official SLD99 -> WGS84 transform (EPSG:5235, via EPSG transformation 5236)
+// is only accurate to about +/-14m nationally: it's a single 7-parameter fit for
+// the whole country, not a survey-grade local one. On a small project site this
+// shows up as a small, CONSISTENT shift in one direction for every point (BH
+// markers and the road trace alike), because it's a systematic datum error, not
+// noise. The fix: calibrate once against one point whose true location you know
+// (a landmark visible on the satellite basemap, a GPS-checked corner, etc.),
+// and apply that constant correction to every converted coordinate.
+const CALIBRATION_STORAGE_KEY = 'cep_map_calibration_v1';
+function loadCalibration(){
+  try { const raw = localStorage.getItem(CALIBRATION_STORAGE_KEY); if (raw) return JSON.parse(raw); } catch(e){}
+  // Once you've calibrated (see the "Calibrate Alignment" button) and are happy with the
+  // result, copy the dLat/dLng values shown in the confirmation popup in here as the
+  // permanent default, so every visitor gets the correction without needing to run it.
+  return { dLat: 0, dLng: 0 };
+}
+let CALIBRATION = loadCalibration();
+function applyCalibration(lat, lon){ return [lat + CALIBRATION.dLat, lon + CALIBRATION.dLng]; }
+
 function convertToLatLon(easting, northing){
   try {
     const [lon, lat] = proj4('EPSG:5235', 'WGS84', [easting, northing]);
-    return { lat, lon };
+    const [latC, lonC] = applyCalibration(lat, lon);
+    return { lat: latC, lon: lonC };
   } catch(e){ return null; }
 }
 
@@ -1574,6 +1609,62 @@ document.getElementById('measure-btn').addEventListener('click', function() {
   }
 });
 
+/* ============================================================
+   NEW UTILITY: LOCAL ALIGNMENT CALIBRATION
+   Two-click workflow: click a point you know is correctly converted (a BH
+   marker or a trace vertex), then click where that same real-world feature
+   actually sits (e.g. on the Satellite basemap). The lat/lng delta between
+   those two clicks is stored and applied to every future coordinate
+   conversion (BH markers + shapefile overlays) via applyCalibration().
+   ============================================================ */
+let calibrating = false;
+let calibrateFirstClick = null;
+let calibrateMarkers = [];
+function clearCalibrationMarkers(){ calibrateMarkers.forEach(m => map.removeLayer(m)); calibrateMarkers = []; calibrateFirstClick = null; }
+
+document.getElementById('calibrate-btn').addEventListener('click', function(){
+  calibrating = !calibrating; const panel = document.getElementById('calibrate-output');
+  if (calibrating){
+    this.textContent = "🛑 Cancel Calibration"; this.style.background = "#c0523f"; this.style.color = "#fff";
+    panel.style.display = "block"; panel.innerHTML = "Step 1: click a point on the map whose CURRENT (possibly shifted) position you can identify — e.g. a BH marker.";
+    map.getContainer().style.cursor = 'crosshair';
+    clearCalibrationMarkers();
+    map.on('click', onCalibrateMapClick);
+  } else {
+    this.textContent = "📍 Start Calibration"; this.style.background = ""; this.style.color = ""; this.style.borderColor = "var(--accent-2)";
+    panel.style.display = "none"; map.getContainer().style.cursor = '';
+    map.off('click', onCalibrateMapClick);
+    clearCalibrationMarkers();
+  }
+});
+
+document.getElementById('calibrate-reset-btn').addEventListener('click', function(){
+  CALIBRATION = { dLat: 0, dLng: 0 };
+  try { localStorage.removeItem(CALIBRATION_STORAGE_KEY); } catch(e){}
+  alert('Calibration reset. Reloading the map with no correction applied.');
+  location.reload();
+});
+
+function onCalibrateMapClick(e){
+  const panel = document.getElementById('calibrate-output');
+  if (!calibrateFirstClick){
+    calibrateFirstClick = e.latlng;
+    const m = L.circleMarker(e.latlng, { radius: 7, color: '#c0523f', weight: 2, fillColor: '#c0523f', fillOpacity: 0.9 }).addTo(map);
+    calibrateMarkers.push(m);
+    panel.innerHTML = "Step 2: now click where that SAME feature actually is (switch to Satellite basemap first if you haven't).";
+  } else {
+    const correctLatLng = e.latlng;
+    const m = L.circleMarker(e.latlng, { radius: 7, color: '#2b8a3e', weight: 2, fillColor: '#2b8a3e', fillOpacity: 0.9 }).addTo(map);
+    calibrateMarkers.push(m);
+    const dLat = correctLatLng.lat - calibrateFirstClick.lat;
+    const dLng = correctLatLng.lng - calibrateFirstClick.lng;
+    CALIBRATION = { dLat, dLng };
+    try { localStorage.setItem(CALIBRATION_STORAGE_KEY, JSON.stringify(CALIBRATION)); } catch(err){}
+    panel.innerHTML = `<b>Calibration saved:</b> dLat=${dLat.toFixed(7)}, dLng=${dLng.toFixed(7)}.<br>Reloading to apply to all layers…`;
+    setTimeout(() => location.reload(), 1200);
+  }
+}
+
 function onMeasureMapClick(e) {
   const latlng = e.latlng; measurePoints.push(latlng);
   const dot = L.circleMarker(latlng, {radius: 5, color: '#b3541e', fillColor: '#fff', fillOpacity: 1, weight: 2}).addTo(map);
@@ -1818,7 +1909,8 @@ function loadOverlayFile(file){
 function reprojectCoordsInPlace(coords, fromEPSG){
   if (typeof coords[0] === 'number'){
     const [lon, lat] = proj4(fromEPSG, 'WGS84', [coords[0], coords[1]]);
-    coords[0] = lon; coords[1] = lat;
+    const [latC, lonC] = applyCalibration(lat, lon);
+    coords[0] = lonC; coords[1] = latC;
   } else {
     coords.forEach(c => reprojectCoordsInPlace(c, fromEPSG));
   }
