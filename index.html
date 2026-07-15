@@ -653,17 +653,6 @@
     overflow:auto;
     background:#fafaf7;
   }
-  .overlay-anno-label{
-    background:rgba(255,255,255,0.85);
-    border:1px solid #7a2f1e;
-    color:#3a1a10;
-    font-size:10.5px;
-    font-weight:600;
-    padding:1px 5px;
-    border-radius:3px;
-    box-shadow:none;
-  }
-  .overlay-anno-label::before{ display:none; }
 </style>
 </head>
 <body>
@@ -733,20 +722,6 @@
       <div id="measure-output" style="font-size:11.5px; color:var(--muted); margin-top:6px; display:none; background:var(--paper); padding:6px; border-radius:6px; border:1px dashed var(--line);">
         Click points on the map to measure. Double-click to close area polygon.
       </div>
-    </div>
-
-    <div class="block">
-      <h2>Calibrate Alignment</h2>
-      <div style="font-size:11.5px; color:var(--muted); margin-bottom:6px;">
-        If BH points / the road trace look shifted from satellite imagery, fix it here: switch to the Satellite basemap, click a point on the map you KNOW is correct (a converted BH marker or trace vertex), then click where that same feature actually is on the imagery.
-      </div>
-      <button id="calibrate-btn" class="kml-btn" style="border-color: var(--accent-2); color: var(--accent-2);">
-        📍 Start Calibration
-      </button>
-      <button id="calibrate-reset-btn" class="kml-btn" style="border-color:#999; color:#999; margin-top:6px;">
-        ↺ Reset Calibration
-      </button>
-      <div id="calibrate-output" style="font-size:11.5px; color:var(--muted); margin-top:6px; display:none; background:var(--paper); padding:6px; border-radius:6px; border:1px dashed var(--line);"></div>
     </div>
 
     <div class="block">
@@ -824,7 +799,6 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.9.2/proj4.js"></script>
 <script src="https://unpkg.com/togeojson@0.16.0/togeojson.js"></script>
 <script src="https://unpkg.com/shpjs@4.0.4/dist/shp.js"></script>
-<script src="https://unpkg.com/jszip@3.10.1/dist/jszip.min.js"></script>
 <script src="https://unpkg.com/tokml@0.4.0/tokml.js"></script>
 <script src="https://unpkg.com/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
 <script src="https://unpkg.com/leaflet-image@0.0.4/leaflet-image.js"></script>
@@ -848,7 +822,7 @@ const CEP4_SHEET_CSV_URL = "PASTE_PUBLISHED_CSV_LINK_FOR_GID_1030712797_HERE";
 const PROGRESS_SHEET_CSV_URL = "PASTE_PUBLISHED_CSV_LINK_FOR_GID_1476293361_HERE";
 const AUTO_REFRESH_MS = 5 * 60 * 1000;
 
-proj4.defs("EPSG:5235", "+proj=tmerc +lat_0=7.00047152777778 +lon_0=80.7717130833333 +k=0.9999238418 +x_0=500000 +y_0=500000 +ellps=evrst30 +towgs84=-0.293,766.95,87.713,-0.195704,-1.695068,-3.473016,-0.039338 +units=m +no_defs +type=crs");
+proj4.defs("EPSG:5235", "+proj=tmerc +lat_0=7.000480277777778 +lon_0=80.77171308333334 +k=0.9999238418 +x_0=500000 +y_0=500000 +ellps=evrst30 +towgs84=-0.293,766.95,87.713,0.195704,1.69507,3.47302,-0.039338 +units=m +no_defs");
 
 const SAMPLE_CSV = `BH Name,Easting,Northing,Elevation,TF,Status,Contractor,Difficulty,Lot,Package,Status-N,Termination Depth,Rock Coring,Groundwater Level
 BH-MT-08,457534.196,539950.47,99.929,TRUE,Completed,NBRI,Paddy Field,Lot 0,Package 2A,2,15,12,2
@@ -1215,31 +1189,10 @@ function fetchProgressSeries(){
   });
 }
 
-// --- Local calibration offset -------------------------------------------
-// The official SLD99 -> WGS84 transform (EPSG:5235, via EPSG transformation 5236)
-// is only accurate to about +/-14m nationally: it's a single 7-parameter fit for
-// the whole country, not a survey-grade local one. On a small project site this
-// shows up as a small, CONSISTENT shift in one direction for every point (BH
-// markers and the road trace alike), because it's a systematic datum error, not
-// noise. The fix: calibrate once against one point whose true location you know
-// (a landmark visible on the satellite basemap, a GPS-checked corner, etc.),
-// and apply that constant correction to every converted coordinate.
-const CALIBRATION_STORAGE_KEY = 'cep_map_calibration_v1';
-function loadCalibration(){
-  try { const raw = localStorage.getItem(CALIBRATION_STORAGE_KEY); if (raw) return JSON.parse(raw); } catch(e){}
-  // Once you've calibrated (see the "Calibrate Alignment" button) and are happy with the
-  // result, copy the dLat/dLng values shown in the confirmation popup in here as the
-  // permanent default, so every visitor gets the correction without needing to run it.
-  return { dLat: 0, dLng: 0 };
-}
-let CALIBRATION = loadCalibration();
-function applyCalibration(lat, lon){ return [lat + CALIBRATION.dLat, lon + CALIBRATION.dLng]; }
-
 function convertToLatLon(easting, northing){
   try {
     const [lon, lat] = proj4('EPSG:5235', 'WGS84', [easting, northing]);
-    const [latC, lonC] = applyCalibration(lat, lon);
-    return { lat: latC, lon: lonC };
+    return { lat, lon };
   } catch(e){ return null; }
 }
 
@@ -1609,62 +1562,6 @@ document.getElementById('measure-btn').addEventListener('click', function() {
   }
 });
 
-/* ============================================================
-   NEW UTILITY: LOCAL ALIGNMENT CALIBRATION
-   Two-click workflow: click a point you know is correctly converted (a BH
-   marker or a trace vertex), then click where that same real-world feature
-   actually sits (e.g. on the Satellite basemap). The lat/lng delta between
-   those two clicks is stored and applied to every future coordinate
-   conversion (BH markers + shapefile overlays) via applyCalibration().
-   ============================================================ */
-let calibrating = false;
-let calibrateFirstClick = null;
-let calibrateMarkers = [];
-function clearCalibrationMarkers(){ calibrateMarkers.forEach(m => map.removeLayer(m)); calibrateMarkers = []; calibrateFirstClick = null; }
-
-document.getElementById('calibrate-btn').addEventListener('click', function(){
-  calibrating = !calibrating; const panel = document.getElementById('calibrate-output');
-  if (calibrating){
-    this.textContent = "🛑 Cancel Calibration"; this.style.background = "#c0523f"; this.style.color = "#fff";
-    panel.style.display = "block"; panel.innerHTML = "Step 1: click a point on the map whose CURRENT (possibly shifted) position you can identify — e.g. a BH marker.";
-    map.getContainer().style.cursor = 'crosshair';
-    clearCalibrationMarkers();
-    map.on('click', onCalibrateMapClick);
-  } else {
-    this.textContent = "📍 Start Calibration"; this.style.background = ""; this.style.color = ""; this.style.borderColor = "var(--accent-2)";
-    panel.style.display = "none"; map.getContainer().style.cursor = '';
-    map.off('click', onCalibrateMapClick);
-    clearCalibrationMarkers();
-  }
-});
-
-document.getElementById('calibrate-reset-btn').addEventListener('click', function(){
-  CALIBRATION = { dLat: 0, dLng: 0 };
-  try { localStorage.removeItem(CALIBRATION_STORAGE_KEY); } catch(e){}
-  alert('Calibration reset. Reloading the map with no correction applied.');
-  location.reload();
-});
-
-function onCalibrateMapClick(e){
-  const panel = document.getElementById('calibrate-output');
-  if (!calibrateFirstClick){
-    calibrateFirstClick = e.latlng;
-    const m = L.circleMarker(e.latlng, { radius: 7, color: '#c0523f', weight: 2, fillColor: '#c0523f', fillOpacity: 0.9 }).addTo(map);
-    calibrateMarkers.push(m);
-    panel.innerHTML = "Step 2: now click where that SAME feature actually is (switch to Satellite basemap first if you haven't).";
-  } else {
-    const correctLatLng = e.latlng;
-    const m = L.circleMarker(e.latlng, { radius: 7, color: '#2b8a3e', weight: 2, fillColor: '#2b8a3e', fillOpacity: 0.9 }).addTo(map);
-    calibrateMarkers.push(m);
-    const dLat = correctLatLng.lat - calibrateFirstClick.lat;
-    const dLng = correctLatLng.lng - calibrateFirstClick.lng;
-    CALIBRATION = { dLat, dLng };
-    try { localStorage.setItem(CALIBRATION_STORAGE_KEY, JSON.stringify(CALIBRATION)); } catch(err){}
-    panel.innerHTML = `<b>Calibration saved:</b> dLat=${dLat.toFixed(7)}, dLng=${dLng.toFixed(7)}.<br>Reloading to apply to all layers…`;
-    setTimeout(() => location.reload(), 1200);
-  }
-}
-
 function onMeasureMapClick(e) {
   const latlng = e.latlng; measurePoints.push(latlng);
   const dot = L.circleMarker(latlng, {radius: 5, color: '#b3541e', fillColor: '#fff', fillOpacity: 1, weight: 2}).addTo(map);
@@ -1819,9 +1716,9 @@ function dashArrayForLinetype(lt){
   if (s.includes('center')) return '10, 4, 2, 4';
   return null;
 }
-function styleForOverlayFeature(feature, defaultColor){
+function styleForOverlayFeature(feature){
   const props = feature.properties || {};
-  let color = defaultColor || '#b3541e';
+  let color = '#b3541e';
   if (props.Color !== undefined){
     const aci = parseInt(props.Color); if (!isNaN(aci) && ACI_COLORS[aci]) color = ACI_COLORS[aci];
   } else if (props.stroke){ color = props.stroke; }
@@ -1829,46 +1726,16 @@ function styleForOverlayFeature(feature, defaultColor){
   return { color: color, weight: OVERLAY_LINE_WEIGHT_PX, dashArray: dashArrayForLinetype(lt), opacity: 0.95, fillColor: color, fillOpacity: 0.15 };
 }
 
-// Common attribute names used for text annotations exported from CAD/GIS tools
-const ANNOTATION_TEXT_FIELDS = ['Text','TextString','TEXT','Label','LABEL','Note','NOTE','Annotation','Desc','Description','Name','NAME'];
-function findAnnotationText(props){
-  for (const f of ANNOTATION_TEXT_FIELDS){
-    if (props[f] !== undefined && props[f] !== null && String(props[f]).trim() !== '') return String(props[f]).trim();
-  }
-  return null;
-}
-function popupHtmlForFeature(feature){
-  const props = feature.properties || {};
-  const keys = Object.keys(props).filter(k => props[k] !== null && props[k] !== undefined && String(props[k]).trim() !== '');
-  if (!keys.length) return null;
-  let html = '<div style="font-size:12px; max-width:220px;">';
-  keys.forEach(k => { html += `<div><strong>${k}:</strong> ${props[k]}</div>`; });
-  html += '</div>';
-  return html;
-}
-
 let overlayCount = 0;
-function addOverlayLayer(name, geojson, fitToBounds, opts){
+function addOverlayLayer(name, geojson, fitToBounds){
   if (fitToBounds === undefined) fitToBounds = true;
-  opts = opts || {};
-  const defaultColor = opts.color || null;
-  const showLabels = !!opts.showLabels;
   let layer;
   try {
     layer = L.geoJSON(geojson, {
-      style: (feature) => styleForOverlayFeature(feature, defaultColor),
+      style: styleForOverlayFeature,
       pointToLayer: (feature, latlng) => {
-        const s = styleForOverlayFeature(feature, defaultColor);
-        const text = showLabels ? findAnnotationText(feature.properties || {}) : null;
-        const marker = L.circleMarker(latlng, { radius: 5, color: s.color, weight: 1.5, fillColor: s.color, fillOpacity: 0.85 });
-        if (text){
-          marker.bindTooltip(text, { permanent: true, direction: 'right', offset: [6, 0], className: 'overlay-anno-label' });
-        }
-        return marker;
-      },
-      onEachFeature: (feature, lyr) => {
-        const html = popupHtmlForFeature(feature);
-        if (html) lyr.bindPopup(html);
+        const s = styleForOverlayFeature(feature);
+        return L.circleMarker(latlng, { radius: 5, color: s.color, weight: 1.5, fillColor: s.color, fillOpacity: 0.85 });
       }
     });
   } catch (err) { alert('Could not draw "' + name + '": ' + err.message); return; }
@@ -1877,7 +1744,6 @@ function addOverlayLayer(name, geojson, fitToBounds, opts){
   if (fitToBounds){
     try { const b = layer.getBounds(); if (b.isValid()) map.fitBounds(b, { padding: [40, 40] }); } catch (e) {}
   }
-  return layer;
 }
 
 function loadOverlayFile(file){
@@ -1901,60 +1767,13 @@ function loadOverlayFile(file){
   }
 }
 
-// Recursively reproject every [x,y] pair in a GeoJSON geometry tree from `fromEPSG` to WGS84,
-// using OUR OWN proj4 definition (the same one used for borehole coordinates) rather than
-// whatever transform shp.js derives from the shapefile's bundled .prj file. Shapefiles exported
-// without a full 7-parameter datum shift in their .prj commonly reproject a little off — this
-// guarantees the road trace/annotations line up exactly with the borehole points.
-function reprojectCoordsInPlace(coords, fromEPSG){
-  if (typeof coords[0] === 'number'){
-    const [lon, lat] = proj4(fromEPSG, 'WGS84', [coords[0], coords[1]]);
-    const [latC, lonC] = applyCalibration(lat, lon);
-    coords[0] = lonC; coords[1] = latC;
-  } else {
-    coords.forEach(c => reprojectCoordsInPlace(c, fromEPSG));
-  }
-}
-function reprojectGeoJSON(geojson, fromEPSG){
-  (geojson.features || []).forEach(f => {
-    if (f.geometry && f.geometry.coordinates) reprojectCoordsInPlace(f.geometry.coordinates, fromEPSG);
-  });
-  return geojson;
-}
-
-// Load a zipped shapefile, skipping shp.js's own .prj-based reprojection, and instead apply
-// our known-correct SLD99 -> WGS84 transform to the raw easting/northing values.
-async function loadShapefileWithOwnProjection(zipBuffer, fromEPSG){
-  const zip = await JSZip.loadAsync(zipBuffer);
-  const shpName = Object.keys(zip.files).find(f => /\.shp$/i.test(f));
-  const dbfName = Object.keys(zip.files).find(f => /\.dbf$/i.test(f));
-  if (!shpName) throw new Error('No .shp found inside zip');
-  const shpBuf = await zip.files[shpName].async('arraybuffer');
-  const geoms = shp.parseShp(shpBuf); // no prj arg = raw, unprojected coordinates
-  let props = [];
-  if (dbfName){
-    const dbfBuf = await zip.files[dbfName].async('arraybuffer');
-    props = shp.parseDbf(dbfBuf);
-  }
-  const geojson = shp.combine([geoms, props]);
-  return reprojectGeoJSON(geojson, fromEPSG);
-}
-
-const PERMANENT_OVERLAYS = [
-  { name: "CEP3 Road Corridor", url: "Polyline_cep32.zip" },
-  { name: "CEP4 Road Trace", url: "CEP4Lines.zip", color: "#1e6fd9", reproject: "EPSG:5235" },
-  { name: "Annotations", url: "Anno.zip", color: "#7a2f1e", showLabels: true, reproject: "EPSG:5235" }
-];
+const PERMANENT_OVERLAYS = [ { name: "CEP3 Road Corridor", url: "Polyline_cep32.zip" } ];
 let roadCorridorGeoJSON = null;
 function loadPermanentOverlays(){
   PERMANENT_OVERLAYS.forEach(o => {
     fetch(o.url).then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.arrayBuffer(); })
-    .then(buf => o.reproject ? loadShapefileWithOwnProjection(buf, o.reproject) : shp(buf))
-    .then(geojson => {
-      if (o.name === "CEP3 Road Corridor") roadCorridorGeoJSON = geojson;
-      addOverlayLayer(o.name, geojson, false, { color: o.color, showLabels: o.showLabels });
-    })
-    .catch(err => console.error('Could not load permanent overlay "' + o.name + '":', err));
+    .then(buf => shp(buf)).then(geojson => { roadCorridorGeoJSON = geojson; addOverlayLayer(o.name, geojson, false); })
+    .catch(err => console.error('Could not load permanent overlay:', err));
   });
 }
 loadPermanentOverlays();
