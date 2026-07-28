@@ -2162,11 +2162,16 @@ function buildProfileSvg(rows){
 
   const colW = Math.min(20, plotW / Math.max(rows.length, 1) * 0.5);
 
+  // Index-aligned with `rows` (a null placeholder where a BH is missing that
+  // value) rather than just omitted — omitting silently shifted every later
+  // index out of alignment with `rows`, which broke the curved-band lookup
+  // below for the *entire* profile as soon as any one BH lacked data partway
+  // through the selection, not just around that one BH.
   const groundPts = [], rockPts = [], gwPts = [];
   levelsArr.forEach((lv, i) => {
     const x = xPos(distances[i]);
-    if (lv.elevation !== null) groundPts.push([x, yPos(lv.elevation)]);
-    if (effectiveRockLevel[i] !== null && effectiveRockLevel[i] !== undefined) rockPts.push([x, yPos(effectiveRockLevel[i])]);
+    groundPts.push(lv.elevation !== null ? [x, yPos(lv.elevation)] : null);
+    rockPts.push((effectiveRockLevel[i] !== null && effectiveRockLevel[i] !== undefined) ? [x, yPos(effectiveRockLevel[i])] : null);
     if (lv.gwLevel !== null) gwPts.push([x, yPos(lv.gwLevel)]);
   });
 
@@ -2174,12 +2179,14 @@ function buildProfileSvg(rows){
   // draws between pts[segIdx] and pts[segIdx+1], at parameter t (0..1). Used
   // so the layer-correlation bands below can be sampled to bow in sync with
   // the ground/rock curves, instead of connecting boreholes with a straight
-  // edge that cuts across those curves.
+  // edge that cuts across those curves. A missing neighboring point (gap in
+  // the data) is treated as a duplicate of the nearer endpoint — the normal
+  // Catmull-Rom boundary rule — so one bad BH only flattens the curve locally
+  // instead of breaking the whole thing.
   function curveSegmentXY(pts, segIdx, t){
-    const p0 = pts[segIdx === 0 ? segIdx : segIdx - 1];
-    const p1 = pts[segIdx];
-    const p2 = pts[segIdx + 1];
-    const p3 = pts[segIdx + 2 < pts.length ? segIdx + 2 : segIdx + 1];
+    const p1 = pts[segIdx], p2 = pts[segIdx + 1];
+    const p0 = (segIdx > 0 && pts[segIdx - 1]) ? pts[segIdx - 1] : p1;
+    const p3 = (segIdx + 2 < pts.length && pts[segIdx + 2]) ? pts[segIdx + 2] : p2;
     const c1x = p1[0] + (p2[0] - p0[0]) / 6, c1y = p1[1] + (p2[1] - p0[1]) / 6;
     const c2x = p2[0] - (p3[0] - p1[0]) / 6, c2y = p2[1] - (p3[1] - p1[1]) / 6;
     const mt = 1 - t;
@@ -2193,8 +2200,12 @@ function buildProfileSvg(rows){
   // be built by blending the two curves' y-values at matching t — giving a
   // band edge that's conformable with (bows the same way as) the surrounding
   // terrain and rock surface, which is the standard assumption when only two
-  // boreholes constrain what happens in between.
-  const curvedBandsAvailable = groundPts.length === rows.length && rockPts.length === rows.length;
+  // boreholes constrain what happens in between. Checked per-pair (not once
+  // for the whole profile), so a gap around one BH doesn't disable curving
+  // for every other pair.
+  function curvedBandsAvailableFor(segIdx){
+    return !!(groundPts[segIdx] && groundPts[segIdx + 1] && rockPts[segIdx] && rockPts[segIdx + 1]);
+  }
   function bandSamplePoints(segIdx, fracTop0, fracBot0, fracTop1, fracBot1, tStart, tEnd, steps){
     const topPts = [], botPts = [];
     for (let s = 0; s <= steps; s++){
@@ -2239,8 +2250,10 @@ function buildProfileSvg(rows){
     return d.trim();
   }
 
-  if (rockPts.length >= 2){
-    svg += `<path d="${smoothPath(rockPts)}" fill="none" stroke="#7a2f1e" stroke-width="1.6" stroke-dasharray="6,4"/>`;
+  const rockPtsValid = rockPts.filter(Boolean);
+  const groundPtsValid = groundPts.filter(Boolean);
+  if (rockPtsValid.length >= 2){
+    svg += `<path d="${smoothPath(rockPtsValid)}" fill="none" stroke="#7a2f1e" stroke-width="1.6" stroke-dasharray="6,4"/>`;
   }
   if (gwPts.length >= 2){
     svg += `<path d="${smoothPath(gwPts)}" fill="none" stroke="#1e6fd9" stroke-width="1.4" stroke-dasharray="4,3"/>`;
@@ -2293,7 +2306,7 @@ function buildProfileSvg(rows){
       const spanA = seqA[ai], spanB = seqB[bi];
       const info = getGraphicInfo(spanA.code);
 
-      if (!curvedBandsAvailable){
+      if (!curvedBandsAvailableFor(i)){
         // Fallback for the rare case where the ground/rock point arrays don't
         // line up 1:1 with the borehole list — draw the old straight-edge version.
         const yTopA = yPos(elevA - spanA.top), yBotA = yPos(elevA - spanA.bottom);
@@ -2323,7 +2336,17 @@ function buildProfileSvg(rows){
     const yTerm = (effectiveTermLevel[i] !== null && effectiveTermLevel[i] !== undefined) ? yPos(effectiveTermLevel[i]) : null;
 
     if (yGround === null || yTerm === null){
-      svg += `<text x="${x.toFixed(1)}" y="${(padTop-10).toFixed(1)}" font-size="9" fill="#c0523f" text-anchor="middle">${bhName} (missing Elevation or depth data)</text>`;
+      // Not a rendering issue — this BH is missing Elevation and/or
+      // Termination Depth in the source data, so there's no valid vertical
+      // position to place a column at. Mark it at its correct distance along
+      // the section (rather than a floating banner disconnected from where
+      // it actually sits) so it's clear which hole needs its data fixed.
+      svg += `<line x1="${x.toFixed(1)}" y1="${padTop.toFixed(1)}" x2="${x.toFixed(1)}" y2="${axisY.toFixed(1)}" stroke="#c0523f" stroke-width="1" stroke-dasharray="2,3" opacity="0.45"/>`;
+      svg += `<circle cx="${x.toFixed(1)}" cy="${(padTop+15).toFixed(1)}" r="8" fill="#fff" stroke="#c0523f" stroke-width="1.3"/>`;
+      svg += `<text x="${x.toFixed(1)}" y="${(padTop+18.5).toFixed(1)}" font-size="10" font-weight="700" fill="#c0523f" text-anchor="middle">!</text>`;
+      svg += `<rect x="${(x-70).toFixed(1)}" y="${(padTop+24).toFixed(1)}" width="140" height="28" fill="#ffffff" opacity="0.9" rx="3"/>`;
+      svg += `<text x="${x.toFixed(1)}" y="${(padTop+35).toFixed(1)}" font-size="8.5" font-weight="700" fill="#c0523f" text-anchor="middle">${bhName}</text>`;
+      svg += `<text x="${x.toFixed(1)}" y="${(padTop+46).toFixed(1)}" font-size="7.5" fill="#c0523f" text-anchor="middle">Missing Elevation / Termination Depth</text>`;
       return;
     }
 
@@ -2391,8 +2414,8 @@ function buildProfileSvg(rows){
 
   if (anyGapDrawn) usedGraphicLabels['Unlogged interval'] = '#f1ede1';
 
-  if (groundPts.length >= 2){
-    svg += `<path d="${smoothPath(groundPts)}" fill="none" stroke="#2f6f5e" stroke-width="2"/>`;
+  if (groundPtsValid.length >= 2){
+    svg += `<path d="${smoothPath(groundPtsValid)}" fill="none" stroke="#2f6f5e" stroke-width="2"/>`;
   }
 
   // Legend — built from whatever layer types actually appear, plus fixed lines.
