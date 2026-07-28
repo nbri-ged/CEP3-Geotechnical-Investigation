@@ -1972,11 +1972,51 @@ document.getElementById('profile-generate-btn').addEventListener('click', () => 
     alert('Select at least 2 boreholes first (click them on the map while "Select Boreholes on Map" is active).');
     return;
   }
-  const rows = profileSelectedNames
+  let rows = profileSelectedNames
     .map(n => allRows.find(r => (r['BH Name'] || '').trim() === n))
     .filter(Boolean);
+
+  // AUTO-SORT by geographic position along the section line
+  // Project each BH onto the best-fit axis (centroid → furthest BH direction)
+  rows = sortBoreholesByMapPosition(rows);
+
   showProfileModal(rows);
 });
+
+function sortBoreholesByMapPosition(rows) {
+  // Convert all to lat/lon
+  const pts = rows.map(row => {
+    const e = toNum(row['Easting']), n = toNum(row['Northing']);
+    const ll = (e !== null && n !== null) ? convertToLatLon(e, n) : null;
+    return { row, lat: ll ? ll.lat : 0, lon: ll ? ll.lon : 0 };
+  });
+
+  if (pts.length < 2) return rows;
+
+  // Find principal axis: from first-most to last-most BH along the overall direction
+  // Use the vector from centroid to the extreme point
+  const centLat = pts.reduce((s, p) => s + p.lat, 0) / pts.length;
+  const centLon = pts.reduce((s, p) => s + p.lon, 0) / pts.length;
+
+  // PCA-style: pick the BH farthest from centroid, use that as direction vector
+  let maxDist = -1, farIdx = 0;
+  pts.forEach((p, i) => {
+    const d = Math.sqrt((p.lat - centLat) ** 2 + (p.lon - centLon) ** 2);
+    if (d > maxDist) { maxDist = d; farIdx = i; }
+  });
+
+  const axLat = pts[farIdx].lat - centLat;
+  const axLon = pts[farIdx].lon - centLon;
+  const axLen = Math.sqrt(axLat ** 2 + axLon ** 2) || 1;
+
+  // Project each BH onto this axis and sort
+  pts.forEach(p => {
+    p.proj = ((p.lat - centLat) * axLat + (p.lon - centLon) * axLon) / axLen;
+  });
+
+  pts.sort((a, b) => a.proj - b.proj);
+  return pts.map(p => p.row);
+}
 
 function computeProfilePositions(rows){
   const points = rows.map(row => {
@@ -2026,7 +2066,14 @@ function buildProfileSvg(rows) {
 
   const totalDist = Math.max(distances[distances.length - 1], 1);
   const padLeft = 85, padRight = 45, padTop = 70;
-  const plotMargin = 60; // Offset first/last BH from plot edge so Y-axis & titles never overlap
+  // sideExt: small extension beyond first/last BH as a fraction of total distance
+  const sideExtFraction = 0.04; // 4% of total distance on each side
+  const sideExt = totalDist * sideExtFraction;
+  // distMin / distMax define the geological extent (with side extensions)
+  const distMin = 0 - sideExt;
+  const distMax = totalDist + sideExt;
+  const distSpan = distMax - distMin;
+  const plotMargin = 55; // Offset plot frame from Y-axis labels
   const minInnerW = Math.max(650, totalDist * 0.18 + rows.length * 100);
   const plotW = minInnerW + plotMargin * 2;
   const plotH = 440;
@@ -2043,11 +2090,15 @@ function buildProfileSvg(rows) {
   maxElev += elevPad; minElev -= elevPad;
   const elevRange = maxElev - minElev;
 
+  // xPos maps actual distances (including negative sideExt) to SVG X
   function xPos(dist) {
     const xLeft = padLeft + plotMargin;
     const xRight = padLeft + plotW - plotMargin;
-    return xLeft + (totalDist > 0 ? (dist / totalDist) * (xRight - xLeft) : (xRight - xLeft) / 2);
+    return xLeft + ((dist - distMin) / distSpan) * (xRight - xLeft);
   }
+  // xDistMin / xDistMax are the SVG pixel positions of the left/right plot frame edges
+  const xFrameLeft = padLeft + plotMargin;
+  const xFrameRight = padLeft + plotW - plotMargin;
 
   function yPos(elev) {
     return padTop + ((maxElev - elev) / elevRange) * plotH;
@@ -2080,7 +2131,9 @@ function buildProfileSvg(rows) {
   if (masterSoilUnits.length === 0) masterSoilUnits.push('Overburden (soil)');
 
   // Build cumulative boundaries C_0, C_1, ..., C_K at each borehole
+  // Also record which units are PRESENT at each borehole (for pinch-out logic)
   const K = masterSoilUnits.length;
+  const bhUnitPresent = []; // bhUnitPresent[i][k] = true if unit k exists at borehole i
   const bhCumBoundaries = rows.map((r, i) => {
     const lv = levelsArr[i];
     const layers = layersArr[i];
@@ -2101,6 +2154,8 @@ function buildProfileSvg(rows) {
         if (!unitMap[code]) {
           unitMap[code] = { fTop, fBot };
         } else {
+          // Merge: extend fTop down, fBot up to cover discontiguous occurrences
+          unitMap[code].fTop = Math.min(unitMap[code].fTop, fTop);
           unitMap[code].fBot = Math.max(unitMap[code].fBot, fBot);
         }
       });
@@ -2108,20 +2163,45 @@ function buildProfileSvg(rows) {
       unitMap['Overburden (soil)'] = { fTop: 0.0, fBot: 1.0 };
     }
 
+    // Record which units are present
+    const present = masterSoilUnits.map(u => !!unitMap[(u || '').trim()]);
+    bhUnitPresent.push(present);
+
+    // Build cumulative boundaries in the actual LAYER ORDER from the log
+    // Strategy: walk masterSoilUnits in order, assigning their fraction slots
+    // Units NOT present at this BH get a zero-thickness slot (their C[uIdx] == C[uIdx+1])
     const C = new Array(K + 1).fill(0);
     C[0] = 0.0;
-    let currentF = 0.0;
+    let cursor = 0.0;
+
     masterSoilUnits.forEach((u, uIdx) => {
       if (unitMap[u]) {
-        C[uIdx] = Math.max(unitMap[u].fTop, currentF);
-        C[uIdx + 1] = Math.max(unitMap[u].fBot, C[uIdx]);
-        currentF = C[uIdx + 1];
+        const fTop = Math.max(unitMap[u].fTop, cursor);
+        const fBot = Math.max(unitMap[u].fBot, fTop);
+        C[uIdx] = fTop;
+        C[uIdx + 1] = fBot;
+        cursor = fBot;
       } else {
-        C[uIdx + 1] = currentF;
+        // Absent unit: zero thickness — both boundaries at current cursor
+        C[uIdx] = cursor;
+        C[uIdx + 1] = cursor;
       }
     });
+    // Force last boundary to 1.0 to ensure full coverage
     C[K] = 1.0;
-
+    // Redistribute: if cursor < 1.0, push remaining into last present unit
+    if (cursor < 1.0) {
+      // Find the last present unit and extend its bottom
+      for (let k = K - 1; k >= 0; k--) {
+        if (bhUnitPresent[i][k]) {
+          C[k + 1] = 1.0;
+          // Push all subsequent absent units' boundaries to 1.0
+          for (let j = k + 1; j <= K; j++) C[j] = 1.0;
+          break;
+        }
+      }
+    }
+    // Monotone fix
     for (let k = 1; k <= K; k++) {
       if (C[k] < C[k - 1]) C[k] = C[k - 1];
     }
@@ -2158,21 +2238,55 @@ function buildProfileSvg(rows) {
     return null;
   }).filter(Boolean);
 
-  function getZGround(x) { return interpolateSpline(groundPts, x); }
-  function getZRock(x) { return Math.min(interpolateSpline(rockPts, x), getZGround(x) - 0.05); }
-
-  function getZWater(x) {
-    if (gwDepthPts.length === 0) return null;
-    const depthGw = Math.max(interpolateSpline(gwDepthPts, x), 0.1);
-    const zG = getZGround(x);
-    return zG - depthGw;
+  // Extended ground/rock for side extensions — clamp to first/last BH values
+  function getZGround(d) {
+    if (d <= groundPts[0].x) return groundPts[0].y;
+    if (d >= groundPts[groundPts.length - 1].x) return groundPts[groundPts.length - 1].y;
+    return interpolateSpline(groundPts, d);
+  }
+  function getZRock(d) {
+    const zR = (d <= rockPts[0].x) ? rockPts[0].y
+      : (d >= rockPts[rockPts.length - 1].x) ? rockPts[rockPts.length - 1].y
+      : interpolateSpline(rockPts, d);
+    return Math.min(zR, getZGround(d) - 0.05);
   }
 
-  function getCumBoundaryAtX(k, x) {
+  function getZWater(d) {
+    if (gwDepthPts.length === 0) return null;
+    const depthGw = Math.max(
+      d <= gwDepthPts[0].x ? gwDepthPts[0].y
+      : d >= gwDepthPts[gwDepthPts.length - 1].x ? gwDepthPts[gwDepthPts.length - 1].y
+      : interpolateSpline(gwDepthPts, d),
+      0.1
+    );
+    return getZGround(d) - depthGw;
+  }
+
+  // getCumBoundaryAtX with PINCH-OUT logic:
+  // For a given unit k, if it is absent at a borehole, it pinches to zero thickness
+  // at that BH. We interpolate C[k] and C[k+1] separately then guarantee monotonicity.
+  function getCumBoundaryAtX(k, d) {
     if (k === 0) return 0.0;
     if (k === K) return 1.0;
     const pts = rows.map((r, i) => ({ x: distances[i], y: bhCumBoundaries[i][k] }));
-    return Math.min(Math.max(interpolateSpline(pts, x), 0.0), 1.0);
+    const val = d <= pts[0].x ? pts[0].y
+      : d >= pts[pts.length - 1].x ? pts[pts.length - 1].y
+      : interpolateSpline(pts, d);
+    return Math.min(Math.max(val, 0.0), 1.0);
+  }
+
+  // Helper: get the range of distances over which unit k has non-zero thickness
+  // Used to determine the pinch-out extent of each layer
+  function getUnitExtentDist(k) {
+    // Find first and last BH where unit k is present
+    let firstIdx = -1, lastIdx = -1;
+    for (let i = 0; i < rows.length; i++) {
+      if (bhUnitPresent[i] && bhUnitPresent[i][k]) {
+        if (firstIdx === -1) firstIdx = i;
+        lastIdx = i;
+      }
+    }
+    return { firstIdx, lastIdx };
   }
 
   const legendItems = masterSoilUnits.map(u => {
@@ -2242,11 +2356,11 @@ function buildProfileSvg(rows) {
     svg += `<text x="${x.toFixed(1)}" y="${(axisY + 17).toFixed(1)}" font-size="9" fill="#6b6459" font-weight="500" text-anchor="middle">${Math.round(d)}</text>`;
   }
 
-  // 1. RENDER CONTINUOUS BEDROCK POLYGON
-  const numSamples = Math.max(Math.round(plotW / 3), 120);
+  // 1. RENDER CONTINUOUS BEDROCK POLYGON (extends across full plot including side extensions)
+  const numSamples = Math.max(Math.round(plotW / 2), 160);
   const rockPolyPts = [];
   for (let s = 0; s <= numSamples; s++) {
-    const d = (totalDist * s) / numSamples;
+    const d = distMin + (distSpan * s) / numSamples;
     const x = xPos(d);
     const zR = getZRock(d);
     rockPolyPts.push([x, yPos(zR)]);
@@ -2256,23 +2370,34 @@ function buildProfileSvg(rows) {
   for (let s = 1; s < rockPolyPts.length; s++) {
     bedrockD += `L${rockPolyPts[s][0].toFixed(1)},${rockPolyPts[s][1].toFixed(1)} `;
   }
-  bedrockD += `L${(padLeft + plotW).toFixed(1)},${axisY.toFixed(1)} L${padLeft.toFixed(1)},${axisY.toFixed(1)} Z`;
+  bedrockD += `L${xFrameRight.toFixed(1)},${axisY.toFixed(1)} L${xFrameLeft.toFixed(1)},${axisY.toFixed(1)} Z`;
 
   svg += `<!-- Bedrock Solid Polygon -->
   <path d="${bedrockD}" fill="${bedrockColor}" stroke="none"/>
   <path d="${bedrockD}" fill="url(#pat-bedrock)" stroke="none"/>`;
 
-  // 2. RENDER CONTINUOUS SOIL LAYERS VIA CUMULATIVE BOUNDARIES
+  // 2. RENDER CONTINUOUS SOIL LAYERS VIA CUMULATIVE BOUNDARIES WITH PINCH-OUTS
+  //
+  // For each unit k:
+  //   - Find the first & last borehole where it is present (firstIdx, lastIdx)
+  //   - The layer occupies [dist[firstIdx] - taper, dist[lastIdx] + taper]
+  //     where taper is a fraction of the adjacent BH spacing
+  //   - Outside that range: layer thickness = 0 (pinched out)
+  //   - Inside that range: interpolate cumulative boundaries normally
+  //
+  const TAPER_FRAC = 0.35; // taper over 35% of adjacent inter-BH spacing
+
   const sampledBoundaries = [];
   for (let k = 0; k <= K; k++) {
     const bPts = [];
     for (let s = 0; s <= numSamples; s++) {
-      const d = (totalDist * s) / numSamples;
+      const d = distMin + (distSpan * s) / numSamples;
       bPts.push(getCumBoundaryAtX(k, d));
     }
     sampledBoundaries.push(bPts);
   }
 
+  // Monotone fix across samples
   for (let s = 0; s <= numSamples; s++) {
     for (let k = 1; k <= K; k++) {
       if (sampledBoundaries[k][s] < sampledBoundaries[k - 1][s]) {
@@ -2283,26 +2408,71 @@ function buildProfileSvg(rows) {
 
   masterSoilUnits.forEach((u, k) => {
     const info = getGraphicInfo(u);
+    const { firstIdx, lastIdx } = getUnitExtentDist(k);
+    if (firstIdx === -1) return; // unit truly absent from all BHs — skip
+
+    // Determine the geographic range where this layer is active
+    // with gentle tapers into adjacent BH spacings
+    const dFirst = distances[firstIdx];
+    const dLast  = distances[lastIdx];
+
+    // Taper start: a fraction of the space to the left of firstIdx
+    const dTaperStart = firstIdx > 0
+      ? dFirst - TAPER_FRAC * (dFirst - distances[firstIdx - 1])
+      : dFirst; // At leftmost BH: layer starts right at it (side ext handled below)
+
+    // Taper end: a fraction of the space to the right of lastIdx
+    const dTaperEnd = lastIdx < rows.length - 1
+      ? dLast + TAPER_FRAC * (distances[lastIdx + 1] - dLast)
+      : dLast; // At rightmost BH
+
+    // For first/last BH in entire profile, extend into the side extension area
+    const dLayerStart = firstIdx === 0 ? distMin : dTaperStart;
+    const dLayerEnd   = lastIdx === rows.length - 1 ? distMax : dTaperEnd;
+
     const topCurvePts = [];
     const botCurvePts = [];
     let hasArea = false;
 
     for (let s = 0; s <= numSamples; s++) {
-      const d = (totalDist * s) / numSamples;
+      const d = distMin + (distSpan * s) / numSamples;
       const x = xPos(d);
       const zG = getZGround(d);
       const zR = getZRock(d);
       const overburden = Math.max(zG - zR, 0.05);
 
-      const fTop = sampledBoundaries[k][s];
-      const fBot = sampledBoundaries[k + 1][s];
+      let fTop = sampledBoundaries[k][s];
+      let fBot = sampledBoundaries[k + 1][s];
+      let thickness = fBot - fTop;
+
+      // Apply taper / pinch-out logic
+      if (d < dLayerStart || d > dLayerEnd) {
+        // Completely outside active range: zero thickness
+        fTop = fTop;
+        fBot = fTop;
+        thickness = 0;
+      } else if (d < dFirst && firstIdx > 0) {
+        // Left taper zone
+        const taperLen = dFirst - dTaperStart;
+        const t = taperLen > 0 ? (d - dTaperStart) / taperLen : 1.0;
+        const s3 = 3 * t * t - 2 * t * t * t; // smoothstep
+        fBot = fTop + thickness * s3;
+        thickness = fBot - fTop;
+      } else if (d > dLast && lastIdx < rows.length - 1) {
+        // Right taper zone
+        const taperLen = dTaperEnd - dLast;
+        const t = taperLen > 0 ? 1.0 - (d - dLast) / taperLen : 0.0;
+        const s3 = 3 * t * t - 2 * t * t * t;
+        fBot = fTop + thickness * s3;
+        thickness = fBot - fTop;
+      }
 
       const zTop = zG - fTop * overburden;
-      const zBot = zG - fBot * overburden;
+      const zBot = zG - Math.max(fTop, fBot) * overburden;
 
       topCurvePts.push([x, yPos(zTop)]);
       botCurvePts.push([x, yPos(zBot)]);
-      if (Math.abs(fBot - fTop) > 0.001) hasArea = true;
+      if (thickness > 0.001) hasArea = true;
     }
 
     if (hasArea) {
@@ -2316,25 +2486,40 @@ function buildProfileSvg(rows) {
       layerD += `Z`;
 
       let patternUrl = '';
-      const uUp = u.toUpperCase();
-      if (uUp.includes('SAND') || uUp.includes('SM') || uUp.includes('SP') || uUp.includes('SC')) patternUrl = 'url(#pat-sand)';
-      else if (uUp.includes('CLAY') || uUp.includes('CL') || uUp.includes('CH') || uUp.includes('CI')) patternUrl = 'url(#pat-clay)';
-      else if (uUp.includes('GRAVEL') || uUp.includes('GM') || uUp.includes('GC')) patternUrl = 'url(#pat-gravel)';
+      const uUp = (u || '').toUpperCase();
+      if (uUp === 'SM' || uUp === 'SP' || uUp === 'SC' || uUp === 'CS' || uUp.includes('SAND'))
+        patternUrl = 'url(#pat-sand)';
+      else if (uUp === 'CL' || uUp === 'CH' || uUp === 'CI' || uUp.includes('CLAY'))
+        patternUrl = 'url(#pat-clay)';
+      else if (uUp === 'GM' || uUp === 'GC' || uUp.includes('GRAVEL'))
+        patternUrl = 'url(#pat-gravel)';
 
       svg += `<!-- Soil Layer: ${info.label} -->
-      <path d="${layerD}" fill="${info.color}" stroke="${info.color}" stroke-width="0.4"/>`;
+      <path d="${layerD}" fill="${info.color}" stroke="${info.color}" stroke-width="0.5"/>`;
       if (patternUrl) {
-        svg += `<path d="${layerD}" fill="${patternUrl}" stroke="none"/>`;
+        svg += `<path d="${layerD}" fill="${patternUrl}" stroke="none"/>` ;
       }
-      let topContactD = `M${topCurvePts[0][0].toFixed(1)},${topCurvePts[0][1].toFixed(1)} `;
-      for (let s = 1; s < topCurvePts.length; s++) {
-        topContactD += `L${topCurvePts[s][0].toFixed(1)},${topCurvePts[s][1].toFixed(1)} `;
+      // Draw the top contact line only where the layer has area
+      let topContactD = '';
+      let inSeg = false;
+      for (let s = 0; s <= numSamples; s++) {
+        const d = distMin + (distSpan * s) / numSamples;
+        const thickness = sampledBoundaries[k + 1][s] - sampledBoundaries[k][s];
+        const inRange = d >= dLayerStart && d <= dLayerEnd;
+        if (inRange && thickness > 0.002) {
+          topContactD += (inSeg ? ` L` : `M`) + `${topCurvePts[s][0].toFixed(1)},${topCurvePts[s][1].toFixed(1)}`;
+          inSeg = true;
+        } else {
+          inSeg = false;
+        }
       }
-      svg += `<path d="${topContactD}" fill="none" stroke="#443322" stroke-width="0.7" opacity="0.5"/>`;
+      if (topContactD) {
+        svg += `<path d="${topContactD}" fill="none" stroke="#443322" stroke-width="0.8" opacity="0.55"/>`;
+      }
     }
   });
 
-  // 3. RENDER ROCKHEAD CONTACT LINE
+  // 3. RENDER ROCKHEAD CONTACT LINE (full width including side extensions)
   let rockheadD = `M${rockPolyPts[0][0].toFixed(1)},${rockPolyPts[0][1].toFixed(1)} `;
   for (let s = 1; s < rockPolyPts.length; s++) {
     rockheadD += `L${rockPolyPts[s][0].toFixed(1)},${rockPolyPts[s][1].toFixed(1)} `;
@@ -2342,16 +2527,14 @@ function buildProfileSvg(rows) {
   svg += `<!-- Rockhead Contact Line -->
   <path d="${rockheadD}" fill="none" stroke="#7a2f1e" stroke-width="2.2" stroke-dasharray="6,4"/>`;
 
-  // 4. RENDER GROUNDWATER TABLE LINE (Terrain-Following, strictly below ground!)
+  // 4. RENDER GROUNDWATER TABLE LINE (full width, terrain-following, strictly below ground)
   if (gwDepthPts.length >= 1) {
     const gwCurvePts = [];
     for (let s = 0; s <= numSamples; s++) {
-      const d = (totalDist * s) / numSamples;
+      const d = distMin + (distSpan * s) / numSamples;
       const x = xPos(d);
       const zGw = getZWater(d);
-      if (zGw !== null) {
-        gwCurvePts.push([x, yPos(zGw)]);
-      }
+      if (zGw !== null) gwCurvePts.push([x, yPos(zGw)]);
     }
     if (gwCurvePts.length >= 2) {
       let gwD = `M${gwCurvePts[0][0].toFixed(1)},${gwCurvePts[0][1].toFixed(1)} `;
@@ -2361,7 +2544,6 @@ function buildProfileSvg(rows) {
       svg += `<!-- Groundwater Table Line -->
       <path d="${gwD}" fill="none" stroke="#1e6fd9" stroke-width="2.0" stroke-dasharray="5,3"/>`;
     }
-
     gwDepthPts.forEach(pt => {
       const x = xPos(pt.x);
       const zG = getZGround(pt.x);
@@ -2372,10 +2554,10 @@ function buildProfileSvg(rows) {
     });
   }
 
-  // 5. RENDER GROUND SURFACE SMOOTH LINE
+  // 5. RENDER GROUND SURFACE SMOOTH LINE (full width including side extensions)
   const groundPolyPts = [];
   for (let s = 0; s <= numSamples; s++) {
-    const d = (totalDist * s) / numSamples;
+    const d = distMin + (distSpan * s) / numSamples;
     const x = xPos(d);
     const zG = getZGround(d);
     groundPolyPts.push([x, yPos(zG)]);
