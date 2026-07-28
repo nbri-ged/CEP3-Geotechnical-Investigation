@@ -2376,59 +2376,110 @@ function buildProfileSvg(rows) {
   <path d="${bedrockD}" fill="${bedrockColor}" stroke="none"/>
   <path d="${bedrockD}" fill="url(#pat-bedrock)" stroke="none"/>`;
 
-  // 2. RENDER CONTINUOUS SOIL LAYERS VIA CUMULATIVE BOUNDARIES WITH PINCH-OUTS
+  // 2. RENDER SOIL LAYERS — NORMALISED COLUMN APPROACH (ZERO GAPS GUARANTEED)
   //
-  // For each unit k:
-  //   - Find the first & last borehole where it is present (firstIdx, lastIdx)
-  //   - The layer occupies [dist[firstIdx] - taper, dist[lastIdx] + taper]
-  //     where taper is a fraction of the adjacent BH spacing
-  //   - Outside that range: layer thickness = 0 (pinched out)
-  //   - Inside that range: interpolate cumulative boundaries normally
+  // Algorithm:
+  //   a) For each sample position d, compute raw interpolated thickness fraction for each unit
+  //   b) Apply a pinch-out factor (0–1) based on layer presence:
+  //        • 1.0  : within the active range [firstBH … lastBH] for this unit
+  //        • 0–1  : smooth taper from the outermost BH to the MIDPOINT with the adjacent BH
+  //        • 0.0  : fully pinched out beyond the midpoint
+  //   c) Renormalise all factored thicknesses to sum = 1.0 → neighbours absorb pinched space
+  //   d) Build cumulative boundaries from normalised fractions → draw filled polygons
   //
-  const TAPER_FRAC = 0.35; // taper over 35% of adjacent inter-BH spacing
 
-  const sampledBoundaries = [];
-  for (let k = 0; k <= K; k++) {
-    const bPts = [];
-    for (let s = 0; s <= numSamples; s++) {
-      const d = distMin + (distSpan * s) / numSamples;
-      bPts.push(getCumBoundaryAtX(k, d));
-    }
-    sampledBoundaries.push(bPts);
-  }
+  // Pre-compute per-unit extent and midpoints
+  const unitExtents = masterSoilUnits.map((u, k) => getUnitExtentDist(k));
 
-  // Monotone fix across samples
+  // Raw (unnormalized) fractions at each BH from cumulative boundaries
+  const rawBHThickFrac = rows.map((r, i) => {
+    return masterSoilUnits.map((u, k) => {
+      const fBot = bhCumBoundaries[i][k + 1];
+      const fTop = bhCumBoundaries[i][k];
+      return Math.max(fBot - fTop, 0);
+    });
+  });
+
+  // For each sample point, build normalised cumulative boundaries
+  const normCumBnd = []; // [K+1][numSamples+1]
+  for (let k = 0; k <= K; k++) normCumBnd.push(new Array(numSamples + 1).fill(0));
+
   for (let s = 0; s <= numSamples; s++) {
-    for (let k = 1; k <= K; k++) {
-      if (sampledBoundaries[k][s] < sampledBoundaries[k - 1][s]) {
-        sampledBoundaries[k][s] = sampledBoundaries[k - 1][s];
+    const d = distMin + (distSpan * s) / numSamples;
+
+    // Raw thickness fraction for each unit at this x (interpolated from BH values)
+    const rawFrac = masterSoilUnits.map((u, k) => {
+      const pts = rows.map((r, i) => ({ x: distances[i], y: rawBHThickFrac[i][k] }));
+      const val = d <= pts[0].x ? pts[0].y
+        : d >= pts[pts.length - 1].x ? pts[pts.length - 1].y
+        : interpolateSpline(pts, d);
+      return Math.max(val, 0);
+    });
+
+    // Pinch-out factor for each unit: 1.0 where present, taper to 0 at BH midpoints
+    const pinchFactor = masterSoilUnits.map((u, k) => {
+      const { firstIdx, lastIdx } = unitExtents[k];
+      if (firstIdx === -1) return 0; // absent everywhere
+
+      const dFirst = distances[firstIdx];
+      const dLast  = distances[lastIdx];
+
+      // Fully active between the BHs where the unit exists
+      if (d >= dFirst && d <= dLast) return 1.0;
+
+      // Left pinch-out: taper from firstBH down to midpoint with prev BH
+      if (d < dFirst && firstIdx > 0) {
+        const dPrev = distances[firstIdx - 1];
+        const dMid  = (dPrev + dFirst) / 2;
+        if (d <= dMid) return 0;
+        const t = (d - dMid) / (dFirst - dMid);
+        return 3*t*t - 2*t*t*t; // smoothstep
       }
+
+      // Right pinch-out: taper from lastBH down to midpoint with next BH
+      if (d > dLast && lastIdx < rows.length - 1) {
+        const dNext = distances[lastIdx + 1];
+        const dMid  = (dLast + dNext) / 2;
+        if (d >= dMid) return 0;
+        const t = 1.0 - (d - dLast) / (dMid - dLast);
+        return 3*t*t - 2*t*t*t; // smoothstep
+      }
+
+      // At/beyond side-extension (first or last BH in profile): maintain full presence
+      return 1.0;
+    });
+
+    // Scaled fractions
+    const scaled = rawFrac.map((f, k) => f * pinchFactor[k]);
+    const total  = scaled.reduce((a, b) => a + b, 0);
+
+    // Normalise → always sums to 1.0, so adjacent layers absorb pinched-out space
+    const normFrac = total > 1e-6
+      ? scaled.map(f => f / total)
+      : scaled.map((f, k) => k === 0 ? 1.0 : 0); // fallback: top layer takes all
+
+    // Build cumulative for this sample column
+    normCumBnd[0][s] = 0;
+    for (let k = 0; k < K; k++) {
+      normCumBnd[k + 1][s] = normCumBnd[k][s] + normFrac[k];
     }
+    normCumBnd[K][s] = 1.0;
   }
 
+  // Now render each soil unit using the normalised cumulative boundaries
   masterSoilUnits.forEach((u, k) => {
     const info = getGraphicInfo(u);
-    const { firstIdx, lastIdx } = getUnitExtentDist(k);
-    if (firstIdx === -1) return; // unit truly absent from all BHs — skip
+    const { firstIdx, lastIdx } = unitExtents[k];
+    if (firstIdx === -1) return; // unit absent from all BHs
 
-    // Determine the geographic range where this layer is active
-    // with gentle tapers into adjacent BH spacings
     const dFirst = distances[firstIdx];
     const dLast  = distances[lastIdx];
 
-    // Taper start: a fraction of the space to the left of firstIdx
-    const dTaperStart = firstIdx > 0
-      ? dFirst - TAPER_FRAC * (dFirst - distances[firstIdx - 1])
-      : dFirst; // At leftmost BH: layer starts right at it (side ext handled below)
-
-    // Taper end: a fraction of the space to the right of lastIdx
-    const dTaperEnd = lastIdx < rows.length - 1
-      ? dLast + TAPER_FRAC * (distances[lastIdx + 1] - dLast)
-      : dLast; // At rightmost BH
-
-    // For first/last BH in entire profile, extend into the side extension area
-    const dLayerStart = firstIdx === 0 ? distMin : dTaperStart;
-    const dLayerEnd   = lastIdx === rows.length - 1 ? distMax : dTaperEnd;
+    // Determine active draw range (including side extensions for first/last BH)
+    const dDrawStart = firstIdx === 0 ? distMin
+      : firstIdx > 0 ? (distances[firstIdx - 1] + dFirst) / 2 : dFirst;
+    const dDrawEnd   = lastIdx === rows.length - 1 ? distMax
+      : lastIdx < rows.length - 1 ? (dLast + distances[lastIdx + 1]) / 2 : dLast;
 
     const topCurvePts = [];
     const botCurvePts = [];
@@ -2441,38 +2492,18 @@ function buildProfileSvg(rows) {
       const zR = getZRock(d);
       const overburden = Math.max(zG - zR, 0.05);
 
-      let fTop = sampledBoundaries[k][s];
-      let fBot = sampledBoundaries[k + 1][s];
-      let thickness = fBot - fTop;
+      const fTop = normCumBnd[k][s];
+      const fBot = normCumBnd[k + 1][s];
+      const thickness = fBot - fTop;
 
-      // Apply taper / pinch-out logic
-      if (d < dLayerStart || d > dLayerEnd) {
-        // Completely outside active range: zero thickness
-        fTop = fTop;
-        fBot = fTop;
-        thickness = 0;
-      } else if (d < dFirst && firstIdx > 0) {
-        // Left taper zone
-        const taperLen = dFirst - dTaperStart;
-        const t = taperLen > 0 ? (d - dTaperStart) / taperLen : 1.0;
-        const s3 = 3 * t * t - 2 * t * t * t; // smoothstep
-        fBot = fTop + thickness * s3;
-        thickness = fBot - fTop;
-      } else if (d > dLast && lastIdx < rows.length - 1) {
-        // Right taper zone
-        const taperLen = dTaperEnd - dLast;
-        const t = taperLen > 0 ? 1.0 - (d - dLast) / taperLen : 0.0;
-        const s3 = 3 * t * t - 2 * t * t * t;
-        fBot = fTop + thickness * s3;
-        thickness = fBot - fTop;
-      }
-
+      // Outside the draw range: collapse to a line (thickness = 0 visually)
+      const outside = d < dDrawStart || d > dDrawEnd;
       const zTop = zG - fTop * overburden;
-      const zBot = zG - Math.max(fTop, fBot) * overburden;
+      const zBot = outside ? zTop : (zG - fBot * overburden);
 
       topCurvePts.push([x, yPos(zTop)]);
       botCurvePts.push([x, yPos(zBot)]);
-      if (thickness > 0.001) hasArea = true;
+      if (!outside && thickness > 0.001) hasArea = true;
     }
 
     if (hasArea) {
@@ -2497,17 +2528,19 @@ function buildProfileSvg(rows) {
       svg += `<!-- Soil Layer: ${info.label} -->
       <path d="${layerD}" fill="${info.color}" stroke="${info.color}" stroke-width="0.5"/>`;
       if (patternUrl) {
-        svg += `<path d="${layerD}" fill="${patternUrl}" stroke="none"/>` ;
+        svg += `<path d="${layerD}" fill="${patternUrl}" stroke="none"/>`;
       }
-      // Draw the top contact line only where the layer has area
+
+      // Draw top-contact line only within active draw range and where layer has thickness
       let topContactD = '';
       let inSeg = false;
       for (let s = 0; s <= numSamples; s++) {
         const d = distMin + (distSpan * s) / numSamples;
-        const thickness = sampledBoundaries[k + 1][s] - sampledBoundaries[k][s];
-        const inRange = d >= dLayerStart && d <= dLayerEnd;
-        if (inRange && thickness > 0.002) {
-          topContactD += (inSeg ? ` L` : `M`) + `${topCurvePts[s][0].toFixed(1)},${topCurvePts[s][1].toFixed(1)}`;
+        const inside = d >= dDrawStart && d <= dDrawEnd;
+        const thick = normCumBnd[k + 1][s] - normCumBnd[k][s];
+        if (inside && thick > 0.003) {
+          topContactD += (inSeg ? ' L' : 'M') +
+            `${topCurvePts[s][0].toFixed(1)},${topCurvePts[s][1].toFixed(1)}`;
           inSeg = true;
         } else {
           inSeg = false;
@@ -2518,6 +2551,7 @@ function buildProfileSvg(rows) {
       }
     }
   });
+
 
   // 3. RENDER ROCKHEAD CONTACT LINE (full width including side extensions)
   let rockheadD = `M${rockPolyPts[0][0].toFixed(1)},${rockPolyPts[0][1].toFixed(1)} `;
@@ -2622,32 +2656,33 @@ function buildProfileSvg(rows) {
   });
 
   const legX = padLeft;
-  const legYStart = axisY + 44;
+  const legTitleY = axisY + 38;
+  const legBodyY  = legTitleY + 22; // gap between title and first row
   svg += `<g id="legend-group">`;
-  svg += `<text x="${legX}" y="${legYStart - 10}" font-size="11" font-weight="700" fill="#1c2b2a">ENGINEERING GEOLOGY STRATIGRAPHIC LEGEND</text>`;
+  svg += `<text x="${legX}" y="${legTitleY}" font-size="11.5" font-weight="700" fill="#1c2b2a" letter-spacing="0.04em">ENGINEERING GEOLOGY STRATIGRAPHIC LEGEND</text>`;
 
   let curX = legX;
   let curRow = 0;
+  const itemW = 155; // wider columns so text has room to breathe
   legendItems.forEach(item => {
-    const itemW = 140;
-    if (curX + itemW > padLeft + plotW) {
+    if (curX + itemW > padLeft + plotW - 10) {
       curRow++;
       curX = legX;
     }
-    const itemY = legYStart + curRow * legendRowH;
+    const itemY = legBodyY + curRow * legendRowH;
 
     if (item.isLine) {
-      svg += `<line x1="${curX}" y1="${itemY - 4}" x2="${curX + 22}" y2="${itemY - 4}" stroke="${item.color}" stroke-width="2" stroke-dasharray="${item.dash}"/>`;
-      svg += `<text x="${curX + 28}" y="${itemY}" font-size="9.5" fill="#222" font-weight="500">${item.label}</text>`;
+      svg += `<line x1="${curX}" y1="${itemY - 5}" x2="${curX + 24}" y2="${itemY - 5}" stroke="${item.color}" stroke-width="2" stroke-dasharray="${item.dash}"/>`;
+      svg += `<text x="${curX + 30}" y="${itemY}" font-size="9.5" fill="#333" font-weight="500">${item.label}</text>`;
     } else {
-      svg += `<rect x="${curX}" y="${itemY - 9}" width="16" height="10" fill="${item.color}" stroke="#333" stroke-width="0.6" rx="1"/>`;
-      svg += `<text x="${curX + 22}" y="${itemY}" font-size="9.5" fill="#222" font-weight="500">${item.label}</text>`;
+      svg += `<rect x="${curX}" y="${itemY - 10}" width="17" height="11" fill="${item.color}" stroke="#555" stroke-width="0.7" rx="1"/>`;
+      svg += `<text x="${curX + 23}" y="${itemY}" font-size="9.5" fill="#333" font-weight="500">${item.label}</text>`;
     }
 
     curX += itemW;
   });
 
-  svg += `<text x="${legX}" y="${legYStart + (curRow + 1) * legendRowH + 12}" font-size="8.5" fill="#6b6459" font-style="italic">Professional Engineering Geological Cross-Section — Interlayered columns interpolated using cumulative boundary contact geometry. Hard borehole data preserved exactly.</text>`;
+  svg += `<text x="${legX}" y="${legBodyY + (curRow + 1) * legendRowH + 14}" font-size="8.5" fill="#6b6459" font-style="italic">Professional Engineering Geological Cross-Section — Interlayered columns interpolated using normalised cumulative boundary geometry. Hard borehole data preserved exactly.</text>`;
   svg += `</g>`;
 
   svg += `</svg>`;
