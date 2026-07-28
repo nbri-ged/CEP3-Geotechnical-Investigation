@@ -2167,6 +2167,48 @@ function buildProfileSvg(rows){
     if (lv.gwLevel !== null) gwPts.push([x, yPos(lv.gwLevel)]);
   });
 
+  // Evaluate the exact Catmull-Rom -> Bezier curve segment that smoothPath()
+  // draws between pts[segIdx] and pts[segIdx+1], at parameter t (0..1). Used
+  // so the layer-correlation bands below can be sampled to bow in sync with
+  // the ground/rock curves, instead of connecting boreholes with a straight
+  // edge that cuts across those curves.
+  function curveSegmentXY(pts, segIdx, t){
+    const p0 = pts[segIdx === 0 ? segIdx : segIdx - 1];
+    const p1 = pts[segIdx];
+    const p2 = pts[segIdx + 1];
+    const p3 = pts[segIdx + 2 < pts.length ? segIdx + 2 : segIdx + 1];
+    const c1x = p1[0] + (p2[0] - p0[0]) / 6, c1y = p1[1] + (p2[1] - p0[1]) / 6;
+    const c2x = p2[0] - (p3[0] - p1[0]) / 6, c2y = p2[1] - (p3[1] - p1[1]) / 6;
+    const mt = 1 - t;
+    return [
+      mt*mt*mt*p1[0] + 3*mt*mt*t*c1x + 3*mt*t*t*c2x + t*t*t*p2[0],
+      mt*mt*mt*p1[1] + 3*mt*mt*t*c1y + 3*mt*t*t*c2y + t*t*t*p2[1]
+    ];
+  }
+  // Ground and rock point arrays share identical x-coordinates (same
+  // boreholes), so a layer surface at a given depth-fraction between them can
+  // be built by blending the two curves' y-values at matching t — giving a
+  // band edge that's conformable with (bows the same way as) the surrounding
+  // terrain and rock surface, which is the standard assumption when only two
+  // boreholes constrain what happens in between.
+  const curvedBandsAvailable = groundPts.length === rows.length && rockPts.length === rows.length;
+  function bandSamplePoints(segIdx, fracTop0, fracBot0, fracTop1, fracBot1, tStart, tEnd, steps){
+    const topPts = [], botPts = [];
+    for (let s = 0; s <= steps; s++){
+      const t = tStart + (tEnd - tStart) * (s / steps);
+      const u = tEnd === tStart ? 0 : (t - tStart) / (tEnd - tStart);
+      const fracTop = fracTop0 + (fracTop1 - fracTop0) * u;
+      const fracBot = fracBot0 + (fracBot1 - fracBot0) * u;
+      const [xg, yg] = curveSegmentXY(groundPts, segIdx, t);
+      const [, yr] = curveSegmentXY(rockPts, segIdx, t);
+      topPts.push([xg, yg + (yr - yg) * fracTop]);
+      botPts.push([xg, yg + (yr - yg) * fracBot]);
+    }
+    return { topPts, botPts };
+  }
+  function pathThrough(pts){
+    return pts.map((p,i) => (i===0?'M':'L') + p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' ');
+  }
   function polylinePath(pts){
     return pts.map((p,i) => (i===0?'M':'L') + p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' ');
   }
@@ -2238,30 +2280,48 @@ function buildProfileSvg(rows){
       // line, so skip rock entirely in these filled bands.
       if (info.isRock) return;
       const spanA = spanByCodeA[code], spanB = spanByCodeB[code];
+      // Depth expressed as a fraction of that BH's own ground-to-rock
+      // thickness, so it can be positioned consistently between the ground
+      // and rock curves regardless of how each BH's overburden thickness varies.
+      const overburdenA = Math.max(elevA - effectiveRockLevel[i], 0.01);
+      const overburdenB = Math.max(elevB - effectiveRockLevel[i+1], 0.01);
+
+      if (!curvedBandsAvailable){
+        // Fallback for the rare case where the ground/rock point arrays don't
+        // line up 1:1 with the borehole list — draw the old straight-edge version.
+        if (spanA && spanB){
+          const yTopA = yPos(elevA - spanA.top), yBotA = yPos(elevA - spanA.bottom);
+          const yTopB = yPos(elevB - spanB.top), yBotB = yPos(elevB - spanB.bottom);
+          svg += `<polygon points="${xA.toFixed(1)},${yTopA.toFixed(1)} ${xB.toFixed(1)},${yTopB.toFixed(1)} ${xB.toFixed(1)},${yBotB.toFixed(1)} ${xA.toFixed(1)},${yBotA.toFixed(1)}" fill="${info.color}" opacity="0.28" stroke="${info.color}" stroke-width="1" stroke-dasharray="3,3" stroke-opacity="0.85"/>`;
+          correlationLinesDrawn = true;
+        }
+        return;
+      }
 
       if (spanA && spanB){
-        // Present on both sides — a continuous filled band between them.
-        const yTopA = yPos(elevA - spanA.top), yBotA = yPos(elevA - spanA.bottom);
-        const yTopB = yPos(elevB - spanB.top), yBotB = yPos(elevB - spanB.bottom);
-        svg += `<polygon points="${xA.toFixed(1)},${yTopA.toFixed(1)} ${xB.toFixed(1)},${yTopB.toFixed(1)} ${xB.toFixed(1)},${yBotB.toFixed(1)} ${xA.toFixed(1)},${yBotA.toFixed(1)}" fill="${info.color}" opacity="0.28" stroke="none"/>`;
-        svg += `<line x1="${xA.toFixed(1)}" y1="${yTopA.toFixed(1)}" x2="${xB.toFixed(1)}" y2="${yTopB.toFixed(1)}" stroke="${info.color}" stroke-width="1" stroke-dasharray="3,3" opacity="0.85"/>`;
-        svg += `<line x1="${xA.toFixed(1)}" y1="${yBotA.toFixed(1)}" x2="${xB.toFixed(1)}" y2="${yBotB.toFixed(1)}" stroke="${info.color}" stroke-width="1" stroke-dasharray="3,3" opacity="0.85"/>`;
+        // Present on both sides — a continuous filled band, curved to match
+        // the ground/rock surfaces rather than cutting a straight line between them.
+        const { topPts, botPts } = bandSamplePoints(i, spanA.top/overburdenA, spanA.bottom/overburdenA, spanB.top/overburdenB, spanB.bottom/overburdenB, 0, 1, 14);
+        const poly = topPts.concat(botPts.slice().reverse());
+        svg += `<polygon points="${poly.map(p => p[0].toFixed(1)+','+p[1].toFixed(1)).join(' ')}" fill="${info.color}" opacity="0.28" stroke="none"/>`;
+        svg += `<path d="${pathThrough(topPts)}" fill="none" stroke="${info.color}" stroke-width="1" stroke-dasharray="3,3" opacity="0.85"/>`;
+        svg += `<path d="${pathThrough(botPts)}" fill="none" stroke="${info.color}" stroke-width="1" stroke-dasharray="3,3" opacity="0.85"/>`;
         correlationLinesDrawn = true;
       } else if (spanA && !spanB){
-        // Pinches out before reaching the next BH — taper the band to a
-        // closed point about a third of the way across the gap.
-        const yTopA = yPos(elevA - spanA.top), yBotA = yPos(elevA - spanA.bottom);
-        const xClose = xA + (xB - xA) * 0.35;
-        const yClose = (yTopA + yBotA) / 2;
-        svg += `<polygon points="${xA.toFixed(1)},${yTopA.toFixed(1)} ${xClose.toFixed(1)},${yClose.toFixed(1)} ${xA.toFixed(1)},${yBotA.toFixed(1)}" fill="${info.color}" opacity="0.28" stroke="${info.color}" stroke-width="0.8" stroke-dasharray="3,3" stroke-opacity="0.85"/>`;
+        // Pinches out before reaching the next BH — taper the curved band to
+        // a closed point about a third of the way across the gap.
+        const fracMid = (spanA.top/overburdenA + spanA.bottom/overburdenA) / 2;
+        const { topPts, botPts } = bandSamplePoints(i, spanA.top/overburdenA, spanA.bottom/overburdenA, fracMid, fracMid, 0, 0.35, 10);
+        const poly = topPts.concat(botPts.slice().reverse());
+        svg += `<polygon points="${poly.map(p => p[0].toFixed(1)+','+p[1].toFixed(1)).join(' ')}" fill="${info.color}" opacity="0.28" stroke="${info.color}" stroke-width="0.8" stroke-dasharray="3,3" stroke-opacity="0.85"/>`;
         correlationLinesDrawn = true;
       } else if (!spanA && spanB){
         // Absent at A, appears before reaching B — taper in from a closed
         // point about a third of the way across the gap.
-        const yTopB = yPos(elevB - spanB.top), yBotB = yPos(elevB - spanB.bottom);
-        const xClose = xB - (xB - xA) * 0.35;
-        const yClose = (yTopB + yBotB) / 2;
-        svg += `<polygon points="${xClose.toFixed(1)},${yClose.toFixed(1)} ${xB.toFixed(1)},${yTopB.toFixed(1)} ${xB.toFixed(1)},${yBotB.toFixed(1)}" fill="${info.color}" opacity="0.28" stroke="${info.color}" stroke-width="0.8" stroke-dasharray="3,3" stroke-opacity="0.85"/>`;
+        const fracMid = (spanB.top/overburdenB + spanB.bottom/overburdenB) / 2;
+        const { topPts, botPts } = bandSamplePoints(i, fracMid, fracMid, spanB.top/overburdenB, spanB.bottom/overburdenB, 0.65, 1, 10);
+        const poly = topPts.concat(botPts.slice().reverse());
+        svg += `<polygon points="${poly.map(p => p[0].toFixed(1)+','+p[1].toFixed(1)).join(' ')}" fill="${info.color}" opacity="0.28" stroke="${info.color}" stroke-width="0.8" stroke-dasharray="3,3" stroke-opacity="0.85"/>`;
         correlationLinesDrawn = true;
       }
     });
