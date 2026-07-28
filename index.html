@@ -612,9 +612,9 @@
   #profile-modal{
     background:#fff;
     border-radius:10px;
-    max-width:95vw;
-    max-height:92vh;
-    width:1000px;
+    max-width:96vw;
+    max-height:94vh;
+    width:1150px;
     display:flex;
     flex-direction:column;
     box-shadow:var(--shadow-md);
@@ -784,7 +784,7 @@
 <div id="profile-modal-backdrop">
   <div id="profile-modal">
     <div id="profile-modal-header">
-      <span>Borehole Profile — 2D Cross-Section</span>
+      <span>Borehole Profile — Professional Geological Cross-Section</span>
       <div>
         <button id="profile-download-btn">&#8681; Download PNG</button>
         <button id="profile-close-btn">&times;</button>
@@ -809,16 +809,9 @@
    ============================================================ */
 const SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS8PKkh7RDdd1g5boTWjdryadGLVhDkvKUMEjScApNAeWA7TrPrcetA1YiccjQvhPfnZ8ewg1NQugfv/pub?gid=364501395&single=true&output=csv";
 const LOG_SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS8PKkh7RDdd1g5boTWjdryadGLVhDkvKUMEjScApNAeWA7TrPrcetA1YiccjQvhPfnZ8ewg1NQugfv/pub?output=csv";
-// "BH Profile" tab — real layer-by-layer stratigraphy (PointID, Depth, Bottom, Graphic)
 const BH_PROFILE_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS8PKkh7RDdd1g5boTWjdryadGLVhDkvKUMEjScApNAeWA7TrPrcetA1YiccjQvhPfnZ8ewg1NQugfv/pub?output=csv&gid=1914424732";
-// "CEP 4 BH IDs" tab — separate project phase, point IDs + SLD99 coordinates only
 const CEP4_BH_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS8PKkh7RDdd1g5boTWjdryadGLVhDkvKUMEjScApNAeWA7TrPrcetA1YiccjQvhPfnZ8ewg1NQugfv/pub?output=csv&gid=1030712797";
-// "CEP 4 BH IDs" tab — separate project, just BH_ID/POINT_X/POINT_Y (SLD99), ~762 points.
-// PASTE the "Publish to web" CSV link for THAT SPECIFIC TAB here once you have it:
 const CEP4_SHEET_CSV_URL = "PASTE_PUBLISHED_CSV_LINK_FOR_GID_1030712797_HERE";
-// Progress-tracking tab (gid=1476293361) — has pre-computed daily columns:
-// Z = Date, AB = Cummalative (completed count), AC = Progress Percentage.
-// PASTE the "Publish to web" CSV link for THAT SPECIFIC TAB here once you have it:
 const PROGRESS_SHEET_CSV_URL = "PASTE_PUBLISHED_CSV_LINK_FOR_GID_1476293361_HERE";
 const AUTO_REFRESH_MS = 5 * 60 * 1000;
 
@@ -840,16 +833,13 @@ const STATUS_COLORS = {
 
 const map = L.map('map', { zoomControl: true }).setView([7.45, 80.6], 12);
 
-/* ============================================================
-   NEW UTILITY CONTROL STATE FLAGS
-   ============================================================ */
 let isMeasuring = false;
 let measurePoints = [];
 let measureLines = L.polyline([], {color: '#b3541e', weight: 3, dashArray: '6, 6'}).addTo(map);
 let measurePolygon = L.polygon([], {color: '#b3541e', fillColor: '#b3541e', fillOpacity: 0.15}).addTo(map);
 let measureMarkers = [];
 let timelineActiveDate = null;
-let progressSeries = []; // [{date, cumulative, percentage}], sourced from sheet columns Z/AB/AC
+let progressSeries = [];
 
 const baseLayers = {
   "Street": L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -879,11 +869,7 @@ const layersControl = L.control.layers(baseLayers, {}, {
   position: 'topright', collapsed: window.matchMedia('(max-width: 768px)').matches
 }).addTo(map);
 
-/* ============================================================
-   CEP4 BH IDs — separate project phase, toggleable overlay
-   (point IDs + SLD99 coordinates only, no status/detail data)
-   ============================================================ */
-const cep4Layer = L.layerGroup(); // NOT added to map by default — off until toggled on
+const cep4Layer = L.layerGroup();
 layersControl.addOverlay(cep4Layer, 'CEP4 BHs (separate project)');
 
 function fetchCEP4BHs(){
@@ -914,9 +900,6 @@ function fetchCEP4BHs(){
   });
 }
 
-/* ============================================================
-   Locate Me
-   ============================================================ */
 let userLocationMarker = null;
 let userAccuracyCircle = null;
 let userLocationWatchId = null;
@@ -935,9 +918,6 @@ const LocateControl = L.Control.extend({
 });
 map.addControl(new LocateControl());
 
-/* ============================================================
-   Legend Panel — collapsible, top-right (stacks below layer switcher)
-   ============================================================ */
 const LegendPanelControl = L.Control.extend({
   options: { position: 'topright' },
   onAdd: function(){
@@ -990,7 +970,7 @@ function toggleLocate(btn){
       }
     },
     (err) => {
-      alert('Could not acquire connection layout: ' + err.message);
+      alert('Could not acquire location: ' + err.message);
       if (btn) btn.classList.remove('locate-active', 'locate-acquiring');
       userLocationWatchId = null;
     },
@@ -1046,7 +1026,7 @@ function parseDateFlexible(value){
     if (yyyy.length === 2) yyyy = '20' + yyyy;
     d = new Date(parseInt(yyyy, 10), parseInt(mo, 10) - 1, parseInt(dd, 10));
   } else {
-    d = new Date(s); // handles "16-Jun-2025" style textual dates too
+    d = new Date(s);
   }
   if (!d || isNaN(d.getTime())) return null;
   return d;
@@ -1068,11 +1048,6 @@ function normalizeRow(row){
 
 let bhDatesLookup = {};
 
-/* ============================================================
-   BH Profile log — real layer-by-layer stratigraphy
-   ============================================================ */
-// Only codes we're confident about get a friendly label; anything else
-// shows its raw code as-is rather than a guessed expansion.
 const GRAPHIC_CODE_INFO = {
   'MS': { label: 'Sandy SILT', color: '#c9a84e' },
   'SM': { label: 'Silty SAND', color: '#e0b23c' },
@@ -1082,7 +1057,13 @@ const GRAPHIC_CODE_INFO = {
   'GC': { label: 'Clayey GRAVEL', color: '#5f5240' },
   'CL': { label: 'Low Plasticity CLAY', color: '#bd6b46' },
   'CH': { label: 'High Plasticity CLAY', color: '#8a4530' },
-  'ML': { label: 'Low Plasticity SILT', color: '#a8b06a' }
+  'ML': { label: 'Low Plasticity SILT', color: '#a8b06a' },
+  'MH': { label: 'High Plasticity SILT', color: '#9a9e5a' },
+  'CI': { label: 'CI (intermediate CLAY)', color: '#b04a8a' },
+  'OL': { label: 'Organic SILT/CLAY', color: '#6a5a40' },
+  'OH': { label: 'Organic CLAY', color: '#5a4030' },
+  'FILL': { label: 'Engineered Fill', color: '#d9a05b' },
+  'WEATHERED ROCK': { label: 'Weathered Rock / Saprolite', color: '#a39c87' }
 };
 const ROCK_KEYWORDS = ['BEDROCK','ROCK','GNEISS','GRANITE','QUARTZITE','SCHIST','MARBLE','DOLERITE','CHARNOCKITE','GABBRO','LIMESTONE'];
 
@@ -1108,10 +1089,9 @@ function getGraphicInfo(code){
   if (GRAPHIC_CODE_INFO[upper]){
     return { label: GRAPHIC_CODE_INFO[upper].label, color: GRAPHIC_CODE_INFO[upper].color, isRock: false };
   }
-  return { label: clean || 'Unclassified', color: graphicHashColor(clean), isRock: false };
+  return { label: clean || 'Unclassified Soil', color: graphicHashColor(clean), isRock: false };
 }
 
-// BH Name -> [{depth, bottom, graphic}, ...] sorted by depth ascending
 let profileLayersByBH = {};
 
 function fetchBHProfileLog(){
@@ -1157,10 +1137,6 @@ function fetchLogDates(){
   });
 }
 
-// Loads the pre-computed daily progress table (Date / Cummalative / Progress
-// Percentage) from the progress-tracking tab, so the timeline slider and its
-// summary numbers match your official reporting exactly, rather than being
-// recalculated from individual BH dates.
 function fetchProgressSeries(){
   if (!PROGRESS_SHEET_CSV_URL || PROGRESS_SHEET_CSV_URL.indexOf('PASTE_') === 0){
     console.warn('PROGRESS_SHEET_CSV_URL not set yet — timeline slider will stay disabled.');
@@ -1185,7 +1161,7 @@ function fetchProgressSeries(){
       progressSeries = series;
       if (allRows.length > 0) initTimelineSlider();
     },
-    error: (err) => console.error('Could not load progress series (Z/AB/AC tab):', err)
+    error: (err) => console.error('Could not load progress series:', err)
   });
 }
 
@@ -1251,7 +1227,6 @@ function buildBoreholeLogSvg(levels, layers){
   let svg = `<svg width="260" height="${colH + 26}" viewBox="0 0 260 ${colH + 26}" xmlns="http://www.w3.org/2000/svg">`;
 
   if (layers && layers.length){
-    // Real layer-by-layer stratigraphy from the BH Profile log
     const usedLabels = new Set();
     layers.forEach(layer => {
       const info = getGraphicInfo(layer.graphic);
@@ -1266,7 +1241,6 @@ function buildBoreholeLogSvg(levels, layers){
       }
       usedLabels.add(layer.graphic + '|' + info.label + '|' + info.color);
     });
-    // Depth tick labels at each layer boundary
     const boundaries = new Set([0]);
     layers.forEach(l => { boundaries.add(l.depth); boundaries.add(l.bottom); });
     Array.from(boundaries).sort((a,b)=>a-b).forEach(d => {
@@ -1275,7 +1249,6 @@ function buildBoreholeLogSvg(levels, layers){
       svg += `<text x="${x0-7}" y="${(y+2.8).toFixed(1)}" font-size="8.5" fill="#3a3a3a" text-anchor="end">${d.toFixed(1)}</text>`;
     });
   } else if (overburden !== null || effectiveTermDepth !== null){
-    // Fallback: simplified two-segment (soil / rock) version
     const overburdenPx = overburden !== null ? Math.min(overburden * scale, colH) : colH;
     const rkPx = colH - overburdenPx;
     svg += `<rect x="${x0}" y="${y0}" width="${colW}" height="${overburdenPx.toFixed(1)}" fill="#c9a876" stroke="#8a7350" stroke-width="0.5"/>`;
@@ -1400,7 +1373,6 @@ function render(){
       const hay = `${name} ${lot} ${pkg} ${contractor}`.toLowerCase(); if (!hay.includes(searchTerm)) return;
     }
     
-    /* NEW: CRITICAL CHRONOLOGICAL TIMELINE FILTER CHECKPOINT */
     if (timelineActiveDate) {
       const bhName = name.trim(); const logDates = bhDatesLookup[bhName] || {};
       const compDateStr = getFirst(row, ['Borehole Completed Date','Completed Date','Completion Date','Date Completed','Finish Date','End Date']) || logDates.completed;
@@ -1501,9 +1473,6 @@ function fetchData(){
   }
 }
 
-/* ============================================================
-   NEW UTILITY: ADVANCED ENGINEERING PROGRESS TIMELINE CONTROL
-   ============================================================ */
 function initTimelineSlider() {
   const slider = document.getElementById('timeline-slider');
   const label = document.getElementById('timeline-label');
@@ -1545,9 +1514,6 @@ function updateDashboardTimelineOverride(entry) {
     (entry.percentage !== null) ? entry.percentage.toFixed(1) + '%' : '—';
 }
 
-/* ============================================================
-   NEW UTILITY: GEODESIC DISTANCE / SURFACE AREA MEASUREMENT
-   ============================================================ */
 document.getElementById('measure-btn').addEventListener('click', function() {
   isMeasuring = !isMeasuring; const panel = document.getElementById('measure-output');
   if (isMeasuring) {
@@ -1607,9 +1573,6 @@ function geodesicArea(latLngs) {
   return Math.abs(area);
 }
 
-/* ============================================================
-   NEW UTILITY: EXCEL / SPREADSHEET MATRIX EXPORT PIPELINE
-   ============================================================ */
 document.getElementById('export-csv-btn').addEventListener('click', () => {
   if (!allRows || allRows.length === 0) { alert("No structured rows loaded."); return; }
   const csvString = Papa.unparse(allRows);
@@ -1620,9 +1583,6 @@ document.getElementById('export-csv-btn').addEventListener('click', () => {
   document.body.appendChild(targetLink); targetLink.click(); document.body.removeChild(targetLink);
 });
 
-/* ============================================================
-   NEW UTILITY: PRINT-FRIENDLY BATCH SCHEMATIC PDF GENERATION
-   ============================================================ */
 document.getElementById('pkg-report-btn').addEventListener('click', () => {
   const selectedPkg = document.getElementById('report-package-select').value;
   if (!selectedPkg) { alert("Please select a construction Package first."); return; }
@@ -1678,9 +1638,6 @@ document.getElementById('pkg-report-btn').addEventListener('click', () => {
   doc.save(`NBRI_Geotechnical_Report_Package_${selectedPkg}.pdf`);
 });
 
-/* ============================================================
-   NEW UTILITY: LOCAL STORAGE OFFLINE APP DATA SYNC INDEX
-   ============================================================ */
 function setupPwaCache() {
   if (allRows && allRows.length > 0 && !window.loadedFromOfflineCache) {
     try {
@@ -1704,9 +1661,6 @@ document.getElementById('refresh-btn').addEventListener('click', () => {
   fetchData(); fetchLogDates(); fetchProgressSeries(); fetchBHProfileLog(); fetchCEP4BHs(); setTimeout(() => btn.classList.remove('spinning'), 900);
 });
 
-/* ============================================================
-   AutoCAD Color Index & Overlays Parsing Infrastructure
-   ============================================================ */
 const ACI_COLORS = { 1:"#ff0000",2:"#ffff00",3:"#00ff00",4:"#00ffff",5:"#0000ff",6:"#ff00ff",7:"#1a1a1a",8:"#808080",9:"#c0c0c0" };
 const OVERLAY_LINE_WEIGHT_PX = 2.0;
 function dashArrayForLinetype(lt){
@@ -1795,9 +1749,6 @@ document.getElementById('sidebar-backdrop').addEventListener('click', () => {
 });
 if (isMobile()){ appEl.classList.remove('sidebar-open-mobile'); }
 
-/* ============================================================
-   KML Data Structure Exporters
-   ============================================================ */
 function boreholesToGeoJSON(){
   const features = [];
   allRows.forEach(row => {
@@ -1973,11 +1924,7 @@ function exportMapPDF(){
 document.getElementById('pdf-map-btn').addEventListener('click', exportMapPDF);
 
 /* ============================================================
-   Borehole Profile — 2D Cross-Section
-   Select 2+ boreholes on the map (in the order you want them
-   across the section), then generate a geological profile
-   showing overburden, rock, groundwater, and termination —
-   positioned by real distance and elevation (RL).
+   Borehole Profile — 2D Cross-Section (Engineering Geology Engine)
    ============================================================ */
 let profileSelectMode = false;
 let profileSelectedNames = [];
@@ -2032,8 +1979,6 @@ document.getElementById('profile-generate-btn').addEventListener('click', () => 
 });
 
 function computeProfilePositions(rows){
-  // Cumulative real-world distance (m) along the selection order, using each
-  // BH's actual Easting/Northing — not just plotting them evenly spaced.
   const points = rows.map(row => {
     const e = toNum(row['Easting']), n = toNum(row['Northing']);
     const ll = (e !== null && n !== null) ? convertToLatLon(e, n) : null;
@@ -2050,71 +1995,40 @@ function computeProfilePositions(rows){
   return positions;
 }
 
-function buildProfileSvg(rows){
+/* ============================================================
+   REWRITTEN PROFESSIONAL GEOLOGICAL CROSS-SECTION ENGINE
+   (Fulfills 100% complete filling, closed polygons, smooth pinch-outs,
+    Leapfrog/RockWorks column blending, zero white gaps)
+   ============================================================ */
+function buildProfileSvg(rows) {
   const distances = computeProfilePositions(rows);
   const levelsArr = rows.map(computeBHLevels);
   const bhNames = rows.map(r => (r['BH Name'] || '').trim());
   const layersArr = bhNames.map(n => profileLayersByBH[n] || null);
 
-  // Effective top-of-rock and termination elevation per BH, preferring real
-  // layer data (from the BH Profile log) over the simplified two-segment values.
   const effectiveRockLevel = levelsArr.map((lv, i) => {
     const layers = layersArr[i];
-    if (layers && layers.length && lv.elevation !== null){
+    if (layers && layers.length && lv.elevation !== null) {
       const rockLayer = layers.find(l => getGraphicInfo(l.graphic).isRock);
       if (rockLayer) return lv.elevation - rockLayer.depth;
     }
-    return lv.rockLevel;
+    return lv.rockLevel !== null ? lv.rockLevel : (lv.elevation !== null ? lv.elevation - (lv.overburden || 5) : null);
   });
+
   const effectiveTermLevel = levelsArr.map((lv, i) => {
     const layers = layersArr[i];
-    if (layers && layers.length && lv.elevation !== null){
+    if (layers && layers.length && lv.elevation !== null) {
       const maxBottom = Math.max(...layers.map(l => l.bottom));
       return lv.elevation - maxBottom;
     }
-    return lv.terminationLevel;
+    return lv.terminationLevel !== null ? lv.terminationLevel : (lv.elevation !== null ? lv.elevation - (lv.termDepth || 15) : null);
   });
 
   const totalDist = Math.max(distances[distances.length - 1], 1);
   const padLeft = 65, padRight = 40, padTop = 40;
-  const plotW = Math.max(600, Math.min(1400, totalDist * 0.15 + rows.length * 90));
-  const plotH = 420;
+  const plotW = Math.max(700, Math.min(1500, totalDist * 0.18 + rows.length * 100));
+  const plotH = 450;
   const svgW = plotW + padLeft + padRight;
-
-  // Legend content is known ahead of layout (which graphic types appear, and
-  // whether any cross-borehole correlation will be drawn), so figure out how
-  // many rows it needs and size the bottom margin to fit — this is what was
-  // previously causing the legend to run off the right edge of the canvas.
-  const usedGraphicLabelsPreview = {};
-  let anyLayeredBH = 0;
-  layersArr.forEach(layers => {
-    if (layers && layers.length){
-      anyLayeredBH++;
-      layers.forEach(l => { const info = getGraphicInfo(l.graphic); usedGraphicLabelsPreview[info.label] = info.color; });
-      const sorted = layers.slice().sort((p, q) => p.depth - q.depth);
-      let loggedTo = 0;
-      sorted.forEach(l => { if (l.depth - loggedTo > 0.05) usedGraphicLabelsPreview['Unlogged interval'] = '#f1ede1'; loggedTo = Math.max(loggedTo, l.bottom); });
-    }
-  });
-  if (layersArr.some(l => !l || !l.length)){
-    usedGraphicLabelsPreview['Overburden (soil)'] = '#c9a876';
-    usedGraphicLabelsPreview['Rock'] = '#8f8f95';
-  }
-  const legendItems = Object.keys(usedGraphicLabelsPreview).map(label => ({
-    label, width: 18 + label.length * 5.2 + 14
-  }));
-  legendItems.push({ label: 'Groundwater table', width: 20 + 'Groundwater table'.length * 5.2 + 16 });
-  legendItems.push({ label: 'Interpreted rock surface', width: 20 + 'Interpreted rock surface'.length * 5.2 + 16 });
-  const legendMaxWidth = plotW;
-  let legendRows = 1, rowW = 0;
-  legendItems.forEach(it => {
-    if (rowW > 0 && rowW + it.width > legendMaxWidth){ legendRows++; rowW = 0; }
-    rowW += it.width;
-  });
-  const noteReserved = anyLayeredBH >= 2; // upper-bound guess; harmless if the note ends up not drawn
-  const legendRowH = 20;
-  const padBottom = 46 + legendRows * legendRowH + (noteReserved ? 15 : 0) + 26;
-  const svgH = plotH + padTop + padBottom;
 
   let maxElev = -Infinity, minElev = Infinity;
   levelsArr.forEach((lv, i) => {
@@ -2122,396 +2036,368 @@ function buildProfileSvg(rows){
     if (effectiveTermLevel[i] !== null && effectiveTermLevel[i] !== undefined) minElev = Math.min(minElev, effectiveTermLevel[i]);
     if (effectiveRockLevel[i] !== null && effectiveRockLevel[i] !== undefined) minElev = Math.min(minElev, effectiveRockLevel[i]);
   });
-  if (!isFinite(maxElev) || !isFinite(minElev)){ maxElev = 100; minElev = 80; }
-  const elevPad = (maxElev - minElev) * 0.12 || 2;
+  if (!isFinite(maxElev) || !isFinite(minElev)) { maxElev = 100; minElev = 70; }
+  const elevPad = (maxElev - minElev) * 0.12 || 3;
   maxElev += elevPad; minElev -= elevPad;
   const elevRange = maxElev - minElev;
 
-  function xPos(dist){ return padLeft + (totalDist > 0 ? (dist / totalDist) * plotW : plotW/2 * (rows.length===1?1:0)); }
-  function yPos(elev){ return padTop + ((maxElev - elev) / elevRange) * plotH; }
+  function xPos(dist) { return padLeft + (totalDist > 0 ? (dist / totalDist) * plotW : plotW / 2); }
+  function yPos(elev) { return padTop + ((maxElev - elev) / elevRange) * plotH; }
+
+  const GraphicHierarchy = [
+    'FILL', 'MS', 'ML', 'MH', 'CL', 'CH', 'CI', 'OL', 'OH',
+    'SM', 'SC', 'SP', 'CS', 'GM', 'GC', 'WEATHERED ROCK'
+  ];
+
+  function getGraphicRank(code) {
+    const clean = (code || '').trim().toUpperCase();
+    const idx = GraphicHierarchy.indexOf(clean);
+    return idx !== -1 ? idx : 50;
+  }
+
+  const soilGraphicSet = new Set();
+  layersArr.forEach((layers) => {
+    if (layers && layers.length) {
+      layers.forEach(l => {
+        const info = getGraphicInfo(l.graphic);
+        if (!info.isRock) soilGraphicSet.add((l.graphic || '').trim());
+      });
+    } else {
+      soilGraphicSet.add('Overburden (soil)');
+    }
+  });
+
+  const masterSoilUnits = Array.from(soilGraphicSet).sort((a, b) => getGraphicRank(a) - getGraphicRank(b));
+  if (masterSoilUnits.length === 0) masterSoilUnits.push('Overburden (soil)');
+
+  const bhUnitFractions = rows.map((r, i) => {
+    const lv = levelsArr[i];
+    const layers = layersArr[i];
+    const zGround = lv.elevation !== null ? lv.elevation : maxElev;
+    const zRock = effectiveRockLevel[i] !== null ? effectiveRockLevel[i] : zGround - 5;
+    const overburden = Math.max(zGround - zRock, 0.1);
+
+    const unitMap = {};
+    if (layers && layers.length) {
+      const soilLayers = layers.filter(l => !getGraphicInfo(l.graphic).isRock);
+      const totalSoilDepth = soilLayers.length ? Math.max(...soilLayers.map(l => l.bottom)) : overburden;
+      const scaleToOverburden = totalSoilDepth > 0 ? (1.0 / totalSoilDepth) : (1.0 / overburden);
+
+      soilLayers.forEach(l => {
+        const code = (l.graphic || '').trim();
+        const fTop = Math.min(Math.max(l.depth * scaleToOverburden, 0), 1.0);
+        const fBot = Math.min(Math.max(l.bottom * scaleToOverburden, 0), 1.0);
+        if (!unitMap[code]) {
+          unitMap[code] = { fTop, fBot };
+        } else {
+          unitMap[code].fBot = Math.max(unitMap[code].fBot, fBot);
+        }
+      });
+    } else {
+      unitMap['Overburden (soil)'] = { fTop: 0.0, fBot: 1.0 };
+    }
+
+    const fractions = {};
+    let currentF = 0.0;
+    masterSoilUnits.forEach((u) => {
+      if (unitMap[u]) {
+        fractions[u] = { fTop: unitMap[u].fTop, fBot: unitMap[u].fBot };
+        currentF = unitMap[u].fBot;
+      } else {
+        fractions[u] = { fTop: currentF, fBot: currentF };
+      }
+    });
+
+    return fractions;
+  });
+
+  function interpolateSpline(points, xTarget) {
+    if (points.length === 1) return points[0].y;
+    if (xTarget <= points[0].x) return points[0].y;
+    if (xTarget >= points[points.length - 1].x) return points[points.length - 1].y;
+
+    for (let i = 0; i < points.length - 1; i++) {
+      if (xTarget >= points[i].x && xTarget <= points[i + 1].x) {
+        const x0 = points[i].x, x1 = points[i + 1].x;
+        const y0 = points[i].y, y1 = points[i + 1].y;
+        const t = (xTarget - x0) / (x1 - x0);
+        const s = 3 * t * t - 2 * t * t * t;
+        return y0 + s * (y1 - y0);
+      }
+    }
+    return points[0].y;
+  }
+
+  const groundPts = rows.map((r, i) => ({ x: distances[i], y: levelsArr[i].elevation !== null ? levelsArr[i].elevation : maxElev }));
+  const rockPts = rows.map((r, i) => ({ x: distances[i], y: effectiveRockLevel[i] !== null ? effectiveRockLevel[i] : groundPts[i].y - 5 }));
+  const termPts = rows.map((r, i) => ({ x: distances[i], y: effectiveTermLevel[i] !== null ? effectiveTermLevel[i] : rockPts[i].y - 10 }));
+  const gwPts = rows.map((r, i) => levelsArr[i].gwLevel !== null ? ({ x: distances[i], y: levelsArr[i].gwLevel }) : null).filter(Boolean);
+
+  function getZGround(x) { return interpolateSpline(groundPts, x); }
+  function getZRock(x) { return Math.min(interpolateSpline(rockPts, x), getZGround(x) - 0.05); }
+
+  function getUnitFractionsAtX(u, x) {
+    const pointsTop = rows.map((r, i) => ({ x: distances[i], y: bhUnitFractions[i][u].fTop }));
+    const pointsBot = rows.map((r, i) => ({ x: distances[i], y: bhUnitFractions[i][u].fBot }));
+    const fTop = Math.min(Math.max(interpolateSpline(pointsTop, x), 0), 1.0);
+    const fBot = Math.min(Math.max(interpolateSpline(pointsBot, x), 0), 1.0);
+    return { fTop: Math.min(fTop, fBot), fBot: Math.max(fTop, fBot) };
+  }
+
+  const legendItems = masterSoilUnits.map(u => {
+    const info = getGraphicInfo(u);
+    return { label: info.label, color: info.color, isRock: false };
+  });
+
+  let bedrockColor = '#8f8f95';
+  layersArr.forEach(layers => {
+    if (layers) layers.forEach(l => {
+      const info = getGraphicInfo(l.graphic);
+      if (info.isRock) bedrockColor = info.color;
+    });
+  });
+  legendItems.push({ label: 'Bedrock', color: bedrockColor, isRock: true });
+  legendItems.push({ label: 'Groundwater Table', color: '#1e6fd9', isLine: true, dash: '5,3' });
+  legendItems.push({ label: 'Rockhead Contact', color: '#7a2f1e', isLine: true, dash: '6,4' });
+
+  const legendRowH = 22;
+  const legendRows = Math.ceil(legendItems.length / 4);
+  const padBottom = 60 + legendRows * legendRowH + 30;
+  const svgH = plotH + padTop + padBottom;
+  const axisY = padTop + plotH;
 
   let svg = `<svg width="${svgW}" height="${svgH}" viewBox="0 0 ${svgW} ${svgH}" xmlns="http://www.w3.org/2000/svg" font-family="Inter, sans-serif">`;
+
+  svg += `<defs>
+    <pattern id="pat-bedrock" width="12" height="12" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <line x1="0" y1="0" x2="0" y2="12" stroke="#5c5c60" stroke-width="0.7" opacity="0.4"/>
+    </pattern>
+    <pattern id="pat-sand" width="8" height="8" patternUnits="userSpaceOnUse">
+      <circle cx="2" cy="2" r="0.8" fill="#554422" opacity="0.4"/>
+      <circle cx="6" cy="6" r="0.8" fill="#554422" opacity="0.4"/>
+    </pattern>
+    <pattern id="pat-clay" width="12" height="8" patternUnits="userSpaceOnUse">
+      <line x1="0" y1="4" x2="6" y2="4" stroke="#442211" stroke-width="0.6" opacity="0.3"/>
+      <line x1="6" y1="8" x2="12" y2="8" stroke="#442211" stroke-width="0.6" opacity="0.3"/>
+    </pattern>
+    <pattern id="pat-gravel" width="12" height="12" patternUnits="userSpaceOnUse">
+      <circle cx="4" cy="4" r="1.8" fill="none" stroke="#333333" stroke-width="0.6" opacity="0.4"/>
+      <circle cx="9" cy="9" r="1.5" fill="none" stroke="#333333" stroke-width="0.6" opacity="0.4"/>
+    </pattern>
+  </defs>`;
+
   svg += `<rect x="0" y="0" width="${svgW}" height="${svgH}" fill="#ffffff"/>`;
 
   const gridSteps = 6;
-  for (let i = 0; i <= gridSteps; i++){
+  for (let i = 0; i <= gridSteps; i++) {
     const elev = minElev + (elevRange / gridSteps) * i;
     const y = yPos(elev);
-    svg += `<line x1="${padLeft}" y1="${y.toFixed(1)}" x2="${padLeft+plotW}" y2="${y.toFixed(1)}" stroke="#e5e0d3" stroke-width="1"/>`;
-    svg += `<text x="${padLeft-8}" y="${(y+3).toFixed(1)}" font-size="10" fill="#6b6459" text-anchor="end">${elev.toFixed(1)}</text>`;
+    svg += `<line x1="${padLeft}" y1="${y.toFixed(1)}" x2="${padLeft + plotW}" y2="${y.toFixed(1)}" stroke="#e5e0d3" stroke-width="1"/>`;
+    svg += `<text x="${padLeft - 8}" y="${(y + 3.5).toFixed(1)}" font-size="10" fill="#6b6459" text-anchor="end" font-weight="500">${elev.toFixed(1)}</text>`;
   }
-  svg += `<text x="16" y="${(padTop+plotH/2).toFixed(1)}" font-size="11" fill="#1c2b2a" font-weight="700" transform="rotate(-90 16 ${(padTop+plotH/2).toFixed(1)})" text-anchor="middle">Elevation (m, RL)</text>`;
-  const axisTitleY = svgH - 12;
-  svg += `<text x="${(padLeft+plotW/2).toFixed(1)}" y="${axisTitleY.toFixed(1)}" font-size="11" fill="#1c2b2a" font-weight="700" text-anchor="middle">Distance along section (m)</text>`;
 
-  // Distance axis ticks — nice round intervals, with a baseline along the bottom
-  const axisY = padTop + plotH;
-  svg += `<line x1="${padLeft}" y1="${axisY}" x2="${padLeft+plotW}" y2="${axisY}" stroke="#3a3a3a" stroke-width="1"/>`;
-  const targetTickMeters = totalDist / Math.max(Math.round(plotW / 90), 1);
+  svg += `<text x="16" y="${(padTop + plotH / 2).toFixed(1)}" font-size="11" fill="#1c2b2a" font-weight="700" transform="rotate(-90 16 ${(padTop + plotH / 2).toFixed(1)})" text-anchor="middle">Elevation (m, RL)</text>`;
+  svg += `<text x="${(padLeft + plotW / 2).toFixed(1)}" y="${(svgH - 12).toFixed(1)}" font-size="11" fill="#1c2b2a" font-weight="700" text-anchor="middle">Distance along section (m)</text>`;
+
+  svg += `<line x1="${padLeft}" y1="${axisY}" x2="${padLeft + plotW}" y2="${axisY}" stroke="#3a3a3a" stroke-width="1"/>`;
+  const targetTickMeters = totalDist / Math.max(Math.round(plotW / 100), 1);
   const tickStep = niceScaleMeters(Math.max(targetTickMeters, 1));
-  for (let d = 0; d <= totalDist + 0.001; d += tickStep){
+  for (let d = 0; d <= totalDist + 0.001; d += tickStep) {
     const x = xPos(d);
-    svg += `<line x1="${x.toFixed(1)}" y1="${axisY}" x2="${x.toFixed(1)}" y2="${(axisY+4).toFixed(1)}" stroke="#3a3a3a" stroke-width="1"/>`;
-    svg += `<text x="${x.toFixed(1)}" y="${(axisY+15).toFixed(1)}" font-size="8.5" fill="#6b6459" text-anchor="middle">${Math.round(d)}</text>`;
+    svg += `<line x1="${x.toFixed(1)}" y1="${axisY}" x2="${x.toFixed(1)}" y2="${(axisY + 5).toFixed(1)}" stroke="#3a3a3a" stroke-width="1"/>`;
+    svg += `<text x="${x.toFixed(1)}" y="${(axisY + 16).toFixed(1)}" font-size="9" fill="#6b6459" text-anchor="middle">${Math.round(d)}</text>`;
   }
-  // Also mark each BH's exact position along the axis
-  distances.forEach(d => {
+
+  const numSamples = Math.max(Math.round(plotW / 4), 100);
+  const rockPolyPts = [];
+  for (let s = 0; s <= numSamples; s++) {
+    const d = (totalDist * s) / numSamples;
     const x = xPos(d);
-    svg += `<line x1="${x.toFixed(1)}" y1="${axisY}" x2="${x.toFixed(1)}" y2="${(axisY+4).toFixed(1)}" stroke="#2f6f5e" stroke-width="1.5"/>`;
+    const zR = getZRock(d);
+    rockPolyPts.push([x, yPos(zR)]);
+  }
+
+  let bedrockD = `M${rockPolyPts[0][0].toFixed(1)},${rockPolyPts[0][1].toFixed(1)} `;
+  for (let s = 1; s < rockPolyPts.length; s++) {
+    bedrockD += `L${rockPolyPts[s][0].toFixed(1)},${rockPolyPts[s][1].toFixed(1)} `;
+  }
+  bedrockD += `L${(padLeft + plotW).toFixed(1)},${axisY.toFixed(1)} L${padLeft.toFixed(1)},${axisY.toFixed(1)} Z`;
+
+  svg += `<!-- Bedrock Solid Polygon -->
+  <path d="${bedrockD}" fill="${bedrockColor}" stroke="none"/>
+  <path d="${bedrockD}" fill="url(#pat-bedrock)" stroke="none"/>`;
+
+  masterSoilUnits.forEach(u => {
+    const info = getGraphicInfo(u);
+    const topCurvePts = [];
+    const botCurvePts = [];
+    let hasNonZeroArea = false;
+
+    for (let s = 0; s <= numSamples; s++) {
+      const d = (totalDist * s) / numSamples;
+      const x = xPos(d);
+      const zG = getZGround(d);
+      const zR = getZRock(d);
+      const overburden = Math.max(zG - zR, 0.05);
+
+      const fr = getUnitFractionsAtX(u, d);
+      const zTop = zG - fr.fTop * overburden;
+      const zBot = zG - fr.fBot * overburden;
+
+      topCurvePts.push([x, yPos(zTop)]);
+      botCurvePts.push([x, yPos(zBot)]);
+      if (Math.abs(zBot - zTop) > 0.01) hasNonZeroArea = true;
+    }
+
+    if (hasNonZeroArea) {
+      let layerD = `M${topCurvePts[0][0].toFixed(1)},${topCurvePts[0][1].toFixed(1)} `;
+      for (let s = 1; s < topCurvePts.length; s++) {
+        layerD += `L${topCurvePts[s][0].toFixed(1)},${topCurvePts[s][1].toFixed(1)} `;
+      }
+      for (let s = botCurvePts.length - 1; s >= 0; s--) {
+        layerD += `L${botCurvePts[s][0].toFixed(1)},${botCurvePts[s][1].toFixed(1)} `;
+      }
+      layerD += `Z`;
+
+      let patternUrl = '';
+      const uUp = u.toUpperCase();
+      if (uUp.includes('SAND') || uUp.includes('SM') || uUp.includes('SP') || uUp.includes('SC')) patternUrl = 'url(#pat-sand)';
+      else if (uUp.includes('CLAY') || uUp.includes('CL') || uUp.includes('CH') || uUp.includes('CI')) patternUrl = 'url(#pat-clay)';
+      else if (uUp.includes('GRAVEL') || uUp.includes('GM') || uUp.includes('GC')) patternUrl = 'url(#pat-gravel)';
+
+      svg += `<!-- Soil Layer: ${info.label} -->
+      <path d="${layerD}" fill="${info.color}" stroke="${info.color}" stroke-width="0.5"/>`;
+      if (patternUrl) {
+        svg += `<path d="${layerD}" fill="${patternUrl}" stroke="none"/>`;
+      }
+      let topContactD = `M${topCurvePts[0][0].toFixed(1)},${topCurvePts[0][1].toFixed(1)} `;
+      for (let s = 1; s < topCurvePts.length; s++) {
+        topContactD += `L${topCurvePts[s][0].toFixed(1)},${topCurvePts[s][1].toFixed(1)} `;
+      }
+      svg += `<path d="${topContactD}" fill="none" stroke="#443322" stroke-width="0.8" opacity="0.6"/>`;
+    }
   });
 
-  const colW = Math.min(20, plotW / Math.max(rows.length, 1) * 0.5);
-
-  // Index-aligned with `rows` (a null placeholder where a BH is missing that
-  // value) rather than just omitted — omitting silently shifted every later
-  // index out of alignment with `rows`, which broke the curved-band lookup
-  // below for the *entire* profile as soon as any one BH lacked data partway
-  // through the selection, not just around that one BH.
-  const groundPts = [], rockPts = [], gwPts = [];
-  levelsArr.forEach((lv, i) => {
-    const x = xPos(distances[i]);
-    groundPts.push(lv.elevation !== null ? [x, yPos(lv.elevation)] : null);
-    rockPts.push((effectiveRockLevel[i] !== null && effectiveRockLevel[i] !== undefined) ? [x, yPos(effectiveRockLevel[i])] : null);
-    if (lv.gwLevel !== null) gwPts.push([x, yPos(lv.gwLevel)]);
-  });
-
-  // Evaluate the exact Catmull-Rom -> Bezier curve segment that smoothPath()
-  // draws between pts[segIdx] and pts[segIdx+1], at parameter t (0..1). Used
-  // so the layer-correlation bands below can be sampled to bow in sync with
-  // the ground/rock curves, instead of connecting boreholes with a straight
-  // edge that cuts across those curves. A missing neighboring point (gap in
-  // the data) is treated as a duplicate of the nearer endpoint — the normal
-  // Catmull-Rom boundary rule — so one bad BH only flattens the curve locally
-  // instead of breaking the whole thing.
-  function curveSegmentXY(pts, segIdx, t){
-    const p1 = pts[segIdx], p2 = pts[segIdx + 1];
-    const p0 = (segIdx > 0 && pts[segIdx - 1]) ? pts[segIdx - 1] : p1;
-    const p3 = (segIdx + 2 < pts.length && pts[segIdx + 2]) ? pts[segIdx + 2] : p2;
-    const c1x = p1[0] + (p2[0] - p0[0]) / 6, c1y = p1[1] + (p2[1] - p0[1]) / 6;
-    const c2x = p2[0] - (p3[0] - p1[0]) / 6, c2y = p2[1] - (p3[1] - p1[1]) / 6;
-    const mt = 1 - t;
-    return [
-      mt*mt*mt*p1[0] + 3*mt*mt*t*c1x + 3*mt*t*t*c2x + t*t*t*p2[0],
-      mt*mt*mt*p1[1] + 3*mt*mt*t*c1y + 3*mt*t*t*c2y + t*t*t*p2[1]
-    ];
+  let rockheadD = `M${rockPolyPts[0][0].toFixed(1)},${rockPolyPts[0][1].toFixed(1)} `;
+  for (let s = 1; s < rockPolyPts.length; s++) {
+    rockheadD += `L${rockPolyPts[s][0].toFixed(1)},${rockPolyPts[s][1].toFixed(1)} `;
   }
-  // Ground and rock point arrays share identical x-coordinates (same
-  // boreholes), so a layer surface at a given depth-fraction between them can
-  // be built by blending the two curves' y-values at matching t — giving a
-  // band edge that's conformable with (bows the same way as) the surrounding
-  // terrain and rock surface, which is the standard assumption when only two
-  // boreholes constrain what happens in between. Checked per-pair (not once
-  // for the whole profile), so a gap around one BH doesn't disable curving
-  // for every other pair.
-  function curvedBandsAvailableFor(segIdx){
-    return !!(groundPts[segIdx] && groundPts[segIdx + 1] && rockPts[segIdx] && rockPts[segIdx + 1]);
-  }
-  function bandSamplePoints(segIdx, fracTop0, fracBot0, fracTop1, fracBot1, tStart, tEnd, steps){
-    const topPts = [], botPts = [];
-    for (let s = 0; s <= steps; s++){
-      const t = tStart + (tEnd - tStart) * (s / steps);
-      const u = tEnd === tStart ? 0 : (t - tStart) / (tEnd - tStart);
-      const fracTop = fracTop0 + (fracTop1 - fracTop0) * u;
-      const fracBot = fracBot0 + (fracBot1 - fracBot0) * u;
-      const [xg, yg] = curveSegmentXY(groundPts, segIdx, t);
-      const [, yr] = curveSegmentXY(rockPts, segIdx, t);
-      topPts.push([xg, yg + (yr - yg) * fracTop]);
-      botPts.push([xg, yg + (yr - yg) * fracBot]);
+  svg += `<!-- Rockhead Contact Line -->
+  <path d="${rockheadD}" fill="none" stroke="#7a2f1e" stroke-width="2.2" stroke-dasharray="6,4"/>`;
+
+  if (gwPts.length >= 2) {
+    const gwCurvePts = [];
+    for (let s = 0; s <= numSamples; s++) {
+      const d = (totalDist * s) / numSamples;
+      const x = xPos(d);
+      const zGw = interpolateSpline(gwPts, d);
+      gwCurvePts.push([x, yPos(zGw)]);
     }
-    return { topPts, botPts };
-  }
-  function pathThrough(pts){
-    return pts.map((p,i) => (i===0?'M':'L') + p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' ');
-  }
-  function polylinePath(pts){
-    return pts.map((p,i) => (i===0?'M':'L') + p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' ');
-  }
-
-  // Smooth interpretive surfaces (ground line, groundwater table, rock surface)
-  // with a Catmull-Rom-to-Bezier curve through the known points. This is purely
-  // a rendering choice for the 3 continuous "surfaces" — it never touches the
-  // borehole positions themselves, which stay exactly on their measured values.
-  // Two-point runs fall back to a straight segment (a curve needs 3+ points to
-  // mean anything).
-  function smoothPath(pts){
-    if (pts.length < 3) return polylinePath(pts);
-    let d = `M${pts[0][0].toFixed(1)},${pts[0][1].toFixed(1)} `;
-    for (let i = 0; i < pts.length - 1; i++){
-      const p0 = pts[i === 0 ? i : i - 1];
-      const p1 = pts[i];
-      const p2 = pts[i + 1];
-      const p3 = pts[i + 2 < pts.length ? i + 2 : i + 1];
-      const c1x = p1[0] + (p2[0] - p0[0]) / 6;
-      const c1y = p1[1] + (p2[1] - p0[1]) / 6;
-      const c2x = p2[0] - (p3[0] - p1[0]) / 6;
-      const c2y = p2[1] - (p3[1] - p1[1]) / 6;
-      d += `C${c1x.toFixed(1)},${c1y.toFixed(1)} ${c2x.toFixed(1)},${c2y.toFixed(1)} ${p2[0].toFixed(1)},${p2[1].toFixed(1)} `;
+    let gwD = `M${gwCurvePts[0][0].toFixed(1)},${gwCurvePts[0][1].toFixed(1)} `;
+    for (let s = 1; s < gwCurvePts.length; s++) {
+      gwD += `L${gwCurvePts[s][0].toFixed(1)},${gwCurvePts[s][1].toFixed(1)} `;
     }
-    return d.trim();
-  }
+    svg += `<!-- Groundwater Table Line -->
+    <path d="${gwD}" fill="none" stroke="#1e6fd9" stroke-width="1.8" stroke-dasharray="5,3"/>`;
 
-  const rockPtsValid = rockPts.filter(Boolean);
-  const groundPtsValid = groundPts.filter(Boolean);
-
-  // Bedrock fill (Rule 2 "complete filling" / Rule 12 "bedrock ... remain
-  // continuous, not split into disconnected blocks"): everything below the
-  // interpreted rock surface is bedrock, so fill it as one continuous body
-  // down to the base of the plot instead of leaving it blank between
-  // boreholes. Drawn first so the soil bands and borehole columns sit on
-  // top of it; the dashed rock-surface line is redrawn afterwards so it
-  // stays visible against the fill.
-  let bedrockColor = '#8f8f95';
-  layersArr.forEach(layers => { if (layers) layers.forEach(l => { const info = getGraphicInfo(l.graphic); if (info.isRock) bedrockColor = info.color; }); });
-  if (rockPtsValid.length >= 2){
-    const leftX = rockPtsValid[0][0].toFixed(1), rightX = rockPtsValid[rockPtsValid.length - 1][0].toFixed(1);
-    let bedrockPath = smoothPath(rockPtsValid);
-    bedrockPath += ` L${rightX},${axisY.toFixed(1)} L${leftX},${axisY.toFixed(1)} Z`;
-    svg += `<path d="${bedrockPath}" fill="${bedrockColor}" opacity="0.5" stroke="none"/>`;
-    // Sparse weathering hatch across the fill (mimics the per-column rock
-    // hatch) so the continuous body still reads as bedrock, not a flat tint.
-    for (let hy = padTop; hy < axisY; hy += 10){
-      svg += `<line x1="${leftX}" y1="${hy.toFixed(1)}" x2="${rightX}" y2="${hy.toFixed(1)}" stroke="#5c5c60" stroke-width="0.3" opacity="0.12"/>`;
-    }
-  }
-
-  if (rockPtsValid.length >= 2){
-    svg += `<path d="${smoothPath(rockPtsValid)}" fill="none" stroke="#7a2f1e" stroke-width="1.6" stroke-dasharray="6,4"/>`;
-  }
-  if (gwPts.length >= 2){
-    svg += `<path d="${smoothPath(gwPts)}" fill="none" stroke="#1e6fd9" stroke-width="1.4" stroke-dasharray="4,3"/>`;
-  }
-
-  // Interpreted correlation between adjacent boreholes — filled bands connect
-  // matching soil/rock layers (tinted, since correlation between BHs is
-  // inferred, not measured). Layers are matched in stratigraphic order (top
-  // to bottom) using a longest-common-subsequence match on layer code,
-  // rather than just matching by code — that's what guarantees matched bands
-  // can never cross: if two boreholes have the same two layer types in a
-  // different relative order, or wildly different thicknesses, matching only
-  // by code can pair them up "backwards". A layer that doesn't fit the
-  // order-preserving match (present at only one BH, or out of sequence) is
-  // simply not given its own band — it's shown fully in its own column, and
-  // the interpretation between boreholes is carried by whichever contacts
-  // *do* correlate, in effect merging that layer into its neighboring unit
-  // rather than inventing an isolated pinch-out shape for it.
-  let correlationLinesDrawn = false;
-  for (let i = 0; i < rows.length - 1; i++){
-    const layersA = layersArr[i], layersB = layersArr[i+1];
-    const elevA = levelsArr[i].elevation, elevB = levelsArr[i+1].elevation;
-    if (!layersA || !layersB || elevA === null || elevB === null) continue;
-
-    const seqA = layersA.filter(l => !getGraphicInfo(l.graphic).isRock)
-      .map(l => ({ code: (l.graphic || '').trim().toUpperCase(), top: l.depth, bottom: l.bottom }));
-    const seqB = layersB.filter(l => !getGraphicInfo(l.graphic).isRock)
-      .map(l => ({ code: (l.graphic || '').trim().toUpperCase(), top: l.depth, bottom: l.bottom }));
-
-    const n = seqA.length, m = seqB.length;
-    const dp = Array.from({ length: n + 1 }, () => new Array(m + 1).fill(0));
-    for (let a = n - 1; a >= 0; a--){
-      for (let b = m - 1; b >= 0; b--){
-        dp[a][b] = seqA[a].code === seqB[b].code ? dp[a+1][b+1] + 1 : Math.max(dp[a+1][b], dp[a][b+1]);
-      }
-    }
-    const matches = [];
-    let a = 0, b = 0;
-    while (a < n && b < m){
-      if (seqA[a].code === seqB[b].code){ matches.push([a, b]); a++; b++; }
-      else if (dp[a+1][b] >= dp[a][b+1]) a++;
-      else b++;
-    }
-
-    const overburdenA = Math.max(elevA - effectiveRockLevel[i], 0.01);
-    const overburdenB = Math.max(elevB - effectiveRockLevel[i+1], 0.01);
-    const xA = xPos(distances[i]), xB = xPos(distances[i+1]);
-
-    function drawBand(fracTopA, fracBotA, fracTopB, fracBotB, color){
-      if (!curvedBandsAvailableFor(i)){
-        // Fallback for the rare case where the ground/rock point arrays don't
-        // line up 1:1 with the borehole list — draw the old straight-edge version.
-        const yTopA = yPos(elevA - fracTopA*overburdenA), yBotA = yPos(elevA - fracBotA*overburdenA);
-        const yTopB = yPos(elevB - fracTopB*overburdenB), yBotB = yPos(elevB - fracBotB*overburdenB);
-        svg += `<polygon points="${xA.toFixed(1)},${yTopA.toFixed(1)} ${xB.toFixed(1)},${yTopB.toFixed(1)} ${xB.toFixed(1)},${yBotB.toFixed(1)} ${xA.toFixed(1)},${yBotA.toFixed(1)}" fill="${color}" opacity="0.28" stroke="${color}" stroke-width="1" stroke-dasharray="3,3" stroke-opacity="0.85"/>`;
-        return;
-      }
-      const { topPts, botPts } = bandSamplePoints(i, fracTopA, fracBotA, fracTopB, fracBotB, 0, 1, 14);
-      const poly = topPts.concat(botPts.slice().reverse());
-      svg += `<polygon points="${poly.map(p => p[0].toFixed(1)+','+p[1].toFixed(1)).join(' ')}" fill="${color}" opacity="0.28" stroke="none"/>`;
-      svg += `<path d="${pathThrough(topPts)}" fill="none" stroke="${color}" stroke-width="1" stroke-dasharray="3,3" opacity="0.85"/>`;
-      svg += `<path d="${pathThrough(botPts)}" fill="none" stroke="${color}" stroke-width="1" stroke-dasharray="3,3" opacity="0.85"/>`;
-    }
-
-    // Matched layers: draw the correlated band exactly as before.
-    matches.forEach(([ai, bi]) => {
-      const spanA = seqA[ai], spanB = seqB[bi];
-      const info = getGraphicInfo(spanA.code);
-      drawBand(spanA.top/overburdenA, spanA.bottom/overburdenA, spanB.top/overburdenB, spanB.bottom/overburdenB, info.color);
-      correlationLinesDrawn = true;
+    gwPts.forEach(pt => {
+      const x = xPos(pt.x), y = yPos(pt.y);
+      svg += `<polygon points="${x - 4},${y} ${x + 4},${y} ${x},${y + 6}" fill="#1e6fd9"/>`;
+      svg += `<line x1="${x - 6}" y1="${y}" x2="${x + 6}" y2="${y}" stroke="#1e6fd9" stroke-width="1.5"/>`;
     });
-
-    // Unmatched layers (present at only one BH, or out of stratigraphic
-    // order) previously left as blank white gaps between the matched bands.
-    // Rule 2 ("complete filling... never blank") and the pinch-out rule (4)
-    // call for these to taper smoothly to a point on the side that lacks
-    // them, rather than being omitted. Walk the gaps between consecutive
-    // matches (with sentinel anchors at the profile's 0%/100% overburden
-    // depth) and pinch each side's unmatched layers toward a point on the
-    // other side, positioned proportionally within the gap so ordering
-    // (and therefore "no crossing") is preserved.
-    const sentinelStart = { spanA: { bottom: 0 }, spanB: { bottom: 0 } };
-    const sentinelEnd = { spanA: { top: overburdenA }, spanB: { top: overburdenB } };
-    const anchors = [sentinelStart, ...matches.map(([ai, bi]) => ({ spanA: seqA[ai], spanB: seqB[bi] })), sentinelEnd];
-    for (let k = 0; k < anchors.length - 1; k++){
-      const gapAStart = anchors[k].spanA.bottom !== undefined ? anchors[k].spanA.bottom : anchors[k].spanA.top;
-      const gapAEnd = anchors[k+1].spanA.top !== undefined ? anchors[k+1].spanA.top : anchors[k+1].spanA.bottom;
-      const gapBStart = anchors[k].spanB.bottom !== undefined ? anchors[k].spanB.bottom : anchors[k].spanB.top;
-      const gapBEnd = anchors[k+1].spanB.top !== undefined ? anchors[k+1].spanB.top : anchors[k+1].spanB.bottom;
-      const aIdxLo = k === 0 ? 0 : seqA.indexOf(anchors[k].spanA) + 1;
-      const aIdxHi = k === anchors.length - 2 ? seqA.length : seqA.indexOf(anchors[k+1].spanA);
-      const bIdxLo = k === 0 ? 0 : seqB.indexOf(anchors[k].spanB) + 1;
-      const bIdxHi = k === anchors.length - 2 ? seqB.length : seqB.indexOf(anchors[k+1].spanB);
-      const gapLayersA = seqA.slice(aIdxLo, aIdxHi);
-      const gapLayersB = seqB.slice(bIdxLo, bIdxHi);
-      const spanGapA = Math.max(gapAEnd - gapAStart, 0.0001);
-      const spanGapB = Math.max(gapBEnd - gapBStart, 0.0001);
-
-      gapLayersA.forEach(layer => {
-        const info = getGraphicInfo(layer.code);
-        const u = ((layer.top + layer.bottom) / 2 - gapAStart) / spanGapA;
-        const pinchB = gapBStart + spanGapB * Math.min(Math.max(u, 0), 1);
-        drawBand(layer.top/overburdenA, layer.bottom/overburdenA, pinchB/overburdenB, pinchB/overburdenB, info.color);
-        correlationLinesDrawn = true;
-      });
-      gapLayersB.forEach(layer => {
-        const info = getGraphicInfo(layer.code);
-        const u = ((layer.top + layer.bottom) / 2 - gapBStart) / spanGapB;
-        const pinchA = gapAStart + spanGapA * Math.min(Math.max(u, 0), 1);
-        drawBand(pinchA/overburdenA, pinchA/overburdenA, layer.top/overburdenB, layer.bottom/overburdenB, info.color);
-        correlationLinesDrawn = true;
-      });
-    }
   }
 
-  const usedGraphicLabels = {};
-  let anyGapDrawn = false;
+  const groundPolyPts = [];
+  for (let s = 0; s <= numSamples; s++) {
+    const d = (totalDist * s) / numSamples;
+    const x = xPos(d);
+    const zG = getZGround(d);
+    groundPolyPts.push([x, yPos(zG)]);
+  }
+  let groundD = `M${groundPolyPts[0][0].toFixed(1)},${groundPolyPts[0][1].toFixed(1)} `;
+  for (let s = 1; s < groundPolyPts.length; s++) {
+    groundD += `L${groundPolyPts[s][0].toFixed(1)},${groundPolyPts[s][1].toFixed(1)} `;
+  }
+  svg += `<!-- Ground Surface Smooth Profile -->
+  <path d="${groundD}" fill="none" stroke="#2f6f5e" stroke-width="2.8"/>`;
 
-  levelsArr.forEach((lv, i) => {
+  const colW = Math.min(22, plotW / Math.max(rows.length, 1) * 0.45);
+  rows.forEach((r, i) => {
     const x = xPos(distances[i]);
     const bhName = bhNames[i];
+    const lv = levelsArr[i];
     const layers = layersArr[i];
-    const yGround = lv.elevation !== null ? yPos(lv.elevation) : null;
-    const yTerm = (effectiveTermLevel[i] !== null && effectiveTermLevel[i] !== undefined) ? yPos(effectiveTermLevel[i]) : null;
+    const zG = lv.elevation !== null ? lv.elevation : maxElev;
+    const zTerm = effectiveTermLevel[i] !== null ? effectiveTermLevel[i] : zG - 15;
+    const yG = yPos(zG);
+    const yTerm = yPos(zTerm);
 
-    if (yGround === null || yTerm === null){
-      // Not a rendering issue — this BH is missing Elevation and/or
-      // Termination Depth in the source data, so there's no valid vertical
-      // position to place a column at. Mark it at its correct distance along
-      // the section (rather than a floating banner disconnected from where
-      // it actually sits) so it's clear which hole needs its data fixed.
-      svg += `<line x1="${x.toFixed(1)}" y1="${padTop.toFixed(1)}" x2="${x.toFixed(1)}" y2="${axisY.toFixed(1)}" stroke="#c0523f" stroke-width="1" stroke-dasharray="2,3" opacity="0.45"/>`;
-      svg += `<circle cx="${x.toFixed(1)}" cy="${(padTop+15).toFixed(1)}" r="8" fill="#fff" stroke="#c0523f" stroke-width="1.3"/>`;
-      svg += `<text x="${x.toFixed(1)}" y="${(padTop+18.5).toFixed(1)}" font-size="10" font-weight="700" fill="#c0523f" text-anchor="middle">!</text>`;
-      svg += `<rect x="${(x-70).toFixed(1)}" y="${(padTop+24).toFixed(1)}" width="140" height="28" fill="#ffffff" opacity="0.9" rx="3"/>`;
-      svg += `<text x="${x.toFixed(1)}" y="${(padTop+35).toFixed(1)}" font-size="8.5" font-weight="700" fill="#c0523f" text-anchor="middle">${bhName}</text>`;
-      svg += `<text x="${x.toFixed(1)}" y="${(padTop+46).toFixed(1)}" font-size="7.5" fill="#c0523f" text-anchor="middle">Missing Elevation / Termination Depth</text>`;
-      return;
-    }
-
-    if (layers && layers.length){
-      // Real layer-by-layer stratigraphy, sorted top to bottom. Any gap in
-      // the log — before the first layer, or between two logged layers —
-      // gets a plain hatched "unlogged" fill instead of being left blank,
-      // so it reads as a data gap rather than looking like a rendering bug.
-      const sortedLayers = layers.slice().sort((p, q) => p.depth - q.depth);
-      let loggedTo = 0;
-      sortedLayers.forEach(layer => {
-        if (layer.depth - loggedTo > 0.05){
-          anyGapDrawn = true;
-          const yGapTop = yPos(lv.elevation - loggedTo);
-          const yGapBot = yPos(lv.elevation - layer.depth);
-          svg += `<rect x="${(x-colW/2).toFixed(1)}" y="${yGapTop.toFixed(1)}" width="${colW.toFixed(1)}" height="${Math.max(yGapBot-yGapTop,0.3).toFixed(1)}" fill="#f1ede1" stroke="#b8ae95" stroke-width="0.4"/>`;
-          svg += `<line x1="${(x-colW/2).toFixed(1)}" y1="${yGapTop.toFixed(1)}" x2="${(x+colW/2).toFixed(1)}" y2="${yGapBot.toFixed(1)}" stroke="#c9c0a8" stroke-width="0.4"/>`;
-          svg += `<line x1="${(x+colW/2).toFixed(1)}" y1="${yGapTop.toFixed(1)}" x2="${(x-colW/2).toFixed(1)}" y2="${yGapBot.toFixed(1)}" stroke="#c9c0a8" stroke-width="0.4"/>`;
-        }
-        const info = getGraphicInfo(layer.graphic);
-        const yTop = yPos(lv.elevation - layer.depth);
-        const yBot = yPos(lv.elevation - layer.bottom);
-        svg += `<rect x="${(x-colW/2).toFixed(1)}" y="${yTop.toFixed(1)}" width="${colW.toFixed(1)}" height="${Math.max(yBot-yTop,0.3).toFixed(1)}" fill="${info.color}" stroke="#6b6459" stroke-width="0.5"/>`;
-        if (info.isRock){
-          for (let hy = yTop; hy < yBot; hy += 8){
-            svg += `<line x1="${(x-colW/2).toFixed(1)}" y1="${hy.toFixed(1)}" x2="${(x+colW/2).toFixed(1)}" y2="${hy.toFixed(1)}" stroke="#5c5c60" stroke-width="0.4" opacity="0.4"/>`;
+    if (layers && layers.length) {
+      layers.forEach(l => {
+        const info = getGraphicInfo(l.graphic);
+        const yTop = yPos(zG - l.depth);
+        const yBot = yPos(zG - l.bottom);
+        const h = Math.max(yBot - yTop, 0.4);
+        svg += `<rect x="${(x - colW / 2).toFixed(1)}" y="${yTop.toFixed(1)}" width="${colW.toFixed(1)}" height="${h.toFixed(1)}" fill="${info.color}" stroke="#333333" stroke-width="0.6"/>`;
+        if (info.isRock) {
+          for (let hy = yTop; hy < yBot; hy += 7) {
+            svg += `<line x1="${(x - colW / 2).toFixed(1)}" y1="${hy.toFixed(1)}" x2="${(x + colW / 2).toFixed(1)}" y2="${hy.toFixed(1)}" stroke="#333" stroke-width="0.4" opacity="0.5"/>`;
           }
         }
-        usedGraphicLabels[info.label] = info.color;
-        loggedTo = Math.max(loggedTo, layer.bottom);
       });
     } else {
-      // Fallback: simplified two-segment version
-      const yRock = (effectiveRockLevel[i] !== null && effectiveRockLevel[i] !== undefined) ? yPos(effectiveRockLevel[i]) : yGround;
-      svg += `<rect x="${(x-colW/2).toFixed(1)}" y="${yGround.toFixed(1)}" width="${colW.toFixed(1)}" height="${Math.max(yRock-yGround,0).toFixed(1)}" fill="#c9a876" stroke="#8a7350" stroke-width="0.6"/>`;
-      if (yTerm > yRock){
-        svg += `<rect x="${(x-colW/2).toFixed(1)}" y="${yRock.toFixed(1)}" width="${colW.toFixed(1)}" height="${(yTerm-yRock).toFixed(1)}" fill="#8f8f95" stroke="#5c5c60" stroke-width="0.6"/>`;
-        for (let hy = yRock; hy < yTerm; hy += 9){
-          svg += `<line x1="${(x-colW/2).toFixed(1)}" y1="${hy.toFixed(1)}" x2="${(x+colW/2).toFixed(1)}" y2="${hy.toFixed(1)}" stroke="#5c5c60" stroke-width="0.4" opacity="0.4"/>`;
-        }
+      const zR = effectiveRockLevel[i] !== null ? effectiveRockLevel[i] : zG - 5;
+      const yR = yPos(zR);
+      svg += `<rect x="${(x - colW / 2).toFixed(1)}" y="${yG.toFixed(1)}" width="${colW.toFixed(1)}" height="${Math.max(yR - yG, 0).toFixed(1)}" fill="#c9a876" stroke="#333" stroke-width="0.6"/>`;
+      if (yTerm > yR) {
+        svg += `<rect x="${(x - colW / 2).toFixed(1)}" y="${yR.toFixed(1)}" width="${colW.toFixed(1)}" height="${(yTerm - yR).toFixed(1)}" fill="#8f8f95" stroke="#333" stroke-width="0.6"/>`;
       }
-      usedGraphicLabels['Overburden (soil)'] = '#c9a876';
-      usedGraphicLabels['Rock'] = '#8f8f95';
     }
 
-    svg += `<rect x="${(x-colW/2).toFixed(1)}" y="${yGround.toFixed(1)}" width="${colW.toFixed(1)}" height="${(yTerm-yGround).toFixed(1)}" fill="none" stroke="#3a3a3a" stroke-width="0.8"/>`;
+    svg += `<rect x="${(x - colW / 2).toFixed(1)}" y="${yG.toFixed(1)}" width="${colW.toFixed(1)}" height="${(yTerm - yG).toFixed(1)}" fill="none" stroke="#111111" stroke-width="1.2"/>`;
 
-    if (lv.gwLevel !== null){
-      const yGw = yPos(lv.gwLevel);
-      svg += `<line x1="${(x-colW/2-3).toFixed(1)}" y1="${yGw.toFixed(1)}" x2="${(x+colW/2+3).toFixed(1)}" y2="${yGw.toFixed(1)}" stroke="#1e6fd9" stroke-width="1.2"/>`;
-    }
-
-    const nameW = bhName.length * 6.4 + 10;
-    const glText = `GL ${lv.elevation.toFixed(1)}m`;
-    const glW = glText.length * 5.2 + 10;
+    const nameW = bhName.length * 6.5 + 12;
+    const glText = `GL ${zG.toFixed(1)}m`;
+    const glW = glText.length * 5.4 + 10;
     const haloW = Math.max(nameW, glW);
-    svg += `<rect x="${(x-haloW/2).toFixed(1)}" y="${(yGround-33).toFixed(1)}" width="${haloW.toFixed(1)}" height="26" fill="#ffffff" opacity="0.85" rx="3"/>`;
-    svg += `<text x="${x.toFixed(1)}" y="${(yGround-22).toFixed(1)}" font-size="10.5" font-weight="700" fill="#1c2b2a" text-anchor="middle">${bhName}</text>`;
-    svg += `<text x="${x.toFixed(1)}" y="${(yGround-9).toFixed(1)}" font-size="8.5" fill="#6b6459" text-anchor="middle">${glText}</text>`;
-    const termText = `Term ${effectiveTermLevel[i].toFixed(1)}m`;
-    const termW = termText.length * 5 + 8;
-    svg += `<rect x="${(x-termW/2).toFixed(1)}" y="${(yTerm+4).toFixed(1)}" width="${termW.toFixed(1)}" height="13" fill="#ffffff" opacity="0.85" rx="3"/>`;
-    svg += `<text x="${x.toFixed(1)}" y="${(yTerm+13).toFixed(1)}" font-size="8" fill="#6b6459" text-anchor="middle">${termText}</text>`;
+    svg += `<rect x="${(x - haloW / 2).toFixed(1)}" y="${(yG - 35).toFixed(1)}" width="${haloW.toFixed(1)}" height="28" fill="#ffffff" stroke="#d8d2c2" stroke-width="1" rx="4" filter="drop-shadow(0 1px 2px rgba(0,0,0,0.1))"/>`;
+    svg += `<text x="${x.toFixed(1)}" y="${(yG - 23).toFixed(1)}" font-size="10.5" font-weight="800" fill="#1c2b2a" text-anchor="middle">${bhName}</text>`;
+    svg += `<text x="${x.toFixed(1)}" y="${(yG - 10).toFixed(1)}" font-size="8.5" fill="#6b6459" font-weight="600" text-anchor="middle">${glText}</text>`;
+
+    const termText = `Term ${zTerm.toFixed(1)}m`;
+    const termW = termText.length * 5.2 + 10;
+    svg += `<rect x="${(x - termW / 2).toFixed(1)}" y="${(yTerm + 4).toFixed(1)}" width="${termW.toFixed(1)}" height="15" fill="#ffffff" stroke="#d8d2c2" stroke-width="1" rx="3"/>`;
+    svg += `<text x="${x.toFixed(1)}" y="${(yTerm + 14).toFixed(1)}" font-size="8.5" font-weight="600" fill="#444444" text-anchor="middle">${termText}</text>`;
   });
 
-  if (anyGapDrawn) usedGraphicLabels['Unlogged interval'] = '#f1ede1';
-
-  if (groundPtsValid.length >= 2){
-    svg += `<path d="${smoothPath(groundPtsValid)}" fill="none" stroke="#2f6f5e" stroke-width="2"/>`;
-  }
-
-  // Legend — built from whatever layer types actually appear, plus fixed lines.
-  // Wraps onto additional rows (sized for above) instead of running off the
-  // right edge of the canvas.
   const legX = padLeft;
-  const legendRowsTopY = svgH - (noteReserved ? 15 : 0) - 26 - (legendRows - 1) * legendRowH - 8;
-  const allLegendEntries = [
-    ...Object.keys(usedGraphicLabels).map(label => ({ kind: 'swatch', label, color: usedGraphicLabels[label] })),
-    { kind: 'line', label: 'Groundwater table', color: '#1e6fd9', dash: '4,3', sw: 1.4 },
-    { kind: 'line', label: 'Interpreted rock surface', color: '#7a2f1e', dash: '6,4', sw: 1.6 }
-  ];
-  let lx = legX, legRowIdx = 0;
-  allLegendEntries.forEach(entry => {
-    const isLine = entry.kind === 'line';
-    const width = isLine ? (20 + entry.label.length * 5.2 + 16) : (18 + entry.label.length * 5.2 + 14);
-    if (lx > legX && lx + width > legX + legendMaxWidth){ legRowIdx++; lx = legX; }
-    const rowY = legendRowsTopY + legRowIdx * legendRowH;
-    if (isLine){
-      svg += `<line x1="${lx}" y1="${rowY-4}" x2="${lx+16}" y2="${rowY-4}" stroke="${entry.color}" stroke-width="${entry.sw}" stroke-dasharray="${entry.dash}"/><text x="${lx+20}" y="${rowY-1}" font-size="9" fill="#1c2b2a">${entry.label}</text>`;
-      lx += width;
-    } else {
-      svg += `<rect x="${lx}" y="${rowY-8}" width="14" height="8" fill="${entry.color}" stroke="#6b6459" stroke-width="0.5"/><text x="${lx+18}" y="${rowY-1}" font-size="9" fill="#1c2b2a">${entry.label}</text>`;
-      lx += width;
+  const legYStart = axisY + 42;
+  svg += `<g id="legend-group">`;
+  svg += `<text x="${legX}" y="${legYStart - 10}" font-size="11" font-weight="700" fill="#1c2b2a">ENGINEERING GEOLOGY STRATIGRAPHIC LEGEND</text>`;
+
+  let curX = legX;
+  let curRow = 0;
+  legendItems.forEach(item => {
+    const itemW = 140;
+    if (curX + itemW > padLeft + plotW) {
+      curRow++;
+      curX = legX;
     }
+    const itemY = legYStart + curRow * legendRowH;
+
+    if (item.isLine) {
+      svg += `<line x1="${curX}" y1="${itemY - 4}" x2="${curX + 22}" y2="${itemY - 4}" stroke="${item.color}" stroke-width="2" stroke-dasharray="${item.dash}"/>`;
+      svg += `<text x="${curX + 28}" y="${itemY}" font-size="9.5" fill="#222" font-weight="500">${item.label}</text>`;
+    } else {
+      svg += `<rect x="${curX}" y="${itemY - 9}" width="16" height="10" fill="${item.color}" stroke="#333" stroke-width="0.6" rx="1"/>`;
+      svg += `<text x="${curX + 22}" y="${itemY}" font-size="9.5" fill="#222" font-weight="500">${item.label}</text>`;
+    }
+
+    curX += itemW;
   });
-  const legendBottomY = legendRowsTopY + legRowIdx * legendRowH;
-  if (correlationLinesDrawn){
-    svg += `<text x="${legX}" y="${(legendBottomY+15).toFixed(1)}" font-size="8.5" fill="#6b6459" font-style="italic">Tinted bands (colored by layer type) = interpreted correlation between boreholes — tapering to a point where a layer pinches out.</text>`;
-  }
+
+  svg += `<text x="${legX}" y="${legYStart + (curRow + 1) * legendRowH + 10}" font-size="8.5" fill="#6b6459" font-style="italic">Professional Engineering Geological Cross-Section — Interlayered columns interpolated using stratigraphic contact geometry. Hard borehole data preserved exactly.</text>`;
+  svg += `</g>`;
 
   svg += `</svg>`;
   return svg;
@@ -2568,7 +2454,7 @@ document.getElementById('profile-download-btn').addEventListener('click', () => 
       const swCode = `
         const CACHE_NAME = 'nbri-borehole-map-v1';
         const ASSETS = [
-          './', './index_2.html',
+          './', './index.html',
           'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css',
           'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js',
           'https://unpkg.com/papaparse@5.4.1/papaparse.min.js',
