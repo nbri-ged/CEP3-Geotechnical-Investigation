@@ -1102,6 +1102,10 @@ function getGraphicInfo(code){
 
 let profileLayersByBH = {};
 
+function cleanBHKey(key) {
+  return (key || '').trim().toUpperCase().replace(/[\s\-_]/g, '');
+}
+
 function fetchBHProfileLog(){
   Papa.parse(BH_PROFILE_CSV_URL, {
     download: true, header: true, skipEmptyLines: true,
@@ -1109,19 +1113,55 @@ function fetchBHProfileLog(){
       const grouped = {};
       results.data.forEach(raw => {
         const row = normalizeRow(raw);
-        const pointId = (row['PointID'] || '').trim();
+        const pointId = (row['PointID'] || row['Point ID'] || row['BH_ID'] || row['BH ID'] || row['BH Name'] || '').trim();
         const depth = toNum(row['Depth']);
         const bottom = toNum(row['Bottom']);
         const graphic = (row['Graphic'] || '').trim();
         if (!pointId || depth === null || bottom === null) return;
-        if (!grouped[pointId]) grouped[pointId] = [];
-        grouped[pointId].push({ depth, bottom, graphic });
+
+        const rawKey = pointId;
+        const normKey = cleanBHKey(pointId);
+
+        if (!grouped[rawKey]) grouped[rawKey] = [];
+        grouped[rawKey].push({ depth, bottom, graphic });
+
+        if (normKey && normKey !== rawKey) {
+          if (!grouped[normKey]) grouped[normKey] = [];
+          grouped[normKey].push({ depth, bottom, graphic });
+        }
       });
       Object.keys(grouped).forEach(k => grouped[k].sort((a,b) => a.depth - b.depth));
       profileLayersByBH = grouped;
+      if (allRows && allRows.length) render();
     },
     error: (err) => console.error('Could not load BH Profile log:', err)
   });
+}
+
+function getBHLayers(rOrName) {
+  if (!rOrName) return null;
+  if (typeof rOrName === 'string') {
+    const raw = rOrName.trim();
+    const norm = cleanBHKey(raw);
+    return profileLayersByBH[raw] || profileLayersByBH[norm] || null;
+  }
+  const r = rOrName;
+  const candidates = [
+    r['BH Name'],
+    r['PointID'],
+    r['Point ID'],
+    r['BH_ID'],
+    r['BH ID'],
+    r['Old BH ID'],
+    r['New BH ID']
+  ].filter(Boolean).map(s => String(s).trim());
+
+  for (const c of candidates) {
+    if (profileLayersByBH[c]) return profileLayersByBH[c];
+    const norm = cleanBHKey(c);
+    if (profileLayersByBH[norm]) return profileLayersByBH[norm];
+  }
+  return null;
 }
 function fetchLogDates(){
   Papa.parse(LOG_SHEET_CSV_URL, {
@@ -1327,7 +1367,9 @@ function popupHtml(row){
   
   const tableRows = rows.map(([k,v]) => `<tr><td class="k">${k}</td><td>${v}</td></tr>`).join('');
   const pdfUrl = (row['PDF Link'] || row['Log PDF'] || row['Borehole Log'] || '').trim();
+  const pdfButton = pdfUrl ? `<a href="${pdfUrl}" target="_blank" rel="noopener" class="pdf-link-btn">&#128196; View / Download Borehole Log</a>` : '';
   const profileBtn = `<button onclick="toggleProfileSelection('${bhName}')" style="width:100%; margin-top:8px; padding:6px; background:linear-gradient(135deg, var(--accent), var(--accent-2)); color:#fff; border:none; border-radius:4px; font-weight:700; font-size:11px; cursor:pointer; box-shadow:0 1px 3px rgba(0,0,0,0.15);">📐 Add / Remove from 2D Profile</button>`;
+  const logHtml = buildBoreholeLogMarkup(levels, getBHLayers(row));
   
   return `<div class="popup-title">${bhName} <span class="status-pill" style="background:${colorFor(row['Status'])}">${row['Status'] || 'Planned'}</span></div><table class="popup-table">${tableRows}</table>${pdfButton}${profileBtn}${logHtml}`;
 }
@@ -2051,7 +2093,7 @@ function buildProfileSvg(rows) {
   const distances = computeProfilePositions(rows);
   const levelsArr = rows.map(computeBHLevels);
   const bhNames = rows.map(r => (r['BH Name'] || '').trim());
-  const layersArr = bhNames.map(n => profileLayersByBH[n] || null);
+  const layersArr = rows.map(r => getBHLayers(r) || null);
 
   const effectiveRockLevel = levelsArr.map((lv, i) => {
     const layers = layersArr[i];
@@ -2737,7 +2779,7 @@ if (dxfBtn) {
 function exportProfileToDXF(rows) {
   const sorted = sortBoreholesByMapPosition(rows);
   const levelsArr = sorted.map(computeBHLevels);
-  const layersArr = sorted.map(r => profileLayersByBH[(r['BH Name']||'').trim()]);
+  const layersArr = sorted.map(r => getBHLayers(r) || null);
   
   const distances = [0];
   for (let i = 1; i < sorted.length; i++) {
