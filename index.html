@@ -2378,180 +2378,154 @@ function buildProfileSvg(rows) {
 
   // 2. RENDER SOIL LAYERS — NORMALISED COLUMN APPROACH (ZERO GAPS GUARANTEED)
   //
-  // Algorithm:
-  //   a) For each sample position d, compute raw interpolated thickness fraction for each unit
-  //   b) Apply a pinch-out factor (0–1) based on layer presence:
-  //        • 1.0  : within the active range [firstBH … lastBH] for this unit
-  //        • 0–1  : smooth taper from the outermost BH to the MIDPOINT with the adjacent BH
-  //        • 0.0  : fully pinched out beyond the midpoint
-  //   c) Renormalise all factored thicknesses to sum = 1.0 → neighbours absorb pinched space
-  //   d) Build cumulative boundaries from normalised fractions → draw filled polygons
+  // KEY FIXES:
+  //  • rawBHThickFrac computed by SUMMING actual logged intervals per unit (not span-merge)
+  //  • rawFrac interpolated ONLY between present BHs (absent BHs excluded)
+  //  • pinchFactor tapers to 0 at BH midpoints
+  //  • Normalisation ensures 100% fill at every x
   //
 
-  // Pre-compute per-unit extent and midpoints
-  const unitExtents = masterSoilUnits.map((u, k) => getUnitExtentDist(k));
-
-  // Raw (unnormalized) fractions at each BH from cumulative boundaries
+  // Step A: Compute total logged thickness fraction per unit per BH
   const rawBHThickFrac = rows.map((r, i) => {
-    return masterSoilUnits.map((u, k) => {
-      const fBot = bhCumBoundaries[i][k + 1];
-      const fTop = bhCumBoundaries[i][k];
-      return Math.max(fBot - fTop, 0);
+    const lv  = levelsArr[i];
+    const lys = layersArr[i];
+    const zG  = lv.elevation !== null ? lv.elevation : maxElev;
+    const zR2 = effectiveRockLevel[i] !== null ? effectiveRockLevel[i] : zG - 5;
+    const overburd = Math.max(zG - zR2, 0.1);
+    const unitThick = {};
+    let maxBottom = 0;
+    if (lys && lys.length) {
+      const soilLys = lys.filter(l => !getGraphicInfo(l.graphic).isRock);
+      soilLys.forEach(l => {
+        const code  = (l.graphic || '').trim();
+        const thick = Math.max(l.bottom - l.depth, 0);
+        unitThick[code] = (unitThick[code] || 0) + thick;
+        maxBottom = Math.max(maxBottom, l.bottom);
+      });
+      if (maxBottom <= 0) maxBottom = overburd;
+    } else {
+      unitThick['Overburden (soil)'] = overburd;
+      maxBottom = overburd;
+    }
+    return masterSoilUnits.map(u => {
+      const code = (u || '').trim();
+      return Math.max((unitThick[code] || 0) / maxBottom, 0);
     });
   });
 
-  // For each sample point, build normalised cumulative boundaries
-  const normCumBnd = []; // [K+1][numSamples+1]
+  // Step B: Presence and extents from corrected fractions
+  const bhPresent = rawBHThickFrac.map(fracs => fracs.map(f => f > 0.001));
+  const unitExtents = masterSoilUnits.map((u, k) => {
+    let firstIdx = -1, lastIdx = -1;
+    for (let i = 0; i < rows.length; i++) {
+      if (bhPresent[i][k]) { if (firstIdx === -1) firstIdx = i; lastIdx = i; }
+    }
+    return { firstIdx, lastIdx };
+  });
+
+  // Step C: Build normalised cumulative boundaries at each sample point
+  const normCumBnd = [];
   for (let k = 0; k <= K; k++) normCumBnd.push(new Array(numSamples + 1).fill(0));
 
   for (let s = 0; s <= numSamples; s++) {
     const d = distMin + (distSpan * s) / numSamples;
 
-    // Raw thickness fraction for each unit at this x (interpolated from BH values)
+    // Interpolate raw fraction using ONLY present BHs
     const rawFrac = masterSoilUnits.map((u, k) => {
-      const pts = rows.map((r, i) => ({ x: distances[i], y: rawBHThickFrac[i][k] }));
-      const val = d <= pts[0].x ? pts[0].y
-        : d >= pts[pts.length - 1].x ? pts[pts.length - 1].y
-        : interpolateSpline(pts, d);
+      const { firstIdx } = unitExtents[k];
+      if (firstIdx === -1) return 0;
+      const presentPts = [];
+      for (let i = 0; i < rows.length; i++) {
+        if (bhPresent[i][k]) presentPts.push({ x: distances[i], y: rawBHThickFrac[i][k] });
+      }
+      if (presentPts.length === 0) return 0;
+      const val = d <= presentPts[0].x                         ? presentPts[0].y
+                : d >= presentPts[presentPts.length - 1].x     ? presentPts[presentPts.length - 1].y
+                : interpolateSpline(presentPts, d);
       return Math.max(val, 0);
     });
 
-    // Pinch-out factor for each unit: 1.0 where present, taper to 0 at BH midpoints
+    // Pinch-out factor: smoothstep taper to 0 at midpoints between BHs
     const pinchFactor = masterSoilUnits.map((u, k) => {
       const { firstIdx, lastIdx } = unitExtents[k];
-      if (firstIdx === -1) return 0; // absent everywhere
-
-      const dFirst = distances[firstIdx];
-      const dLast  = distances[lastIdx];
-
-      // Fully active between the BHs where the unit exists
+      if (firstIdx === -1) return 0;
+      const dFirst = distances[firstIdx], dLast = distances[lastIdx];
       if (d >= dFirst && d <= dLast) return 1.0;
-
-      // Left pinch-out: taper from firstBH down to midpoint with prev BH
       if (d < dFirst && firstIdx > 0) {
-        const dPrev = distances[firstIdx - 1];
-        const dMid  = (dPrev + dFirst) / 2;
+        const dMid = (distances[firstIdx - 1] + dFirst) / 2;
         if (d <= dMid) return 0;
         const t = (d - dMid) / (dFirst - dMid);
-        return 3*t*t - 2*t*t*t; // smoothstep
+        return 3*t*t - 2*t*t*t;
       }
-
-      // Right pinch-out: taper from lastBH down to midpoint with next BH
       if (d > dLast && lastIdx < rows.length - 1) {
-        const dNext = distances[lastIdx + 1];
-        const dMid  = (dLast + dNext) / 2;
+        const dMid = (dLast + distances[lastIdx + 1]) / 2;
         if (d >= dMid) return 0;
         const t = 1.0 - (d - dLast) / (dMid - dLast);
-        return 3*t*t - 2*t*t*t; // smoothstep
+        return 3*t*t - 2*t*t*t;
       }
-
-      // At/beyond side-extension (first or last BH in profile): maintain full presence
       return 1.0;
     });
 
-    // Scaled fractions
     const scaled = rawFrac.map((f, k) => f * pinchFactor[k]);
     const total  = scaled.reduce((a, b) => a + b, 0);
-
-    // Normalise → always sums to 1.0, so adjacent layers absorb pinched-out space
     const normFrac = total > 1e-6
       ? scaled.map(f => f / total)
-      : scaled.map((f, k) => k === 0 ? 1.0 : 0); // fallback: top layer takes all
-
-    // Build cumulative for this sample column
+      : scaled.map((f, k) => (k === 0 ? 1.0 : 0));
     normCumBnd[0][s] = 0;
-    for (let k = 0; k < K; k++) {
-      normCumBnd[k + 1][s] = normCumBnd[k][s] + normFrac[k];
-    }
+    for (let k = 0; k < K; k++) normCumBnd[k + 1][s] = normCumBnd[k][s] + normFrac[k];
     normCumBnd[K][s] = 1.0;
   }
 
-  // Now render each soil unit using the normalised cumulative boundaries
+  // Step D: Render each unit as a filled polygon
   masterSoilUnits.forEach((u, k) => {
     const info = getGraphicInfo(u);
     const { firstIdx, lastIdx } = unitExtents[k];
-    if (firstIdx === -1) return; // unit absent from all BHs
-
-    const dFirst = distances[firstIdx];
-    const dLast  = distances[lastIdx];
-
-    // Determine active draw range (including side extensions for first/last BH)
-    const dDrawStart = firstIdx === 0 ? distMin
-      : firstIdx > 0 ? (distances[firstIdx - 1] + dFirst) / 2 : dFirst;
-    const dDrawEnd   = lastIdx === rows.length - 1 ? distMax
-      : lastIdx < rows.length - 1 ? (dLast + distances[lastIdx + 1]) / 2 : dLast;
-
-    const topCurvePts = [];
-    const botCurvePts = [];
+    if (firstIdx === -1) return;
+    const dFirst = distances[firstIdx], dLast = distances[lastIdx];
+    const dDrawStart = firstIdx === 0              ? distMin : (distances[firstIdx - 1] + dFirst) / 2;
+    const dDrawEnd   = lastIdx === rows.length - 1 ? distMax : (dLast + distances[lastIdx + 1]) / 2;
+    const topCurvePts = [], botCurvePts = [];
     let hasArea = false;
-
     for (let s = 0; s <= numSamples; s++) {
       const d = distMin + (distSpan * s) / numSamples;
       const x = xPos(d);
-      const zG = getZGround(d);
-      const zR = getZRock(d);
+      const zG = getZGround(d), zR = getZRock(d);
       const overburden = Math.max(zG - zR, 0.05);
-
-      const fTop = normCumBnd[k][s];
-      const fBot = normCumBnd[k + 1][s];
-      const thickness = fBot - fTop;
-
-      // Outside the draw range: collapse to a line (thickness = 0 visually)
+      const fTop = normCumBnd[k][s], fBot = normCumBnd[k + 1][s];
       const outside = d < dDrawStart || d > dDrawEnd;
       const zTop = zG - fTop * overburden;
       const zBot = outside ? zTop : (zG - fBot * overburden);
-
       topCurvePts.push([x, yPos(zTop)]);
       botCurvePts.push([x, yPos(zBot)]);
-      if (!outside && thickness > 0.001) hasArea = true;
+      if (!outside && (fBot - fTop) > 0.001) hasArea = true;
     }
-
     if (hasArea) {
       let layerD = `M${topCurvePts[0][0].toFixed(1)},${topCurvePts[0][1].toFixed(1)} `;
-      for (let s = 1; s < topCurvePts.length; s++) {
-        layerD += `L${topCurvePts[s][0].toFixed(1)},${topCurvePts[s][1].toFixed(1)} `;
-      }
-      for (let s = botCurvePts.length - 1; s >= 0; s--) {
-        layerD += `L${botCurvePts[s][0].toFixed(1)},${botCurvePts[s][1].toFixed(1)} `;
-      }
+      for (let s = 1; s < topCurvePts.length; s++) layerD += `L${topCurvePts[s][0].toFixed(1)},${topCurvePts[s][1].toFixed(1)} `;
+      for (let s = botCurvePts.length - 1; s >= 0; s--) layerD += `L${botCurvePts[s][0].toFixed(1)},${botCurvePts[s][1].toFixed(1)} `;
       layerD += `Z`;
-
       let patternUrl = '';
       const uUp = (u || '').toUpperCase();
-      if (uUp === 'SM' || uUp === 'SP' || uUp === 'SC' || uUp === 'CS' || uUp.includes('SAND'))
-        patternUrl = 'url(#pat-sand)';
-      else if (uUp === 'CL' || uUp === 'CH' || uUp === 'CI' || uUp.includes('CLAY'))
-        patternUrl = 'url(#pat-clay)';
-      else if (uUp === 'GM' || uUp === 'GC' || uUp.includes('GRAVEL'))
-        patternUrl = 'url(#pat-gravel)';
-
+      if (uUp === 'SM' || uUp === 'SP' || uUp === 'SC' || uUp === 'CS' || uUp.includes('SAND')) patternUrl = 'url(#pat-sand)';
+      else if (uUp === 'CL' || uUp === 'CH' || uUp === 'CI' || uUp.includes('CLAY')) patternUrl = 'url(#pat-clay)';
+      else if (uUp === 'GM' || uUp === 'GC' || uUp.includes('GRAVEL')) patternUrl = 'url(#pat-gravel)';
       svg += `<!-- Soil Layer: ${info.label} -->
       <path d="${layerD}" fill="${info.color}" stroke="${info.color}" stroke-width="0.5"/>`;
-      if (patternUrl) {
-        svg += `<path d="${layerD}" fill="${patternUrl}" stroke="none"/>`;
-      }
-
-      // Draw top-contact line only within active draw range and where layer has thickness
-      let topContactD = '';
-      let inSeg = false;
+      if (patternUrl) svg += `<path d="${layerD}" fill="${patternUrl}" stroke="none"/>`;
+      // Top contact line
+      let topContactD = '', inSeg = false;
       for (let s = 0; s <= numSamples; s++) {
         const d = distMin + (distSpan * s) / numSamples;
         const inside = d >= dDrawStart && d <= dDrawEnd;
-        const thick = normCumBnd[k + 1][s] - normCumBnd[k][s];
+        const thick  = normCumBnd[k + 1][s] - normCumBnd[k][s];
         if (inside && thick > 0.003) {
-          topContactD += (inSeg ? ' L' : 'M') +
-            `${topCurvePts[s][0].toFixed(1)},${topCurvePts[s][1].toFixed(1)}`;
+          topContactD += (inSeg ? ' L' : 'M') + `${topCurvePts[s][0].toFixed(1)},${topCurvePts[s][1].toFixed(1)}`;
           inSeg = true;
-        } else {
-          inSeg = false;
-        }
+        } else { inSeg = false; }
       }
-      if (topContactD) {
-        svg += `<path d="${topContactD}" fill="none" stroke="#443322" stroke-width="0.8" opacity="0.55"/>`;
-      }
+      if (topContactD) svg += `<path d="${topContactD}" fill="none" stroke="#443322" stroke-width="0.8" opacity="0.55"/>`;
     }
   });
-
 
   // 3. RENDER ROCKHEAD CONTACT LINE (full width including side extensions)
   let rockheadD = `M${rockPolyPts[0][0].toFixed(1)},${rockPolyPts[0][1].toFixed(1)} `;
