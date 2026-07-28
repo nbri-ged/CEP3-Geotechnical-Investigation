@@ -2091,6 +2091,9 @@ function buildProfileSvg(rows){
     if (layers && layers.length){
       anyLayeredBH++;
       layers.forEach(l => { const info = getGraphicInfo(l.graphic); usedGraphicLabelsPreview[info.label] = info.color; });
+      const sorted = layers.slice().sort((p, q) => p.depth - q.depth);
+      let loggedTo = 0;
+      sorted.forEach(l => { if (l.depth - loggedTo > 0.05) usedGraphicLabelsPreview['Unlogged interval'] = '#f1ede1'; loggedTo = Math.max(loggedTo, l.bottom); });
     }
   });
   if (layersArr.some(l => !l || !l.length)){
@@ -2244,90 +2247,73 @@ function buildProfileSvg(rows){
   }
 
   // Interpreted correlation between adjacent boreholes — filled bands connect
-  // matching soil/rock layer types where both boreholes share that code
-  // (tinted, since correlation between BHs is inferred, not measured). If a
-  // layer appears in one BH but not its neighbor, it's shown tapering to a
-  // closed point partway across the gap, rather than just stopping bare — a
-  // conventional way to depict a pinch-out on a geological section, versus
-  // leaving the layer looking like it was simply never connected.
+  // matching soil/rock layers (tinted, since correlation between BHs is
+  // inferred, not measured). Layers are matched in stratigraphic order (top
+  // to bottom) using a longest-common-subsequence match on layer code,
+  // rather than just matching by code — that's what guarantees matched bands
+  // can never cross: if two boreholes have the same two layer types in a
+  // different relative order, or wildly different thicknesses, matching only
+  // by code can pair them up "backwards". A layer that doesn't fit the
+  // order-preserving match (present at only one BH, or out of sequence) is
+  // simply not given its own band — it's shown fully in its own column, and
+  // the interpretation between boreholes is carried by whichever contacts
+  // *do* correlate, in effect merging that layer into its neighboring unit
+  // rather than inventing an isolated pinch-out shape for it.
   let correlationLinesDrawn = false;
   for (let i = 0; i < rows.length - 1; i++){
     const layersA = layersArr[i], layersB = layersArr[i+1];
     const elevA = levelsArr[i].elevation, elevB = levelsArr[i+1].elevation;
     if (!layersA || !layersB || elevA === null || elevB === null) continue;
 
-    const spanByCodeA = {};
-    layersA.forEach(l => {
-      const key = (l.graphic || '').trim().toUpperCase();
-      if (!(key in spanByCodeA)) spanByCodeA[key] = { top: l.depth, bottom: l.bottom };
-    });
-    const spanByCodeB = {};
-    layersB.forEach(l => {
-      const key = (l.graphic || '').trim().toUpperCase();
-      if (!(key in spanByCodeB)) spanByCodeB[key] = { top: l.depth, bottom: l.bottom };
-    });
+    const seqA = layersA.filter(l => !getGraphicInfo(l.graphic).isRock)
+      .map(l => ({ code: (l.graphic || '').trim().toUpperCase(), top: l.depth, bottom: l.bottom }));
+    const seqB = layersB.filter(l => !getGraphicInfo(l.graphic).isRock)
+      .map(l => ({ code: (l.graphic || '').trim().toUpperCase(), top: l.depth, bottom: l.bottom }));
 
+    const n = seqA.length, m = seqB.length;
+    const dp = Array.from({ length: n + 1 }, () => new Array(m + 1).fill(0));
+    for (let a = n - 1; a >= 0; a--){
+      for (let b = m - 1; b >= 0; b--){
+        dp[a][b] = seqA[a].code === seqB[b].code ? dp[a+1][b+1] + 1 : Math.max(dp[a+1][b], dp[a][b+1]);
+      }
+    }
+    const matches = [];
+    let a = 0, b = 0;
+    while (a < n && b < m){
+      if (seqA[a].code === seqB[b].code){ matches.push([a, b]); a++; b++; }
+      else if (dp[a+1][b] >= dp[a][b+1]) a++;
+      else b++;
+    }
+
+    const overburdenA = Math.max(elevA - effectiveRockLevel[i], 0.01);
+    const overburdenB = Math.max(elevB - effectiveRockLevel[i+1], 0.01);
     const xA = xPos(distances[i]), xB = xPos(distances[i+1]);
-    const allCodes = new Set([...Object.keys(spanByCodeA), ...Object.keys(spanByCodeB)]);
 
-    allCodes.forEach(code => {
-      const info = getGraphicInfo(code);
-      // Bedrock has no real lower boundary here — each hole's "bottom" for
-      // this layer is just its termination depth, an arbitrary drilling
-      // stop point, not a geological contact. Filling a band down to that
-      // would invent a rock thickness we don't actually know. The top-of-rock
-      // surface is already shown by the separate "Interpreted rock surface"
-      // line, so skip rock entirely in these filled bands.
-      if (info.isRock) return;
-      const spanA = spanByCodeA[code], spanB = spanByCodeB[code];
-      // Depth expressed as a fraction of that BH's own ground-to-rock
-      // thickness, so it can be positioned consistently between the ground
-      // and rock curves regardless of how each BH's overburden thickness varies.
-      const overburdenA = Math.max(elevA - effectiveRockLevel[i], 0.01);
-      const overburdenB = Math.max(elevB - effectiveRockLevel[i+1], 0.01);
+    matches.forEach(([ai, bi]) => {
+      const spanA = seqA[ai], spanB = seqB[bi];
+      const info = getGraphicInfo(spanA.code);
 
       if (!curvedBandsAvailable){
         // Fallback for the rare case where the ground/rock point arrays don't
         // line up 1:1 with the borehole list — draw the old straight-edge version.
-        if (spanA && spanB){
-          const yTopA = yPos(elevA - spanA.top), yBotA = yPos(elevA - spanA.bottom);
-          const yTopB = yPos(elevB - spanB.top), yBotB = yPos(elevB - spanB.bottom);
-          svg += `<polygon points="${xA.toFixed(1)},${yTopA.toFixed(1)} ${xB.toFixed(1)},${yTopB.toFixed(1)} ${xB.toFixed(1)},${yBotB.toFixed(1)} ${xA.toFixed(1)},${yBotA.toFixed(1)}" fill="${info.color}" opacity="0.28" stroke="${info.color}" stroke-width="1" stroke-dasharray="3,3" stroke-opacity="0.85"/>`;
-          correlationLinesDrawn = true;
-        }
+        const yTopA = yPos(elevA - spanA.top), yBotA = yPos(elevA - spanA.bottom);
+        const yTopB = yPos(elevB - spanB.top), yBotB = yPos(elevB - spanB.bottom);
+        svg += `<polygon points="${xA.toFixed(1)},${yTopA.toFixed(1)} ${xB.toFixed(1)},${yTopB.toFixed(1)} ${xB.toFixed(1)},${yBotB.toFixed(1)} ${xA.toFixed(1)},${yBotA.toFixed(1)}" fill="${info.color}" opacity="0.28" stroke="${info.color}" stroke-width="1" stroke-dasharray="3,3" stroke-opacity="0.85"/>`;
+        correlationLinesDrawn = true;
         return;
       }
 
-      if (spanA && spanB){
-        // Present on both sides — a continuous filled band, curved to match
-        // the ground/rock surfaces rather than cutting a straight line between them.
-        const { topPts, botPts } = bandSamplePoints(i, spanA.top/overburdenA, spanA.bottom/overburdenA, spanB.top/overburdenB, spanB.bottom/overburdenB, 0, 1, 14);
-        const poly = topPts.concat(botPts.slice().reverse());
-        svg += `<polygon points="${poly.map(p => p[0].toFixed(1)+','+p[1].toFixed(1)).join(' ')}" fill="${info.color}" opacity="0.28" stroke="none"/>`;
-        svg += `<path d="${pathThrough(topPts)}" fill="none" stroke="${info.color}" stroke-width="1" stroke-dasharray="3,3" opacity="0.85"/>`;
-        svg += `<path d="${pathThrough(botPts)}" fill="none" stroke="${info.color}" stroke-width="1" stroke-dasharray="3,3" opacity="0.85"/>`;
-        correlationLinesDrawn = true;
-      } else if (spanA && !spanB){
-        // Pinches out before reaching the next BH — taper the curved band to
-        // a closed point about a third of the way across the gap.
-        const fracMid = (spanA.top/overburdenA + spanA.bottom/overburdenA) / 2;
-        const { topPts, botPts } = bandSamplePoints(i, spanA.top/overburdenA, spanA.bottom/overburdenA, fracMid, fracMid, 0, 0.35, 10);
-        const poly = topPts.concat(botPts.slice().reverse());
-        svg += `<polygon points="${poly.map(p => p[0].toFixed(1)+','+p[1].toFixed(1)).join(' ')}" fill="${info.color}" opacity="0.28" stroke="${info.color}" stroke-width="0.8" stroke-dasharray="3,3" stroke-opacity="0.85"/>`;
-        correlationLinesDrawn = true;
-      } else if (!spanA && spanB){
-        // Absent at A, appears before reaching B — taper in from a closed
-        // point about a third of the way across the gap.
-        const fracMid = (spanB.top/overburdenB + spanB.bottom/overburdenB) / 2;
-        const { topPts, botPts } = bandSamplePoints(i, fracMid, fracMid, spanB.top/overburdenB, spanB.bottom/overburdenB, 0.65, 1, 10);
-        const poly = topPts.concat(botPts.slice().reverse());
-        svg += `<polygon points="${poly.map(p => p[0].toFixed(1)+','+p[1].toFixed(1)).join(' ')}" fill="${info.color}" opacity="0.28" stroke="${info.color}" stroke-width="0.8" stroke-dasharray="3,3" stroke-opacity="0.85"/>`;
-        correlationLinesDrawn = true;
-      }
+      const { topPts, botPts } = bandSamplePoints(i, spanA.top/overburdenA, spanA.bottom/overburdenA, spanB.top/overburdenB, spanB.bottom/overburdenB, 0, 1, 14);
+      const poly = topPts.concat(botPts.slice().reverse());
+      svg += `<polygon points="${poly.map(p => p[0].toFixed(1)+','+p[1].toFixed(1)).join(' ')}" fill="${info.color}" opacity="0.28" stroke="none"/>`;
+      svg += `<path d="${pathThrough(topPts)}" fill="none" stroke="${info.color}" stroke-width="1" stroke-dasharray="3,3" opacity="0.85"/>`;
+      svg += `<path d="${pathThrough(botPts)}" fill="none" stroke="${info.color}" stroke-width="1" stroke-dasharray="3,3" opacity="0.85"/>`;
+      correlationLinesDrawn = true;
     });
   }
 
   const usedGraphicLabels = {};
+  let anyGapDrawn = false;
 
   levelsArr.forEach((lv, i) => {
     const x = xPos(distances[i]);
@@ -2342,8 +2328,21 @@ function buildProfileSvg(rows){
     }
 
     if (layers && layers.length){
-      // Real layer-by-layer stratigraphy
-      layers.forEach(layer => {
+      // Real layer-by-layer stratigraphy, sorted top to bottom. Any gap in
+      // the log — before the first layer, or between two logged layers —
+      // gets a plain hatched "unlogged" fill instead of being left blank,
+      // so it reads as a data gap rather than looking like a rendering bug.
+      const sortedLayers = layers.slice().sort((p, q) => p.depth - q.depth);
+      let loggedTo = 0;
+      sortedLayers.forEach(layer => {
+        if (layer.depth - loggedTo > 0.05){
+          anyGapDrawn = true;
+          const yGapTop = yPos(lv.elevation - loggedTo);
+          const yGapBot = yPos(lv.elevation - layer.depth);
+          svg += `<rect x="${(x-colW/2).toFixed(1)}" y="${yGapTop.toFixed(1)}" width="${colW.toFixed(1)}" height="${Math.max(yGapBot-yGapTop,0.3).toFixed(1)}" fill="#f1ede1" stroke="#b8ae95" stroke-width="0.4"/>`;
+          svg += `<line x1="${(x-colW/2).toFixed(1)}" y1="${yGapTop.toFixed(1)}" x2="${(x+colW/2).toFixed(1)}" y2="${yGapBot.toFixed(1)}" stroke="#c9c0a8" stroke-width="0.4"/>`;
+          svg += `<line x1="${(x+colW/2).toFixed(1)}" y1="${yGapTop.toFixed(1)}" x2="${(x-colW/2).toFixed(1)}" y2="${yGapBot.toFixed(1)}" stroke="#c9c0a8" stroke-width="0.4"/>`;
+        }
         const info = getGraphicInfo(layer.graphic);
         const yTop = yPos(lv.elevation - layer.depth);
         const yBot = yPos(lv.elevation - layer.bottom);
@@ -2354,6 +2353,7 @@ function buildProfileSvg(rows){
           }
         }
         usedGraphicLabels[info.label] = info.color;
+        loggedTo = Math.max(loggedTo, layer.bottom);
       });
     } else {
       // Fallback: simplified two-segment version
@@ -2388,6 +2388,8 @@ function buildProfileSvg(rows){
     svg += `<rect x="${(x-termW/2).toFixed(1)}" y="${(yTerm+4).toFixed(1)}" width="${termW.toFixed(1)}" height="13" fill="#ffffff" opacity="0.85" rx="3"/>`;
     svg += `<text x="${x.toFixed(1)}" y="${(yTerm+13).toFixed(1)}" font-size="8" fill="#6b6459" text-anchor="middle">${termText}</text>`;
   });
+
+  if (anyGapDrawn) usedGraphicLabels['Unlogged interval'] = '#f1ede1';
 
   if (groundPts.length >= 2){
     svg += `<path d="${smoothPath(groundPts)}" fill="none" stroke="#2f6f5e" stroke-width="2"/>`;
