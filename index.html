@@ -2157,7 +2157,7 @@ function buildProfileSvg(rows){
     svg += `<line x1="${x.toFixed(1)}" y1="${axisY}" x2="${x.toFixed(1)}" y2="${(axisY+4).toFixed(1)}" stroke="#2f6f5e" stroke-width="1.5"/>`;
   });
 
-  const colW = Math.min(34, plotW / Math.max(rows.length, 1) * 0.5);
+  const colW = Math.min(20, plotW / Math.max(rows.length, 1) * 0.5);
 
   const groundPts = [], rockPts = [], gwPts = [];
   levelsArr.forEach((lv, i) => {
