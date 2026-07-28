@@ -2076,10 +2076,41 @@ function buildProfileSvg(rows){
   });
 
   const totalDist = Math.max(distances[distances.length - 1], 1);
-  const padLeft = 65, padRight = 40, padTop = 40, padBottom = 108;
+  const padLeft = 65, padRight = 40, padTop = 40;
   const plotW = Math.max(600, Math.min(1400, totalDist * 0.15 + rows.length * 90));
   const plotH = 420;
   const svgW = plotW + padLeft + padRight;
+
+  // Legend content is known ahead of layout (which graphic types appear, and
+  // whether any cross-borehole correlation will be drawn), so figure out how
+  // many rows it needs and size the bottom margin to fit — this is what was
+  // previously causing the legend to run off the right edge of the canvas.
+  const usedGraphicLabelsPreview = {};
+  let anyLayeredBH = 0;
+  layersArr.forEach(layers => {
+    if (layers && layers.length){
+      anyLayeredBH++;
+      layers.forEach(l => { const info = getGraphicInfo(l.graphic); usedGraphicLabelsPreview[info.label] = info.color; });
+    }
+  });
+  if (layersArr.some(l => !l || !l.length)){
+    usedGraphicLabelsPreview['Overburden (soil)'] = '#c9a876';
+    usedGraphicLabelsPreview['Rock'] = '#8f8f95';
+  }
+  const legendItems = Object.keys(usedGraphicLabelsPreview).map(label => ({
+    label, width: 18 + label.length * 5.2 + 14
+  }));
+  legendItems.push({ label: 'Groundwater table', width: 20 + 'Groundwater table'.length * 5.2 + 16 });
+  legendItems.push({ label: 'Interpreted rock surface', width: 20 + 'Interpreted rock surface'.length * 5.2 + 16 });
+  const legendMaxWidth = plotW;
+  let legendRows = 1, rowW = 0;
+  legendItems.forEach(it => {
+    if (rowW > 0 && rowW + it.width > legendMaxWidth){ legendRows++; rowW = 0; }
+    rowW += it.width;
+  });
+  const noteReserved = anyLayeredBH >= 2; // upper-bound guess; harmless if the note ends up not drawn
+  const legendRowH = 20;
+  const padBottom = 46 + legendRows * legendRowH + (noteReserved ? 15 : 0) + 26;
   const svgH = plotH + padTop + padBottom;
 
   let maxElev = -Infinity, minElev = Infinity;
@@ -2198,8 +2229,15 @@ function buildProfileSvg(rows){
     const allCodes = new Set([...Object.keys(spanByCodeA), ...Object.keys(spanByCodeB)]);
 
     allCodes.forEach(code => {
-      const spanA = spanByCodeA[code], spanB = spanByCodeB[code];
       const info = getGraphicInfo(code);
+      // Bedrock has no real lower boundary here — each hole's "bottom" for
+      // this layer is just its termination depth, an arbitrary drilling
+      // stop point, not a geological contact. Filling a band down to that
+      // would invent a rock thickness we don't actually know. The top-of-rock
+      // surface is already shown by the separate "Interpreted rock surface"
+      // line, so skip rock entirely in these filled bands.
+      if (info.isRock) return;
+      const spanA = spanByCodeA[code], spanB = spanByCodeB[code];
 
       if (spanA && spanB){
         // Present on both sides — a continuous filled band between them.
@@ -2278,9 +2316,17 @@ function buildProfileSvg(rows){
       svg += `<line x1="${(x-colW/2-3).toFixed(1)}" y1="${yGw.toFixed(1)}" x2="${(x+colW/2+3).toFixed(1)}" y2="${yGw.toFixed(1)}" stroke="#1e6fd9" stroke-width="1.2"/>`;
     }
 
+    const nameW = bhName.length * 6.4 + 10;
+    const glText = `GL ${lv.elevation.toFixed(1)}m`;
+    const glW = glText.length * 5.2 + 10;
+    const haloW = Math.max(nameW, glW);
+    svg += `<rect x="${(x-haloW/2).toFixed(1)}" y="${(yGround-33).toFixed(1)}" width="${haloW.toFixed(1)}" height="26" fill="#ffffff" opacity="0.85" rx="3"/>`;
     svg += `<text x="${x.toFixed(1)}" y="${(yGround-22).toFixed(1)}" font-size="10.5" font-weight="700" fill="#1c2b2a" text-anchor="middle">${bhName}</text>`;
-    svg += `<text x="${x.toFixed(1)}" y="${(yGround-9).toFixed(1)}" font-size="8.5" fill="#6b6459" text-anchor="middle">GL ${lv.elevation.toFixed(1)}m</text>`;
-    svg += `<text x="${x.toFixed(1)}" y="${(yTerm+13).toFixed(1)}" font-size="8" fill="#6b6459" text-anchor="middle">Term ${effectiveTermLevel[i].toFixed(1)}m</text>`;
+    svg += `<text x="${x.toFixed(1)}" y="${(yGround-9).toFixed(1)}" font-size="8.5" fill="#6b6459" text-anchor="middle">${glText}</text>`;
+    const termText = `Term ${effectiveTermLevel[i].toFixed(1)}m`;
+    const termW = termText.length * 5 + 8;
+    svg += `<rect x="${(x-termW/2).toFixed(1)}" y="${(yTerm+4).toFixed(1)}" width="${termW.toFixed(1)}" height="13" fill="#ffffff" opacity="0.85" rx="3"/>`;
+    svg += `<text x="${x.toFixed(1)}" y="${(yTerm+13).toFixed(1)}" font-size="8" fill="#6b6459" text-anchor="middle">${termText}</text>`;
   });
 
   if (groundPts.length >= 2){
@@ -2288,19 +2334,32 @@ function buildProfileSvg(rows){
   }
 
   // Legend — built from whatever layer types actually appear, plus fixed lines.
-  // Reserved as its own row, well clear of the tick labels above and the
-  // axis title / correlation note below, so nothing overlaps.
-  const legX = padLeft, legY = svgH - 52;
-  let lx = legX;
-  Object.keys(usedGraphicLabels).forEach(label => {
-    svg += `<rect x="${lx}" y="${legY-8}" width="14" height="8" fill="${usedGraphicLabels[label]}" stroke="#6b6459" stroke-width="0.5"/><text x="${lx+18}" y="${legY-1}" font-size="9" fill="#1c2b2a">${label}</text>`;
-    lx += 18 + label.length * 5.2 + 14;
+  // Wraps onto additional rows (sized for above) instead of running off the
+  // right edge of the canvas.
+  const legX = padLeft;
+  const legendRowsTopY = svgH - (noteReserved ? 15 : 0) - 26 - (legendRows - 1) * legendRowH - 8;
+  const allLegendEntries = [
+    ...Object.keys(usedGraphicLabels).map(label => ({ kind: 'swatch', label, color: usedGraphicLabels[label] })),
+    { kind: 'line', label: 'Groundwater table', color: '#1e6fd9', dash: '4,3', sw: 1.4 },
+    { kind: 'line', label: 'Interpreted rock surface', color: '#7a2f1e', dash: '6,4', sw: 1.6 }
+  ];
+  let lx = legX, legRowIdx = 0;
+  allLegendEntries.forEach(entry => {
+    const isLine = entry.kind === 'line';
+    const width = isLine ? (20 + entry.label.length * 5.2 + 16) : (18 + entry.label.length * 5.2 + 14);
+    if (lx > legX && lx + width > legX + legendMaxWidth){ legRowIdx++; lx = legX; }
+    const rowY = legendRowsTopY + legRowIdx * legendRowH;
+    if (isLine){
+      svg += `<line x1="${lx}" y1="${rowY-4}" x2="${lx+16}" y2="${rowY-4}" stroke="${entry.color}" stroke-width="${entry.sw}" stroke-dasharray="${entry.dash}"/><text x="${lx+20}" y="${rowY-1}" font-size="9" fill="#1c2b2a">${entry.label}</text>`;
+      lx += width;
+    } else {
+      svg += `<rect x="${lx}" y="${rowY-8}" width="14" height="8" fill="${entry.color}" stroke="#6b6459" stroke-width="0.5"/><text x="${lx+18}" y="${rowY-1}" font-size="9" fill="#1c2b2a">${entry.label}</text>`;
+      lx += width;
+    }
   });
-  svg += `<line x1="${lx}" y1="${legY-4}" x2="${lx+16}" y2="${legY-4}" stroke="#1e6fd9" stroke-width="1.4" stroke-dasharray="4,3"/><text x="${lx+20}" y="${legY-1}" font-size="9" fill="#1c2b2a">Groundwater table</text>`;
-  lx += 20 + 'Groundwater table'.length * 5.2 + 16;
-  svg += `<line x1="${lx}" y1="${legY-4}" x2="${lx+16}" y2="${legY-4}" stroke="#7a2f1e" stroke-width="1.6" stroke-dasharray="6,4"/><text x="${lx+20}" y="${legY-1}" font-size="9" fill="#1c2b2a">Interpreted rock surface</text>`;
+  const legendBottomY = legendRowsTopY + legRowIdx * legendRowH;
   if (correlationLinesDrawn){
-    svg += `<text x="${legX}" y="${(legY+22).toFixed(1)}" font-size="8.5" fill="#6b6459" font-style="italic">Tinted bands (colored by layer type) = interpreted correlation between boreholes — tapering to a point where a layer pinches out.</text>`;
+    svg += `<text x="${legX}" y="${(legendBottomY+15).toFixed(1)}" font-size="8.5" fill="#6b6459" font-style="italic">Tinted bands (colored by layer type) = interpreted correlation between boreholes — tapering to a point where a layer pinches out.</text>`;
   }
 
   svg += `</svg>`;
