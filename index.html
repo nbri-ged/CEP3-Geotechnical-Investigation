@@ -790,20 +790,32 @@
 <div id="profile-modal-backdrop">
   <div id="profile-modal">
     <div id="profile-modal-header">
-      <span style="font-size:13px; font-weight:700;">📐 Geological Cross-Section</span>
-      <div style="display:flex; gap:4px; align-items:center;">
-        <!-- Compact icon export buttons -->
-        <button onclick="downloadProfilePNG()" title="Download PNG image" style="width:30px;height:30px;border-radius:6px;border:none;background:#2e7d6e;color:#fff;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;">🖼</button>
-        <button onclick="downloadProfileSVG()" title="Download SVG vector" style="width:30px;height:30px;border-radius:6px;border:none;background:#4a6572;color:#fff;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;">〈/〉</button>
-        <button onclick="exportProfileToDXF()" title="Download DXF (CAD)" style="width:30px;height:30px;border-radius:6px;border:none;background:#27ae60;color:#fff;font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;">⬡</button>
-        <div style="display:flex;align-items:center;gap:2px;background:#8e44ad;border-radius:6px;padding:0 4px;">
-          <select id="profile-pdf-size" style="background:transparent;border:none;color:#fff;font-size:10px;cursor:pointer;padding:3px 2px;outline:none;">
-            <option value="a4">A4</option>
-            <option value="a3">A3</option>
-          </select>
-          <button onclick="downloadProfilePDF()" title="Download PDF" style="background:none;border:none;color:#fff;font-size:14px;cursor:pointer;padding:3px 2px;">📄</button>
+      <span style="font-size:13px; font-weight:700;">&#128208; Geological Cross-Section</span>
+      <div style="display:flex; gap:6px; align-items:center;">
+        <!-- Compact icon buttons with format labels -->
+        <div style="display:flex;flex-direction:column;align-items:center;gap:1px;">
+          <button onclick="downloadProfilePNG()" title="Download PNG image" style="width:32px;height:28px;border-radius:5px;border:none;background:#2e7d6e;color:#fff;font-size:14px;cursor:pointer;">&#128444;</button>
+          <span style="font-size:8px;color:#aaa;letter-spacing:0.02em;">PNG</span>
         </div>
-        <button id="profile-close-btn" title="Close" style="width:30px;height:30px;border-radius:6px;border:none;background:#c0392b;color:#fff;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;">&times;</button>
+        <div style="display:flex;flex-direction:column;align-items:center;gap:1px;">
+          <button onclick="downloadProfileSVG()" title="Download SVG vector" style="width:32px;height:28px;border-radius:5px;border:none;background:#4a6572;color:#fff;font-size:11px;font-weight:700;cursor:pointer;">SVG</button>
+          <span style="font-size:8px;color:#aaa;letter-spacing:0.02em;">Vector</span>
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:center;gap:1px;">
+          <button onclick="exportProfileToDXF()" title="Download DXF for CAD" style="width:32px;height:28px;border-radius:5px;border:none;background:#27ae60;color:#fff;font-size:11px;font-weight:700;cursor:pointer;">DXF</button>
+          <span style="font-size:8px;color:#aaa;letter-spacing:0.02em;">CAD</span>
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:center;gap:1px;">
+          <div style="display:flex;align-items:center;background:#8e44ad;border-radius:5px;padding:0 4px;height:28px;">
+            <select id="profile-pdf-size" style="background:transparent;border:none;color:#fff;font-size:10px;cursor:pointer;outline:none;padding:0 2px;">
+              <option value="a4">A4</option>
+              <option value="a3">A3</option>
+            </select>
+            <button onclick="downloadProfilePDF()" title="Download PDF" style="background:none;border:none;color:#fff;font-size:14px;cursor:pointer;padding:0 2px;">&#128196;</button>
+          </div>
+          <span style="font-size:8px;color:#aaa;letter-spacing:0.02em;">PDF</span>
+        </div>
+        <button id="profile-close-btn" title="Close" style="width:32px;height:32px;border-radius:5px;border:none;background:#c0392b;color:#fff;font-size:16px;cursor:pointer;margin-left:4px;">&times;</button>
       </div>
     </div>
     <div id="profile-modal-body"></div>
@@ -2433,22 +2445,50 @@ function buildProfileSvg(rows) {
   <path d="${bedrockD}" fill="${bedrockColor}" stroke="none"/>
   <path d="${bedrockD}" fill="url(#pat-bedrock)" stroke="none"/>`;
 
-  // 2. RENDER SOIL LAYERS — using bhCumBoundaries (fraction-based, logs-accurate)
+  // 2. RENDER SOIL LAYERS — Meter-thickness interpolation + bottom-layer bedrock gap fill
   //
-  // bhCumBoundaries[i][k] is the fractional depth of boundary k at borehole i
-  // (0.0 = ground surface, 1.0 = rockhead). Interpolating these fractions between
-  // boreholes preserves logged layer depths at each borehole exactly, while
-  // guaranteeing zero gap coverage everywhere (fractions always sum to 1.0).
+  // Algorithm (guarantees ZERO white space AND correct logged depths at boreholes):
+  //
+  //  Step A: At each BH, get ACTUAL logged thickness (metres) per unit.
+  //          Where unit is absent at a BH, thickness = 0 at that point.
+  //
+  //  Step B: For each sample position d:
+  //    1. Interpolate raw thickness t_k(d) from the boreholes where unit k IS present.
+  //    2. Apply smoothstep pinch factor p_k(d): outside the unit's BH extent,
+  //       p_k fades 1→0 in the midpoint between adjacent BHs (pinch IN THE MIDDLE).
+  //    3. pinched_k = t_k * p_k
+  //
+  //  Step C: totalPinched = sum(pinched_k)
+  //          gap = overburden − totalPinched  (always ≥ 0 because pinch reduces units)
+  //          Add gap to the BOTTOM-MOST active unit — do NOT rescale all units.
+  //          This honours each layer’s logged depth while eliminating white space.
+  //
+  //  Step D: Build cumulative stack C_0(d)..C_K(d) = elevations of each boundary.
+  //          C_0 = ground surface, C_K = rockhead (100% guaranteed).
 
-  // For each unit k, determine which boreholes have non-zero thickness
-  const unitPresenceAtBH = masterSoilUnits.map((u, k) =>
-    rows.map((r, i) => (bhCumBoundaries[i][k + 1] - bhCumBoundaries[i][k]) > 0.001)
-  );
+  const bhUnitMetres = rows.map((r, i) => {
+    const lys = layersArr[i];
+    const unitMap = {};
+    if (lys && lys.length) {
+      const soilLys = lys.filter(l => !getGraphicInfo(l.graphic).isRock);
+      soilLys.forEach(l => {
+        const code = (l.graphic || '').trim();
+        const thick = Math.max(l.bottom - l.depth, 0);
+        unitMap[code] = (unitMap[code] || 0) + thick;
+      });
+    }
+    return unitMap;
+  });
 
-  const unitExtents2 = masterSoilUnits.map((u, k) => {
+  const unitPresence = masterSoilUnits.map((u, k) => {
+    const code = (u || '').trim();
+    return rows.map((r, i) => (bhUnitMetres[i][code] || 0) > 0.01);
+  });
+
+  const unitExtents = masterSoilUnits.map((u, k) => {
     let firstIdx = -1, lastIdx = -1;
     for (let i = 0; i < rows.length; i++) {
-      if (unitPresenceAtBH[k][i]) {
+      if (unitPresence[k][i]) {
         if (firstIdx === -1) firstIdx = i;
         lastIdx = i;
       }
@@ -2456,10 +2496,9 @@ function buildProfileSvg(rows) {
     return { firstIdx, lastIdx };
   });
 
-  // Pre-compute sample-resolution boundary elevation curves
-  // cumBnd2[k][s] = elevation of boundary k at sample s
-  const cumBnd2 = [];
-  for (let k = 0; k <= K; k++) cumBnd2.push(new Array(numSamples + 1).fill(0));
+  // Build sample-resolution cumulative boundary elevations
+  const cumBnd = [];
+  for (let k = 0; k <= K; k++) cumBnd.push(new Array(numSamples + 1).fill(0));
 
   for (let s = 0; s <= numSamples; s++) {
     const d = distMin + (distSpan * s) / numSamples;
@@ -2467,36 +2506,83 @@ function buildProfileSvg(rows) {
     const zR = getZRock(d);
     const overburden = Math.max(zG - zR, 0.05);
 
-    // Interpolate each boundary fraction from borehole values
-    // bhCumBoundaries[i][k] is already 0..1 (fraction of overburden)
-    for (let k = 0; k <= K; k++) {
-      const pts = rows.map((r, i) => ({ x: distances[i], y: bhCumBoundaries[i][k] }));
-      let frac = d <= pts[0].x ? pts[0].y
-               : d >= pts[pts.length - 1].x ? pts[pts.length - 1].y
-               : interpolateSpline(pts, d);
-      frac = Math.min(Math.max(frac, 0), 1);
-      cumBnd2[k][s] = zG - frac * overburden;
+    // Step A: interpolate raw thickness for each unit from only its present BHs
+    const rawThick = masterSoilUnits.map((u, k) => {
+      const code = (u || '').trim();
+      const { firstIdx, lastIdx } = unitExtents[k];
+      if (firstIdx === -1) return 0;
+
+      const pts = [];
+      for (let i = 0; i < rows.length; i++) {
+        if (unitPresence[k][i]) pts.push({ x: distances[i], y: bhUnitMetres[i][code] });
+      }
+      if (pts.length === 0) return 0;
+      const val = d <= pts[0].x ? pts[0].y
+                : d >= pts[pts.length - 1].x ? pts[pts.length - 1].y
+                : interpolateSpline(pts, d);
+      return Math.max(val, 0);
+    });
+
+    // Step B: smoothstep pinch-out — unit fades to zero at the MIDPOINT between BHs
+    const pinchedThick = rawThick.map((t, k) => {
+      const { firstIdx, lastIdx } = unitExtents[k];
+      if (firstIdx === -1) return 0;
+      const dFirst = distances[firstIdx], dLast = distances[lastIdx];
+
+      if (d >= dFirst && d <= dLast) return t;
+
+      if (d < dFirst && firstIdx > 0) {
+        const dMid = (distances[firstIdx - 1] + dFirst) / 2;
+        if (d <= dMid) return 0;
+        const tt = (d - dMid) / (dFirst - dMid);
+        return t * (3*tt*tt - 2*tt*tt*tt);
+      }
+      if (d > dLast && lastIdx < rows.length - 1) {
+        const dMid = (dLast + distances[lastIdx + 1]) / 2;
+        if (d >= dMid) return 0;
+        const tt = 1.0 - (d - dLast) / (dMid - dLast);
+        return t * (3*tt*tt - 2*tt*tt*tt);
+      }
+      return t;
+    });
+
+    // Step C: fill gap to bedrock by extending ONLY the bottom-most active layer
+    const totalPinched = pinchedThick.reduce((a, b) => a + b, 0);
+    const gap = Math.max(overburden - totalPinched, 0);
+
+    let bottomK = -1;
+    for (let k = K - 1; k >= 0; k--) {
+      if (pinchedThick[k] > 0.001) { bottomK = k; break; }
     }
-    // Lock top to ground surface and bottom to rockhead exactly
-    cumBnd2[0][s] = zG;
-    cumBnd2[K][s] = zR;
-    // Enforce monotone (each boundary must be <= previous)
-    for (let k = 1; k <= K; k++) {
-      if (cumBnd2[k][s] > cumBnd2[k - 1][s]) cumBnd2[k][s] = cumBnd2[k - 1][s];
+
+    const finalThick = [...pinchedThick];
+    if (gap > 0) {
+      if (bottomK >= 0) {
+        finalThick[bottomK] += gap;
+      } else {
+        // No active units at all — put all overburden in layer 0
+        finalThick[0] = overburden;
+      }
     }
+
+    // Step D: cumulative boundaries
+    cumBnd[0][s] = zG;
+    for (let k = 0; k < K; k++) {
+      cumBnd[k + 1][s] = cumBnd[k][s] - finalThick[k];
+    }
+    cumBnd[K][s] = zR; // locked to rockhead
   }
 
-  // Render each unit polygon
+  // Render each unit as a filled polygon
   masterSoilUnits.forEach((u, k) => {
     const info = getGraphicInfo(u);
-    const { firstIdx, lastIdx } = unitExtents2[k];
+    const { firstIdx, lastIdx } = unitExtents[k];
     if (firstIdx === -1) return;
 
     const dFirst = distances[firstIdx], dLast = distances[lastIdx];
     const dDrawStart = firstIdx === 0 ? distMin : (distances[firstIdx - 1] + dFirst) / 2;
     const dDrawEnd   = lastIdx === rows.length - 1 ? distMax : (dLast + distances[lastIdx + 1]) / 2;
 
-    // Pinch-out: beyond the draw range, collapse top & bottom to the boundary level
     const topCurvePts = [];
     const botCurvePts = [];
     let hasArea = false;
@@ -2506,12 +2592,12 @@ function buildProfileSvg(rows) {
       const x = xPos(d);
       const outside = d < dDrawStart || d > dDrawEnd;
 
-      const zTop = cumBnd2[k][s];
-      const zBot = outside ? zTop : cumBnd2[k + 1][s];
+      const zTop = cumBnd[k][s];
+      const zBot = outside ? zTop : cumBnd[k + 1][s];
 
       topCurvePts.push([x, yPos(zTop)]);
       botCurvePts.push([x, yPos(zBot)]);
-      if (!outside && (zTop - zBot) > 0.02) hasArea = true;
+      if (!outside && (zTop - zBot) > 0.01) hasArea = true;
     }
 
     if (hasArea) {
