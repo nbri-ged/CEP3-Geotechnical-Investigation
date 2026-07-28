@@ -791,11 +791,17 @@
   <div id="profile-modal">
     <div id="profile-modal-header">
       <span>📐 Borehole Profile — Professional Geological Cross-Section</span>
-      <div style="display:flex; gap:6px; align-items:center;">
-        <button id="profile-download-png" class="kml-btn" style="padding:4px 10px; font-size:11.5px; background:var(--accent); color:#fff;">&#8681; PNG Image</button>
-        <button id="profile-download-svg" class="kml-btn" style="padding:4px 10px; font-size:11.5px; background:#4a6572; color:#fff;">&#8681; SVG Vector</button>
-        <button id="profile-export-dxf" class="kml-btn" style="padding:4px 10px; font-size:11.5px; background:#27ae60; color:#fff; font-weight:700;">📐 Export DXF (CAD)</button>
-        <button id="profile-close-btn" style="font-size:18px; margin-left:6px;">&times;</button>
+      <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
+        <button id="profile-download-png" onclick="downloadProfilePNG()" class="kml-btn" style="padding:4px 9px; font-size:11.5px; background:var(--accent); color:#fff; cursor:pointer;">&#8681; PNG</button>
+        <button id="profile-download-svg" onclick="downloadProfileSVG()" class="kml-btn" style="padding:4px 9px; font-size:11.5px; background:#4a6572; color:#fff; cursor:pointer;">&#8681; SVG</button>
+
+        <select id="profile-pdf-size" class="kml-btn" style="padding:4px 6px; font-size:11.5px; background:#2c3e50; color:#fff; border:none; cursor:pointer;">
+          <option value="a4">📄 PDF (A4 Landscape)</option>
+          <option value="a3">📄 PDF (A3 Landscape)</option>
+        </select>
+        <button onclick="downloadProfilePDF()" class="kml-btn" style="padding:4px 9px; font-size:11.5px; background:#8e44ad; color:#fff; font-weight:700; cursor:pointer;">Export PDF</button>
+        <button onclick="exportProfileToDXF()" class="kml-btn" style="padding:4px 9px; font-size:11.5px; background:#27ae60; color:#fff; font-weight:700; cursor:pointer;">📐 DXF (CAD)</button>
+        <button id="profile-close-btn" style="font-size:18px; margin-left:6px; background:none; border:none; cursor:pointer;">&times;</button>
       </div>
     </div>
     <div id="profile-modal-body"></div>
@@ -2425,20 +2431,28 @@ function buildProfileSvg(rows) {
   <path d="${bedrockD}" fill="${bedrockColor}" stroke="none"/>
   <path d="${bedrockD}" fill="url(#pat-bedrock)" stroke="none"/>`;
 
-  // 2. RENDER SOIL LAYERS — EXACT LOGGED DEPTH ALIGNMENT (ZERO GAP & 100% LOG MATCH)
-  const bhUnitDepths = rows.map((r, i) => {
+  // 2. RENDER SOIL LAYERS — CUMULATIVE COLUMN FILL STACK (ZERO WHITE SPACE GUARANTEED)
+  //
+  // Algorithm:
+  //   a) Compute raw logged soil unit thicknesses for each borehole.
+  //   b) For each sample position d, interpolate unnormalized layer thicknesses t_k(d) and apply smoothstep pinch-out.
+  //   c) Normalize thicknesses at each x so that sum(t_k_norm) = Overburden = Z_G(d) - Z_R(d).
+  //   d) Build cumulative boundary curves C_0(d), C_1(d), ..., C_K(d) where:
+  //        C_0(d) = Z_G(d)  (Ground Surface)
+  //        C_K(d) = Z_R(d)  (Bedrock Surface)
+  //   e) Render polygons between C_k and C_{k+1}.
+  //
+  // Result: 100% gap-free coverage from ground to bedrock across the entire section.
+
+  const bhUnitThick = rows.map((r, i) => {
     const lys = layersArr[i];
     const unitMap = {};
     if (lys && lys.length) {
       const soilLys = lys.filter(l => !getGraphicInfo(l.graphic).isRock);
       soilLys.forEach(l => {
         const code = (l.graphic || '').trim();
-        if (!unitMap[code]) {
-          unitMap[code] = { top: l.depth, bot: l.bottom };
-        } else {
-          unitMap[code].top = Math.min(unitMap[code].top, l.depth);
-          unitMap[code].bot = Math.max(unitMap[code].bot, l.bottom);
-        }
+        const thick = Math.max(l.bottom - l.depth, 0);
+        unitMap[code] = (unitMap[code] || 0) + thick;
       });
     }
     return unitMap;
@@ -2446,7 +2460,7 @@ function buildProfileSvg(rows) {
 
   const bhPresent = masterSoilUnits.map((u, k) => {
     const code = (u || '').trim();
-    return rows.map((r, i) => !!(bhUnitDepths[i][code]));
+    return rows.map((r, i) => (bhUnitThick[i][code] || 0) > 0.01);
   });
 
   const unitExtents = masterSoilUnits.map((u, k) => {
@@ -2460,24 +2474,84 @@ function buildProfileSvg(rows) {
     return { firstIdx, lastIdx };
   });
 
+  // Pre-calculate cumulative boundary curves for every sample column s
+  const cumBnd = [];
+  for (let k = 0; k <= K; k++) cumBnd.push(new Array(numSamples + 1).fill(0));
+
+  for (let s = 0; s <= numSamples; s++) {
+    const d = distMin + (distSpan * s) / numSamples;
+    const zG = getZGround(d);
+    const zR = getZRock(d);
+    const overburden = Math.max(zG - zR, 0.05);
+
+    // Compute raw thickness for each unit at this x
+    const rawThick = masterSoilUnits.map((u, k) => {
+      const code = (u || '').trim();
+      const { firstIdx } = unitExtents[k];
+      if (firstIdx === -1) return 0;
+
+      const pts = [];
+      for (let i = 0; i < rows.length; i++) {
+        if (bhPresent[k][i]) {
+          pts.push({ x: distances[i], y: bhUnitThick[i][code] });
+        }
+      }
+      if (pts.length === 0) return 0;
+
+      const val = d <= pts[0].x ? pts[0].y
+                : d >= pts[pts.length - 1].x ? pts[pts.length - 1].y
+                : interpolateSpline(pts, d);
+      return Math.max(val, 0);
+    });
+
+    // Smoothstep pinch factor for each unit
+    const pinch = masterSoilUnits.map((u, k) => {
+      const { firstIdx, lastIdx } = unitExtents[k];
+      if (firstIdx === -1) return 0;
+
+      const dFirst = distances[firstIdx], dLast = distances[lastIdx];
+      if (d >= dFirst && d <= dLast) return 1.0;
+
+      if (d < dFirst && firstIdx > 0) {
+        const dMid = (distances[firstIdx - 1] + dFirst) / 2;
+        if (d <= dMid) return 0;
+        const t = (d - dMid) / (dFirst - dMid);
+        return 3*t*t - 2*t*t*t;
+      }
+      if (d > dLast && lastIdx < rows.length - 1) {
+        const dMid = (dLast + distances[lastIdx + 1]) / 2;
+        if (d >= dMid) return 0;
+        const t = 1.0 - (d - dLast) / (dMid - dLast);
+        return 3*t*t - 2*t*t*t;
+      }
+      return 1.0;
+    });
+
+    const scaledThick = rawThick.map((t, k) => t * pinch[k]);
+    const totalScaled = scaledThick.reduce((a, b) => a + b, 0);
+
+    // Normalise thicknesses to sum to overburden
+    const normThick = totalScaled > 1e-5
+      ? scaledThick.map(t => (t / totalScaled) * overburden)
+      : scaledThick.map((t, k) => (k === 0 ? overburden : 0));
+
+    // Build cumulative boundaries from Ground Level zG down to Rockhead zR
+    cumBnd[0][s] = zG;
+    for (let k = 0; k < K; k++) {
+      cumBnd[k + 1][s] = cumBnd[k][s] - normThick[k];
+    }
+    cumBnd[K][s] = zR; // Bottom boundary is 100% locked to Rockhead level!
+  }
+
+  // Render each unit polygon
   masterSoilUnits.forEach((u, k) => {
     const info = getGraphicInfo(u);
-    const code = (u || '').trim();
     const { firstIdx, lastIdx } = unitExtents[k];
     if (firstIdx === -1) return;
 
     const dFirst = distances[firstIdx], dLast = distances[lastIdx];
     const dDrawStart = firstIdx === 0 ? distMin : (distances[firstIdx - 1] + dFirst) / 2;
     const dDrawEnd   = lastIdx === rows.length - 1 ? distMax : (dLast + distances[lastIdx + 1]) / 2;
-
-    const topPts = [];
-    const botPts = [];
-    for (let i = 0; i < rows.length; i++) {
-      if (bhPresent[k][i]) {
-        topPts.push({ x: distances[i], y: bhUnitDepths[i][code].top });
-        botPts.push({ x: distances[i], y: bhUnitDepths[i][code].bot });
-      }
-    }
 
     const topCurvePts = [];
     const botCurvePts = [];
@@ -2486,49 +2560,14 @@ function buildProfileSvg(rows) {
     for (let s = 0; s <= numSamples; s++) {
       const d = distMin + (distSpan * s) / numSamples;
       const x = xPos(d);
-      const zG = getZGround(d);
-      const zR = getZRock(d);
-      const overburd = Math.max(zG - zR, 0.05);
-
-      let dTop = d <= topPts[0].x ? topPts[0].y
-               : d >= topPts[topPts.length - 1].x ? topPts[topPts.length - 1].y
-               : interpolateSpline(topPts, d);
-
-      let dBot = d <= botPts[0].x ? botPts[0].y
-               : d >= botPts[botPts.length - 1].x ? botPts[botPts.length - 1].y
-               : interpolateSpline(botPts, d);
-
-      let pinch = 1.0;
-      if (d < dFirst && firstIdx > 0) {
-        const dMid = (distances[firstIdx - 1] + dFirst) / 2;
-        if (d <= dMid) pinch = 0.0;
-        else {
-          const t = (d - dMid) / (dFirst - dMid);
-          pinch = 3*t*t - 2*t*t*t;
-        }
-      } else if (d > dLast && lastIdx < rows.length - 1) {
-        const dMid = (dLast + distances[lastIdx + 1]) / 2;
-        if (d >= dMid) pinch = 0.0;
-        else {
-          const t = 1.0 - (d - dLast) / (dMid - dLast);
-          pinch = 3*t*t - 2*t*t*t;
-        }
-      }
-
-      const rawThick = Math.max(dBot - dTop, 0.0);
-      const thick = rawThick * pinch;
-      dBot = dTop + thick;
-
-      dTop = Math.min(dTop, overburd);
-      dBot = Math.min(dBot, overburd);
-
       const outside = d < dDrawStart || d > dDrawEnd;
-      const zTop = zG - dTop;
-      const zBot = outside ? zTop : (zG - dBot);
+
+      const zTop = cumBnd[k][s];
+      const zBot = outside ? zTop : cumBnd[k + 1][s];
 
       topCurvePts.push([x, yPos(zTop)]);
       botCurvePts.push([x, yPos(zBot)]);
-      if (!outside && (dBot - dTop) > 0.01) hasArea = true;
+      if (!outside && (zTop - zBot) > 0.005) hasArea = true;
     }
 
     if (hasArea) {
@@ -2699,7 +2738,10 @@ function buildProfileSvg(rows) {
   return svg;
 }
 
+let currentProfileRows = null;
+
 function showProfileModal(rows){
+  currentProfileRows = rows;
   const svg = buildProfileSvg(rows);
   document.getElementById('profile-modal-body').innerHTML = svg;
   document.getElementById('profile-modal-backdrop').classList.add('open');
@@ -2714,69 +2756,124 @@ document.getElementById('profile-modal-backdrop').addEventListener('click', (e) 
   }
 });
 
-// PNG Download
-const pngBtn = document.getElementById('profile-download-png');
-if (pngBtn) {
-  pngBtn.addEventListener('click', () => {
-    const svgEl = document.querySelector('#profile-modal-body svg');
-    if (!svgEl) return;
-    const svgData = new XMLSerializer().serializeToString(svgEl);
-    const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
-    const url = URL.createObjectURL(svgBlob);
-    const img = new Image();
-    img.onload = () => {
-      const canvas = document.createElement('canvas');
-      canvas.width = svgEl.viewBox.baseVal.width * 2;
-      canvas.height = svgEl.viewBox.baseVal.height * 2;
-      const ctx = canvas.getContext('2d');
-      ctx.fillStyle = '#ffffff';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      ctx.scale(2, 2);
-      ctx.drawImage(img, 0, 0);
-      URL.revokeObjectURL(url);
-      canvas.toBlob(blob => {
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(blob);
-        a.download = 'CEP3_Borehole_Profile_' + new Date().toISOString().slice(0,10) + '.png';
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-      });
-    };
-    img.src = url;
-  });
+function downloadProfilePNG() {
+  const svgEl = document.querySelector('#profile-modal-body svg');
+  if (!svgEl) return;
+  const svgData = new XMLSerializer().serializeToString(svgEl);
+  const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
+  const url = URL.createObjectURL(svgBlob);
+  const img = new Image();
+  img.onload = () => {
+    const canvas = document.createElement('canvas');
+    canvas.width = svgEl.viewBox.baseVal.width * 2;
+    canvas.height = svgEl.viewBox.baseVal.height * 2;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.scale(2, 2);
+    ctx.drawImage(img, 0, 0);
+    URL.revokeObjectURL(url);
+    canvas.toBlob(blob => {
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'CEP3_Borehole_Profile_' + new Date().toISOString().slice(0,10) + '.png';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    });
+  };
+  img.src = url;
 }
 
-// SVG Download
-const svgBtn = document.getElementById('profile-download-svg');
-if (svgBtn) {
-  svgBtn.addEventListener('click', () => {
-    const svgEl = document.querySelector('#profile-modal-body svg');
-    if (!svgEl) return;
-    const svgData = new XMLSerializer().serializeToString(svgEl);
-    const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(svgBlob);
-    a.download = 'CEP3_Borehole_Profile_' + new Date().toISOString().slice(0,10) + '.svg';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-  });
+function downloadProfileSVG() {
+  const svgEl = document.querySelector('#profile-modal-body svg');
+  if (!svgEl) return;
+  const svgData = new XMLSerializer().serializeToString(svgEl);
+  const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(svgBlob);
+  a.download = 'CEP3_Borehole_Profile_' + new Date().toISOString().slice(0,10) + '.svg';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
 }
 
-// DXF (AutoCAD) Export
-const dxfBtn = document.getElementById('profile-export-dxf');
-if (dxfBtn) {
-  dxfBtn.addEventListener('click', () => {
-    if (!profileSelectedBHs || profileSelectedBHs.length < 2) return;
-    const selectedRows = profileSelectedBHs.map(name => allRows.find(r => (r['BH Name']||'').trim() === name)).filter(Boolean);
-    if (selectedRows.length < 2) return;
+function downloadProfilePDF() {
+  const svgEl = document.querySelector('#profile-modal-body svg');
+  if (!svgEl) return;
+  const paperSize = document.getElementById('profile-pdf-size')?.value || 'a4';
+  
+  const format = paperSize === 'a3' ? 'a3' : 'a4';
+  const pdfWidth = paperSize === 'a3' ? 420 : 297;  // mm
+  const pdfHeight = paperSize === 'a3' ? 297 : 210; // mm
 
-    exportProfileToDXF(selectedRows);
-  });
+  const svgData = new XMLSerializer().serializeToString(svgEl);
+  const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
+  const url = URL.createObjectURL(svgBlob);
+  const img = new Image();
+
+  img.onload = () => {
+    const canvas = document.createElement('canvas');
+    const scale = paperSize === 'a3' ? 3.5 : 2.5;
+    canvas.width = svgEl.viewBox.baseVal.width * scale;
+    canvas.height = svgEl.viewBox.baseVal.height * scale;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.scale(scale, scale);
+    ctx.drawImage(img, 0, 0);
+    URL.revokeObjectURL(url);
+
+    const imgData = canvas.toDataURL('image/png', 1.0);
+    
+    if (!window.jspdf || !window.jspdf.jsPDF) {
+      alert('PDF generator library loading... Please try again in a moment.');
+      return;
+    }
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({
+      orientation: 'landscape',
+      unit: 'mm',
+      format: format
+    });
+
+    const margin = 8;
+    const availW = pdfWidth - (margin * 2);
+    const availH = pdfHeight - (margin * 2);
+
+    const imgAspect = canvas.width / canvas.height;
+    let renderW = availW;
+    let renderH = renderW / imgAspect;
+
+    if (renderH > availH) {
+      renderH = availH;
+      renderW = renderH * imgAspect;
+    }
+
+    const xPos = margin + (availW - renderW) / 2;
+    const yPos = margin + (availH - renderH) / 2;
+
+    doc.addImage(imgData, 'PNG', xPos, yPos, renderW, renderH);
+    doc.save(`CEP3_Geology_Profile_${format.toUpperCase()}_` + new Date().toISOString().slice(0,10) + '.pdf');
+  };
+  img.src = url;
 }
 
-function exportProfileToDXF(rows) {
+function exportProfileToDXF(customRows) {
+  let rows = customRows;
+  if (!rows || !rows.length) {
+    rows = currentProfileRows;
+  }
+  if (!rows || !rows.length) {
+    if (profileSelectedBHs && profileSelectedBHs.length >= 2) {
+      rows = profileSelectedBHs.map(name => allRows.find(r => (r['BH Name']||'').trim() === name)).filter(Boolean);
+    }
+  }
+  if (!rows || rows.length < 2) {
+    alert('Please select at least 2 boreholes to generate a CAD DXF drawing.');
+    return;
+  }
+
   const sorted = sortBoreholesByMapPosition(rows);
   const levelsArr = sorted.map(computeBHLevels);
   const layersArr = sorted.map(r => getBHLayers(r) || null);
@@ -2843,10 +2940,9 @@ function exportProfileToDXF(rows) {
   dxf += `0\nENDSEC\n0\nEOF\n`;
 
   const blob = new Blob([dxf], { type: 'application/dxf' });
-  const a = document.createElement('a');
+  const a = document.body.appendChild(document.createElement('a'));
   a.href = URL.createObjectURL(blob);
   a.download = 'CEP3_Geology_Profile_' + new Date().toISOString().slice(0,10) + '.dxf';
-  document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
 }
