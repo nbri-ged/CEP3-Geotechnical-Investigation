@@ -1997,8 +1997,8 @@ function computeProfilePositions(rows){
 
 /* ============================================================
    REWRITTEN PROFESSIONAL GEOLOGICAL CROSS-SECTION ENGINE
-   (Fulfills 100% complete filling, closed polygons, smooth pinch-outs,
-    Leapfrog/RockWorks column blending, zero white gaps)
+   (Fulfills 100% complete filling via cumulative boundaries,
+    separate Y-axis margins, terrain-following groundwater, zero white gaps)
    ============================================================ */
 function buildProfileSvg(rows) {
   const distances = computeProfilePositions(rows);
@@ -2025,9 +2025,11 @@ function buildProfileSvg(rows) {
   });
 
   const totalDist = Math.max(distances[distances.length - 1], 1);
-  const padLeft = 65, padRight = 40, padTop = 40;
-  const plotW = Math.max(700, Math.min(1500, totalDist * 0.18 + rows.length * 100));
-  const plotH = 450;
+  const padLeft = 85, padRight = 45, padTop = 70;
+  const plotMargin = 60; // Offset first/last BH from plot edge so Y-axis & titles never overlap
+  const minInnerW = Math.max(650, totalDist * 0.18 + rows.length * 100);
+  const plotW = minInnerW + plotMargin * 2;
+  const plotH = 440;
   const svgW = plotW + padLeft + padRight;
 
   let maxElev = -Infinity, minElev = Infinity;
@@ -2037,12 +2039,19 @@ function buildProfileSvg(rows) {
     if (effectiveRockLevel[i] !== null && effectiveRockLevel[i] !== undefined) minElev = Math.min(minElev, effectiveRockLevel[i]);
   });
   if (!isFinite(maxElev) || !isFinite(minElev)) { maxElev = 100; minElev = 70; }
-  const elevPad = (maxElev - minElev) * 0.12 || 3;
+  const elevPad = (maxElev - minElev) * 0.15 || 4;
   maxElev += elevPad; minElev -= elevPad;
   const elevRange = maxElev - minElev;
 
-  function xPos(dist) { return padLeft + (totalDist > 0 ? (dist / totalDist) * plotW : plotW / 2); }
-  function yPos(elev) { return padTop + ((maxElev - elev) / elevRange) * plotH; }
+  function xPos(dist) {
+    const xLeft = padLeft + plotMargin;
+    const xRight = padLeft + plotW - plotMargin;
+    return xLeft + (totalDist > 0 ? (dist / totalDist) * (xRight - xLeft) : (xRight - xLeft) / 2);
+  }
+
+  function yPos(elev) {
+    return padTop + ((maxElev - elev) / elevRange) * plotH;
+  }
 
   const GraphicHierarchy = [
     'FILL', 'MS', 'ML', 'MH', 'CL', 'CH', 'CI', 'OL', 'OH',
@@ -2070,7 +2079,9 @@ function buildProfileSvg(rows) {
   const masterSoilUnits = Array.from(soilGraphicSet).sort((a, b) => getGraphicRank(a) - getGraphicRank(b));
   if (masterSoilUnits.length === 0) masterSoilUnits.push('Overburden (soil)');
 
-  const bhUnitFractions = rows.map((r, i) => {
+  // Build cumulative boundaries C_0, C_1, ..., C_K at each borehole
+  const K = masterSoilUnits.length;
+  const bhCumBoundaries = rows.map((r, i) => {
     const lv = levelsArr[i];
     const layers = layersArr[i];
     const zGround = lv.elevation !== null ? lv.elevation : maxElev;
@@ -2097,18 +2108,24 @@ function buildProfileSvg(rows) {
       unitMap['Overburden (soil)'] = { fTop: 0.0, fBot: 1.0 };
     }
 
-    const fractions = {};
+    const C = new Array(K + 1).fill(0);
+    C[0] = 0.0;
     let currentF = 0.0;
-    masterSoilUnits.forEach((u) => {
+    masterSoilUnits.forEach((u, uIdx) => {
       if (unitMap[u]) {
-        fractions[u] = { fTop: unitMap[u].fTop, fBot: unitMap[u].fBot };
-        currentF = unitMap[u].fBot;
+        C[uIdx] = Math.max(unitMap[u].fTop, currentF);
+        C[uIdx + 1] = Math.max(unitMap[u].fBot, C[uIdx]);
+        currentF = C[uIdx + 1];
       } else {
-        fractions[u] = { fTop: currentF, fBot: currentF };
+        C[uIdx + 1] = currentF;
       }
     });
+    C[K] = 1.0;
 
-    return fractions;
+    for (let k = 1; k <= K; k++) {
+      if (C[k] < C[k - 1]) C[k] = C[k - 1];
+    }
+    return C;
   });
 
   function interpolateSpline(points, xTarget) {
@@ -2130,18 +2147,32 @@ function buildProfileSvg(rows) {
 
   const groundPts = rows.map((r, i) => ({ x: distances[i], y: levelsArr[i].elevation !== null ? levelsArr[i].elevation : maxElev }));
   const rockPts = rows.map((r, i) => ({ x: distances[i], y: effectiveRockLevel[i] !== null ? effectiveRockLevel[i] : groundPts[i].y - 5 }));
-  const termPts = rows.map((r, i) => ({ x: distances[i], y: effectiveTermLevel[i] !== null ? effectiveTermLevel[i] : rockPts[i].y - 10 }));
-  const gwPts = rows.map((r, i) => levelsArr[i].gwLevel !== null ? ({ x: distances[i], y: levelsArr[i].gwLevel }) : null).filter(Boolean);
+
+  const gwDepthPts = rows.map((r, i) => {
+    const lv = levelsArr[i];
+    if (lv.gwLevel !== null && lv.elevation !== null) {
+      return { x: distances[i], y: Math.max(lv.elevation - lv.gwLevel, 0.1) };
+    } else if (lv.gwDepth !== null) {
+      return { x: distances[i], y: Math.max(lv.gwDepth, 0.1) };
+    }
+    return null;
+  }).filter(Boolean);
 
   function getZGround(x) { return interpolateSpline(groundPts, x); }
   function getZRock(x) { return Math.min(interpolateSpline(rockPts, x), getZGround(x) - 0.05); }
 
-  function getUnitFractionsAtX(u, x) {
-    const pointsTop = rows.map((r, i) => ({ x: distances[i], y: bhUnitFractions[i][u].fTop }));
-    const pointsBot = rows.map((r, i) => ({ x: distances[i], y: bhUnitFractions[i][u].fBot }));
-    const fTop = Math.min(Math.max(interpolateSpline(pointsTop, x), 0), 1.0);
-    const fBot = Math.min(Math.max(interpolateSpline(pointsBot, x), 0), 1.0);
-    return { fTop: Math.min(fTop, fBot), fBot: Math.max(fTop, fBot) };
+  function getZWater(x) {
+    if (gwDepthPts.length === 0) return null;
+    const depthGw = Math.max(interpolateSpline(gwDepthPts, x), 0.1);
+    const zG = getZGround(x);
+    return zG - depthGw;
+  }
+
+  function getCumBoundaryAtX(k, x) {
+    if (k === 0) return 0.0;
+    if (k === K) return 1.0;
+    const pts = rows.map((r, i) => ({ x: distances[i], y: bhCumBoundaries[i][k] }));
+    return Math.min(Math.max(interpolateSpline(pts, x), 0.0), 1.0);
   }
 
   const legendItems = masterSoilUnits.map(u => {
@@ -2160,9 +2191,9 @@ function buildProfileSvg(rows) {
   legendItems.push({ label: 'Groundwater Table', color: '#1e6fd9', isLine: true, dash: '5,3' });
   legendItems.push({ label: 'Rockhead Contact', color: '#7a2f1e', isLine: true, dash: '6,4' });
 
-  const legendRowH = 22;
+  const legendRowH = 24;
   const legendRows = Math.ceil(legendItems.length / 4);
-  const padBottom = 60 + legendRows * legendRowH + 30;
+  const padBottom = 65 + legendRows * legendRowH + 30;
   const svgH = plotH + padTop + padBottom;
   const axisY = padTop + plotH;
 
@@ -2188,27 +2219,31 @@ function buildProfileSvg(rows) {
 
   svg += `<rect x="0" y="0" width="${svgW}" height="${svgH}" fill="#ffffff"/>`;
 
+  // Grid Lines & Y Axis
   const gridSteps = 6;
   for (let i = 0; i <= gridSteps; i++) {
     const elev = minElev + (elevRange / gridSteps) * i;
     const y = yPos(elev);
     svg += `<line x1="${padLeft}" y1="${y.toFixed(1)}" x2="${padLeft + plotW}" y2="${y.toFixed(1)}" stroke="#e5e0d3" stroke-width="1"/>`;
-    svg += `<text x="${padLeft - 8}" y="${(y + 3.5).toFixed(1)}" font-size="10" fill="#6b6459" text-anchor="end" font-weight="500">${elev.toFixed(1)}</text>`;
+    svg += `<text x="${padLeft - 8}" y="${(y + 3.5).toFixed(1)}" font-size="10" fill="#6b6459" text-anchor="end" font-weight="600">${elev.toFixed(1)}</text>`;
   }
 
-  svg += `<text x="16" y="${(padTop + plotH / 2).toFixed(1)}" font-size="11" fill="#1c2b2a" font-weight="700" transform="rotate(-90 16 ${(padTop + plotH / 2).toFixed(1)})" text-anchor="middle">Elevation (m, RL)</text>`;
-  svg += `<text x="${(padLeft + plotW / 2).toFixed(1)}" y="${(svgH - 12).toFixed(1)}" font-size="11" fill="#1c2b2a" font-weight="700" text-anchor="middle">Distance along section (m)</text>`;
+  // Axis Titles
+  svg += `<text x="22" y="${(padTop + plotH / 2).toFixed(1)}" font-size="11" fill="#1c2b2a" font-weight="700" transform="rotate(-90 22 ${(padTop + plotH / 2).toFixed(1)})" text-anchor="middle">Elevation (m, RL)</text>`;
+  svg += `<text x="${(padLeft + plotW / 2).toFixed(1)}" y="${(svgH - 14).toFixed(1)}" font-size="11" fill="#1c2b2a" font-weight="700" text-anchor="middle">Distance along section (m)</text>`;
 
-  svg += `<line x1="${padLeft}" y1="${axisY}" x2="${padLeft + plotW}" y2="${axisY}" stroke="#3a3a3a" stroke-width="1"/>`;
+  // Distance Axis Ticks & Axis Line
+  svg += `<line x1="${padLeft}" y1="${axisY}" x2="${padLeft + plotW}" y2="${axisY}" stroke="#3a3a3a" stroke-width="1.2"/>`;
   const targetTickMeters = totalDist / Math.max(Math.round(plotW / 100), 1);
   const tickStep = niceScaleMeters(Math.max(targetTickMeters, 1));
   for (let d = 0; d <= totalDist + 0.001; d += tickStep) {
     const x = xPos(d);
     svg += `<line x1="${x.toFixed(1)}" y1="${axisY}" x2="${x.toFixed(1)}" y2="${(axisY + 5).toFixed(1)}" stroke="#3a3a3a" stroke-width="1"/>`;
-    svg += `<text x="${x.toFixed(1)}" y="${(axisY + 16).toFixed(1)}" font-size="9" fill="#6b6459" text-anchor="middle">${Math.round(d)}</text>`;
+    svg += `<text x="${x.toFixed(1)}" y="${(axisY + 17).toFixed(1)}" font-size="9" fill="#6b6459" font-weight="500" text-anchor="middle">${Math.round(d)}</text>`;
   }
 
-  const numSamples = Math.max(Math.round(plotW / 4), 100);
+  // 1. RENDER CONTINUOUS BEDROCK POLYGON
+  const numSamples = Math.max(Math.round(plotW / 3), 120);
   const rockPolyPts = [];
   for (let s = 0; s <= numSamples; s++) {
     const d = (totalDist * s) / numSamples;
@@ -2227,11 +2262,30 @@ function buildProfileSvg(rows) {
   <path d="${bedrockD}" fill="${bedrockColor}" stroke="none"/>
   <path d="${bedrockD}" fill="url(#pat-bedrock)" stroke="none"/>`;
 
-  masterSoilUnits.forEach(u => {
+  // 2. RENDER CONTINUOUS SOIL LAYERS VIA CUMULATIVE BOUNDARIES
+  const sampledBoundaries = [];
+  for (let k = 0; k <= K; k++) {
+    const bPts = [];
+    for (let s = 0; s <= numSamples; s++) {
+      const d = (totalDist * s) / numSamples;
+      bPts.push(getCumBoundaryAtX(k, d));
+    }
+    sampledBoundaries.push(bPts);
+  }
+
+  for (let s = 0; s <= numSamples; s++) {
+    for (let k = 1; k <= K; k++) {
+      if (sampledBoundaries[k][s] < sampledBoundaries[k - 1][s]) {
+        sampledBoundaries[k][s] = sampledBoundaries[k - 1][s];
+      }
+    }
+  }
+
+  masterSoilUnits.forEach((u, k) => {
     const info = getGraphicInfo(u);
     const topCurvePts = [];
     const botCurvePts = [];
-    let hasNonZeroArea = false;
+    let hasArea = false;
 
     for (let s = 0; s <= numSamples; s++) {
       const d = (totalDist * s) / numSamples;
@@ -2240,16 +2294,18 @@ function buildProfileSvg(rows) {
       const zR = getZRock(d);
       const overburden = Math.max(zG - zR, 0.05);
 
-      const fr = getUnitFractionsAtX(u, d);
-      const zTop = zG - fr.fTop * overburden;
-      const zBot = zG - fr.fBot * overburden;
+      const fTop = sampledBoundaries[k][s];
+      const fBot = sampledBoundaries[k + 1][s];
+
+      const zTop = zG - fTop * overburden;
+      const zBot = zG - fBot * overburden;
 
       topCurvePts.push([x, yPos(zTop)]);
       botCurvePts.push([x, yPos(zBot)]);
-      if (Math.abs(zBot - zTop) > 0.01) hasNonZeroArea = true;
+      if (Math.abs(fBot - fTop) > 0.001) hasArea = true;
     }
 
-    if (hasNonZeroArea) {
+    if (hasArea) {
       let layerD = `M${topCurvePts[0][0].toFixed(1)},${topCurvePts[0][1].toFixed(1)} `;
       for (let s = 1; s < topCurvePts.length; s++) {
         layerD += `L${topCurvePts[s][0].toFixed(1)},${topCurvePts[s][1].toFixed(1)} `;
@@ -2266,7 +2322,7 @@ function buildProfileSvg(rows) {
       else if (uUp.includes('GRAVEL') || uUp.includes('GM') || uUp.includes('GC')) patternUrl = 'url(#pat-gravel)';
 
       svg += `<!-- Soil Layer: ${info.label} -->
-      <path d="${layerD}" fill="${info.color}" stroke="${info.color}" stroke-width="0.5"/>`;
+      <path d="${layerD}" fill="${info.color}" stroke="${info.color}" stroke-width="0.4"/>`;
       if (patternUrl) {
         svg += `<path d="${layerD}" fill="${patternUrl}" stroke="none"/>`;
       }
@@ -2274,10 +2330,11 @@ function buildProfileSvg(rows) {
       for (let s = 1; s < topCurvePts.length; s++) {
         topContactD += `L${topCurvePts[s][0].toFixed(1)},${topCurvePts[s][1].toFixed(1)} `;
       }
-      svg += `<path d="${topContactD}" fill="none" stroke="#443322" stroke-width="0.8" opacity="0.6"/>`;
+      svg += `<path d="${topContactD}" fill="none" stroke="#443322" stroke-width="0.7" opacity="0.5"/>`;
     }
   });
 
+  // 3. RENDER ROCKHEAD CONTACT LINE
   let rockheadD = `M${rockPolyPts[0][0].toFixed(1)},${rockPolyPts[0][1].toFixed(1)} `;
   for (let s = 1; s < rockPolyPts.length; s++) {
     rockheadD += `L${rockPolyPts[s][0].toFixed(1)},${rockPolyPts[s][1].toFixed(1)} `;
@@ -2285,28 +2342,37 @@ function buildProfileSvg(rows) {
   svg += `<!-- Rockhead Contact Line -->
   <path d="${rockheadD}" fill="none" stroke="#7a2f1e" stroke-width="2.2" stroke-dasharray="6,4"/>`;
 
-  if (gwPts.length >= 2) {
+  // 4. RENDER GROUNDWATER TABLE LINE (Terrain-Following, strictly below ground!)
+  if (gwDepthPts.length >= 1) {
     const gwCurvePts = [];
     for (let s = 0; s <= numSamples; s++) {
       const d = (totalDist * s) / numSamples;
       const x = xPos(d);
-      const zGw = interpolateSpline(gwPts, d);
-      gwCurvePts.push([x, yPos(zGw)]);
+      const zGw = getZWater(d);
+      if (zGw !== null) {
+        gwCurvePts.push([x, yPos(zGw)]);
+      }
     }
-    let gwD = `M${gwCurvePts[0][0].toFixed(1)},${gwCurvePts[0][1].toFixed(1)} `;
-    for (let s = 1; s < gwCurvePts.length; s++) {
-      gwD += `L${gwCurvePts[s][0].toFixed(1)},${gwCurvePts[s][1].toFixed(1)} `;
+    if (gwCurvePts.length >= 2) {
+      let gwD = `M${gwCurvePts[0][0].toFixed(1)},${gwCurvePts[0][1].toFixed(1)} `;
+      for (let s = 1; s < gwCurvePts.length; s++) {
+        gwD += `L${gwCurvePts[s][0].toFixed(1)},${gwCurvePts[s][1].toFixed(1)} `;
+      }
+      svg += `<!-- Groundwater Table Line -->
+      <path d="${gwD}" fill="none" stroke="#1e6fd9" stroke-width="2.0" stroke-dasharray="5,3"/>`;
     }
-    svg += `<!-- Groundwater Table Line -->
-    <path d="${gwD}" fill="none" stroke="#1e6fd9" stroke-width="1.8" stroke-dasharray="5,3"/>`;
 
-    gwPts.forEach(pt => {
-      const x = xPos(pt.x), y = yPos(pt.y);
+    gwDepthPts.forEach(pt => {
+      const x = xPos(pt.x);
+      const zG = getZGround(pt.x);
+      const zGw = zG - pt.y;
+      const y = yPos(zGw);
       svg += `<polygon points="${x - 4},${y} ${x + 4},${y} ${x},${y + 6}" fill="#1e6fd9"/>`;
       svg += `<line x1="${x - 6}" y1="${y}" x2="${x + 6}" y2="${y}" stroke="#1e6fd9" stroke-width="1.5"/>`;
     });
   }
 
+  // 5. RENDER GROUND SURFACE SMOOTH LINE
   const groundPolyPts = [];
   for (let s = 0; s <= numSamples; s++) {
     const d = (totalDist * s) / numSamples;
@@ -2321,6 +2387,7 @@ function buildProfileSvg(rows) {
   svg += `<!-- Ground Surface Smooth Profile -->
   <path d="${groundD}" fill="none" stroke="#2f6f5e" stroke-width="2.8"/>`;
 
+  // 6. RENDER BOREHOLE COLUMNS (HARD DATA PILLARS)
   const colW = Math.min(22, plotW / Math.max(rows.length, 1) * 0.45);
   rows.forEach((r, i) => {
     const x = xPos(distances[i]);
@@ -2356,22 +2423,24 @@ function buildProfileSvg(rows) {
 
     svg += `<rect x="${(x - colW / 2).toFixed(1)}" y="${yG.toFixed(1)}" width="${colW.toFixed(1)}" height="${(yTerm - yG).toFixed(1)}" fill="none" stroke="#111111" stroke-width="1.2"/>`;
 
-    const nameW = bhName.length * 6.5 + 12;
+    svg += `<line x1="${x.toFixed(1)}" y1="${(yG - 26).toFixed(1)}" x2="${x.toFixed(1)}" y2="${yG.toFixed(1)}" stroke="#6b6459" stroke-width="1" stroke-dasharray="2,2"/>`;
+
+    const nameW = bhName.length * 6.4 + 14;
     const glText = `GL ${zG.toFixed(1)}m`;
-    const glW = glText.length * 5.4 + 10;
+    const glW = glText.length * 5.2 + 10;
     const haloW = Math.max(nameW, glW);
-    svg += `<rect x="${(x - haloW / 2).toFixed(1)}" y="${(yG - 35).toFixed(1)}" width="${haloW.toFixed(1)}" height="28" fill="#ffffff" stroke="#d8d2c2" stroke-width="1" rx="4" filter="drop-shadow(0 1px 2px rgba(0,0,0,0.1))"/>`;
-    svg += `<text x="${x.toFixed(1)}" y="${(yG - 23).toFixed(1)}" font-size="10.5" font-weight="800" fill="#1c2b2a" text-anchor="middle">${bhName}</text>`;
-    svg += `<text x="${x.toFixed(1)}" y="${(yG - 10).toFixed(1)}" font-size="8.5" fill="#6b6459" font-weight="600" text-anchor="middle">${glText}</text>`;
+    svg += `<rect x="${(x - haloW / 2).toFixed(1)}" y="${(yG - 38).toFixed(1)}" width="${haloW.toFixed(1)}" height="26" fill="rgba(255, 255, 255, 0.88)" stroke="#b8b2a2" stroke-width="1" rx="4"/>`;
+    svg += `<text x="${x.toFixed(1)}" y="${(yG - 26).toFixed(1)}" font-size="10" font-weight="800" fill="#1c2b2a" text-anchor="middle">${bhName}</text>`;
+    svg += `<text x="${x.toFixed(1)}" y="${(yG - 14).toFixed(1)}" font-size="8.5" fill="#6b6459" font-weight="600" text-anchor="middle">${glText}</text>`;
 
     const termText = `Term ${zTerm.toFixed(1)}m`;
     const termW = termText.length * 5.2 + 10;
-    svg += `<rect x="${(x - termW / 2).toFixed(1)}" y="${(yTerm + 4).toFixed(1)}" width="${termW.toFixed(1)}" height="15" fill="#ffffff" stroke="#d8d2c2" stroke-width="1" rx="3"/>`;
+    svg += `<rect x="${(x - termW / 2).toFixed(1)}" y="${(yTerm + 4).toFixed(1)}" width="${termW.toFixed(1)}" height="15" fill="rgba(255, 255, 255, 0.90)" stroke="#b8b2a2" stroke-width="1" rx="3"/>`;
     svg += `<text x="${x.toFixed(1)}" y="${(yTerm + 14).toFixed(1)}" font-size="8.5" font-weight="600" fill="#444444" text-anchor="middle">${termText}</text>`;
   });
 
   const legX = padLeft;
-  const legYStart = axisY + 42;
+  const legYStart = axisY + 44;
   svg += `<g id="legend-group">`;
   svg += `<text x="${legX}" y="${legYStart - 10}" font-size="11" font-weight="700" fill="#1c2b2a">ENGINEERING GEOLOGY STRATIGRAPHIC LEGEND</text>`;
 
@@ -2396,7 +2465,7 @@ function buildProfileSvg(rows) {
     curX += itemW;
   });
 
-  svg += `<text x="${legX}" y="${legYStart + (curRow + 1) * legendRowH + 10}" font-size="8.5" fill="#6b6459" font-style="italic">Professional Engineering Geological Cross-Section — Interlayered columns interpolated using stratigraphic contact geometry. Hard borehole data preserved exactly.</text>`;
+  svg += `<text x="${legX}" y="${legYStart + (curRow + 1) * legendRowH + 12}" font-size="8.5" fill="#6b6459" font-style="italic">Professional Engineering Geological Cross-Section — Interlayered columns interpolated using cumulative boundary contact geometry. Hard borehole data preserved exactly.</text>`;
   svg += `</g>`;
 
   svg += `</svg>`;
