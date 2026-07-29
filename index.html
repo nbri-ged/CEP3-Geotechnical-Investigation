@@ -788,13 +788,8 @@
         <button onclick="downloadProfilePNG()" title="Download PNG" class="kml-btn" style="padding:3px 7px; font-size:11px; background:#2e7d6e; color:#fff; border:none; border-radius:4px; cursor:pointer;">🖼 PNG</button>
         <button onclick="downloadProfileSVG()" title="Download SVG" class="kml-btn" style="padding:3px 7px; font-size:11px; background:#4a6572; color:#fff; border:none; border-radius:4px; cursor:pointer;">⚡ SVG</button>
         <button onclick="exportProfileToDXF()" title="Download DXF (CAD)" class="kml-btn" style="padding:3px 7px; font-size:11px; background:#27ae60; color:#fff; border:none; border-radius:4px; cursor:pointer;">📐 DXF</button>
-        <div style="display:inline-flex; align-items:center; background:#8e44ad; border-radius:4px; padding:0 4px; height:23px; gap:2px;">
-          <select id="profile-pdf-size" style="background:transparent; border:none; color:#fff; font-size:10.5px; cursor:pointer; outline:none; font-weight:600; padding:0;">
-            <option value="a4" style="color:#333;">A4</option>
-            <option value="a3" style="color:#333;">A3</option>
-          </select>
-          <button onclick="downloadProfilePDF()" title="Download PDF" style="background:none; border:none; color:#fff; font-size:11px; font-weight:600; cursor:pointer; padding:0 2px;">📄 PDF</button>
-        </div>
+        <button onclick="downloadProfilePDF('a4')" title="Download PDF A4" style="padding:3px 7px; font-size:11px; font-weight:600; background:#8e44ad; color:#fff; border:none; border-radius:4px; cursor:pointer;">📄 PDF A4</button>
+        <button onclick="downloadProfilePDF('a3')" title="Download PDF A3" style="padding:3px 7px; font-size:11px; font-weight:600; background:#9b59b6; color:#fff; border:none; border-radius:4px; cursor:pointer;">📄 PDF A3</button>
         <button id="profile-close-btn" title="Close" style="width:23px; height:23px; border-radius:4px; border:none; background:#c0392b; color:#fff; font-size:15px; line-height:1; cursor:pointer; margin-left:2px;">&times;</button>
       </div>
     </div>
@@ -2440,25 +2435,37 @@ function buildProfileSvg(rows) {
     const info = getGraphicInfo(u);
     const code = (u || '').trim();
 
-    // Collect absolute top and bottom elevations at each borehole
-    const bhLayerRanges = rows.map((r, i) => {
+    // Find maximum occurrences of this soil type in any single borehole
+    let maxOcc = 0;
+    rows.forEach((r, i) => {
       const lys = layersArr[i];
-      const zG = levelsArr[i].elevation !== null ? levelsArr[i].elevation : maxElev;
-      if (!lys || !lys.length) return null;
-      const unitLys = lys.filter(l => (l.graphic || '').trim() === code && !getGraphicInfo(l.graphic).isRock);
-      if (!unitLys.length) return null;
-
-      const minDepth = Math.min(...unitLys.map(l => l.depth));
-      const maxBottom = Math.max(...unitLys.map(l => l.bottom));
-      return { zTop: zG - minDepth, zBot: zG - maxBottom };
+      if (lys) {
+        const count = lys.filter(l => (l.graphic || '').trim() === code && !info.isRock).length;
+        if (count > maxOcc) maxOcc = count;
+      }
     });
 
-    // Check if present at any borehole
-    const presentIndices = [];
-    bhLayerRanges.forEach((range, i) => {
-      if (range !== null) presentIndices.push(i);
-    });
-    if (presentIndices.length === 0) return;
+    // Draw a separate polygon for each occurrence
+    for (let occ = 0; occ < maxOcc; occ++) {
+      const bhLayerRanges = rows.map((r, i) => {
+        const lys = layersArr[i];
+        const zG = levelsArr[i].elevation !== null ? levelsArr[i].elevation : maxElev;
+        if (!lys || !lys.length) return null;
+        
+        const unitLys = lys.filter(l => (l.graphic || '').trim() === code && !info.isRock);
+        if (occ < unitLys.length) {
+          const l = unitLys[occ];
+          return { zTop: zG - l.depth, zBot: zG - l.bottom };
+        }
+        return null;
+      });
+
+      // Check if present at any borehole
+      const presentIndices = [];
+      bhLayerRanges.forEach((range, i) => {
+        if (range !== null) presentIndices.push(i);
+      });
+      if (presentIndices.length === 0) continue;
 
     // Build continuous top/bottom curve across profile samples
     const topCurvePts = [];
@@ -2502,28 +2509,34 @@ function buildProfileSvg(rows) {
           zTop = rangeA.zTop + (rangeB.zTop - rangeA.zTop) * smt;
           zBot = rangeA.zBot + (rangeB.zBot - rangeA.zBot) * smt;
         } else if (rangeA && !rangeB) {
-          // Present at A, pinches out towards B — layer wedges UP to ground surface at midpoint
+          // Present at A, pinches out towards B
           const dMid = (dA + dB) / 2;
+          const zGA = getZGround(dA);
+          const zPinch0 = (rangeA.zTop + rangeA.zBot) / 2;
+          const zPinchCurve = zPinch0 + (zG - zGA); // Follow surface topography
+
           if (d >= dMid) {
-            zTop = zG; zBot = zG; // fully pinched out
+            zTop = zPinchCurve; zBot = zPinchCurve; // fully pinched out
           } else {
             const t = (d - dA) / (dMid - dA);
             const smt = 3*t*t - 2*t*t*t; // smoothstep
-            // Pinch point = ground surface (layer tapers upward to surface, geologically correct)
-            zTop = rangeA.zTop + (zG - rangeA.zTop) * smt;
-            zBot = rangeA.zBot + (zG - rangeA.zBot) * smt;
+            zTop = rangeA.zTop + (zPinchCurve - rangeA.zTop) * smt;
+            zBot = rangeA.zBot + (zPinchCurve - rangeA.zBot) * smt;
           }
         } else if (!rangeA && rangeB) {
           // Emerges from ground surface, widening towards B
           const dMid = (dA + dB) / 2;
+          const zGB = getZGround(dB);
+          const zPinch0 = (rangeB.zTop + rangeB.zBot) / 2;
+          const zPinchCurve = zPinch0 + (zG - zGB); // Follow surface topography
+
           if (d <= dMid) {
-            zTop = zG; zBot = zG; // not yet present
+            zTop = zPinchCurve; zBot = zPinchCurve; // not yet present
           } else {
             const t = (d - dMid) / (dB - dMid);
             const smt = 3*t*t - 2*t*t*t;
-            // Emerge from ground surface (symmetric to pinch-out above)
-            zTop = zG + (rangeB.zTop - zG) * smt;
-            zBot = zG + (rangeB.zBot - zG) * smt;
+            zTop = zPinchCurve + (rangeB.zTop - zPinchCurve) * smt;
+            zBot = zPinchCurve + (rangeB.zBot - zPinchCurve) * smt;
           }
         } else {
           // Absent in both adjacent BHs
@@ -2583,6 +2596,7 @@ function buildProfileSvg(rows) {
       }
       if (topContactD) svg += `<path d="${topContactD}" fill="none" stroke="#554433" stroke-width="0.7" opacity="0.35"/>`;
     }
+    } // End of occ loop
   });
 
   // STEP C: Paint bedrock polygon LAST (on top of soil layers) — painter's algorithm guarantees
@@ -2792,10 +2806,9 @@ function downloadProfileSVG() {
   document.body.removeChild(a);
 }
 
-function downloadProfilePDF() {
+function downloadProfilePDF(paperSize = 'a4') {
   const svgEl = document.querySelector('#profile-modal-body svg');
   if (!svgEl) return;
-  const paperSize = document.getElementById('profile-pdf-size')?.value || 'a4';
   
   const format = paperSize === 'a3' ? 'a3' : 'a4';
   const pdfWidth = paperSize === 'a3' ? 420 : 297;  // mm
