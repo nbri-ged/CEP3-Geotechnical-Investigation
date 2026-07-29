@@ -790,21 +790,19 @@
 <div id="profile-modal-backdrop">
   <div id="profile-modal">
     <div id="profile-modal-header">
-      <span style="font-size:13px; font-weight:700;">&#128208; Geological Cross-Section</span>
-      <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
-        <button onclick="downloadProfilePNG()" title="Download PNG Image" class="kml-btn" style="padding:4px 9px; font-size:11.5px; background:#2e7d6e; color:#fff; border:none; border-radius:4px; cursor:pointer;">🖼 PNG</button>
-        <button onclick="downloadProfileSVG()" title="Download SVG Vector" class="kml-btn" style="padding:4px 9px; font-size:11.5px; background:#4a6572; color:#fff; border:none; border-radius:4px; cursor:pointer;">⚡ SVG</button>
-        <button onclick="exportProfileToDXF()" title="Download DXF for CAD" class="kml-btn" style="padding:4px 9px; font-size:11.5px; background:#27ae60; color:#fff; border:none; border-radius:4px; cursor:pointer;">📐 DXF</button>
-
-        <div style="display:flex; align-items:center; background:#8e44ad; border-radius:4px; padding:0 6px; height:24px; gap:4px;">
-          <select id="profile-pdf-size" style="background:transparent; border:none; color:#fff; font-size:11px; cursor:pointer; outline:none; font-weight:600;">
+      <span style="font-size:13px; font-weight:700;">📐 Geological Cross-Section</span>
+      <div style="display:flex; gap:5px; align-items:center; flex-wrap:nowrap;">
+        <button onclick="downloadProfilePNG()" title="Download PNG" class="kml-btn" style="padding:3px 7px; font-size:11px; background:#2e7d6e; color:#fff; border:none; border-radius:4px; cursor:pointer;">🖼 PNG</button>
+        <button onclick="downloadProfileSVG()" title="Download SVG" class="kml-btn" style="padding:3px 7px; font-size:11px; background:#4a6572; color:#fff; border:none; border-radius:4px; cursor:pointer;">⚡ SVG</button>
+        <button onclick="exportProfileToDXF()" title="Download DXF (CAD)" class="kml-btn" style="padding:3px 7px; font-size:11px; background:#27ae60; color:#fff; border:none; border-radius:4px; cursor:pointer;">📐 DXF</button>
+        <div style="display:inline-flex; align-items:center; background:#8e44ad; border-radius:4px; padding:0 4px; height:23px; gap:2px;">
+          <select id="profile-pdf-size" style="background:transparent; border:none; color:#fff; font-size:10.5px; cursor:pointer; outline:none; font-weight:600; padding:0;">
             <option value="a4" style="color:#333;">A4</option>
             <option value="a3" style="color:#333;">A3</option>
           </select>
-          <button onclick="downloadProfilePDF()" title="Download PDF" style="background:none; border:none; color:#fff; font-size:11px; font-weight:600; cursor:pointer; padding:0;">📄 PDF</button>
+          <button onclick="downloadProfilePDF()" title="Download PDF" style="background:none; border:none; color:#fff; font-size:11px; font-weight:600; cursor:pointer; padding:0 2px;">📄 PDF</button>
         </div>
-
-        <button id="profile-close-btn" title="Close" style="width:24px; height:24px; border-radius:4px; border:none; background:#c0392b; color:#fff; font-size:16px; line-height:1; cursor:pointer; margin-left:4px;">&times;</button>
+        <button id="profile-close-btn" title="Close" style="width:23px; height:23px; border-radius:4px; border:none; background:#c0392b; color:#fff; font-size:15px; line-height:1; cursor:pointer; margin-left:2px;">&times;</button>
       </div>
     </div>
     <div id="profile-modal-body"></div>
@@ -2434,144 +2432,70 @@ function buildProfileSvg(rows) {
   <path d="${bedrockD}" fill="${bedrockColor}" stroke="none"/>
   <path d="${bedrockD}" fill="url(#pat-bedrock)" stroke="none"/>`;
 
-  // 2. RENDER SOIL LAYERS — Meter-thickness interpolation + bottom-layer bedrock gap fill
-  //
-  // Algorithm (guarantees ZERO white space AND correct logged depths at boreholes):
-  //
-  //  Step A: At each BH, get ACTUAL logged thickness (metres) per unit.
-  //          Where unit is absent at a BH, thickness = 0 at that point.
-  //
-  //  Step B: For each sample position d:
-  //    1. Interpolate raw thickness t_k(d) from the boreholes where unit k IS present.
-  //    2. Apply smoothstep pinch factor p_k(d): outside the unit's BH extent,
-  //       p_k fades 1→0 in the midpoint between adjacent BHs (pinch IN THE MIDDLE).
-  //    3. pinched_k = t_k * p_k
-  //
-  //  Step C: totalPinched = sum(pinched_k)
-  //          gap = overburden − totalPinched  (always ≥ 0 because pinch reduces units)
-  //          Add gap to the BOTTOM-MOST active unit — do NOT rescale all units.
-  //          This honours each layer’s logged depth while eliminating white space.
-  //
-  //  Step D: Build cumulative stack C_0(d)..C_K(d) = elevations of each boundary.
-  //          C_0 = ground surface, C_K = rockhead (100% guaranteed).
-
-  const bhUnitMetres = rows.map((r, i) => {
-    const lys = layersArr[i];
-    const unitMap = {};
-    if (lys && lys.length) {
-      const soilLys = lys.filter(l => !getGraphicInfo(l.graphic).isRock);
-      soilLys.forEach(l => {
-        const code = (l.graphic || '').trim();
-        const thick = Math.max(l.bottom - l.depth, 0);
-        unitMap[code] = (unitMap[code] || 0) + thick;
-      });
-    }
-    return unitMap;
-  });
-
-  const unitPresence = masterSoilUnits.map((u, k) => {
-    const code = (u || '').trim();
-    return rows.map((r, i) => (bhUnitMetres[i][code] || 0) > 0.01);
-  });
-
-  const unitExtents = masterSoilUnits.map((u, k) => {
-    let firstIdx = -1, lastIdx = -1;
-    for (let i = 0; i < rows.length; i++) {
-      if (unitPresence[k][i]) {
-        if (firstIdx === -1) firstIdx = i;
-        lastIdx = i;
-      }
-    }
-    return { firstIdx, lastIdx };
-  });
-
-  // Build sample-resolution cumulative boundary elevations
-  const cumBnd = [];
-  for (let k = 0; k <= K; k++) cumBnd.push(new Array(numSamples + 1).fill(0));
-
+  // 1. RENDER CONTINUOUS OVERBURDEN BASE MATRIX FILL (ZERO WHITE SPACE GUARANTEED)
+  const soilBasePts = [];
   for (let s = 0; s <= numSamples; s++) {
     const d = distMin + (distSpan * s) / numSamples;
-    const zG = getZGround(d);
-    const zR = getZRock(d);
-    const overburden = Math.max(zG - zR, 0.05);
-
-    // Step A: interpolate raw thickness for each unit from only its present BHs
-    const rawThick = masterSoilUnits.map((u, k) => {
-      const code = (u || '').trim();
-      const { firstIdx, lastIdx } = unitExtents[k];
-      if (firstIdx === -1) return 0;
-
-      const pts = [];
-      for (let i = 0; i < rows.length; i++) {
-        if (unitPresence[k][i]) pts.push({ x: distances[i], y: bhUnitMetres[i][code] });
-      }
-      if (pts.length === 0) return 0;
-      const val = d <= pts[0].x ? pts[0].y
-                : d >= pts[pts.length - 1].x ? pts[pts.length - 1].y
-                : interpolateSpline(pts, d);
-      return Math.max(val, 0);
-    });
-
-    // Step B: smoothstep pinch-out — unit fades to zero at the MIDPOINT between BHs
-    const pinchedThick = rawThick.map((t, k) => {
-      const { firstIdx, lastIdx } = unitExtents[k];
-      if (firstIdx === -1) return 0;
-      const dFirst = distances[firstIdx], dLast = distances[lastIdx];
-
-      if (d >= dFirst && d <= dLast) return t;
-
-      if (d < dFirst && firstIdx > 0) {
-        const dMid = (distances[firstIdx - 1] + dFirst) / 2;
-        if (d <= dMid) return 0;
-        const tt = (d - dMid) / (dFirst - dMid);
-        return t * (3*tt*tt - 2*tt*tt*tt);
-      }
-      if (d > dLast && lastIdx < rows.length - 1) {
-        const dMid = (dLast + distances[lastIdx + 1]) / 2;
-        if (d >= dMid) return 0;
-        const tt = 1.0 - (d - dLast) / (dMid - dLast);
-        return t * (3*tt*tt - 2*tt*tt*tt);
-      }
-      return t;
-    });
-
-    // Step C: fill gap to bedrock by extending ONLY the bottom-most active layer
-    const totalPinched = pinchedThick.reduce((a, b) => a + b, 0);
-    const gap = Math.max(overburden - totalPinched, 0);
-
-    let bottomK = -1;
-    for (let k = K - 1; k >= 0; k--) {
-      if (pinchedThick[k] > 0.001) { bottomK = k; break; }
-    }
-
-    const finalThick = [...pinchedThick];
-    if (gap > 0) {
-      if (bottomK >= 0) {
-        finalThick[bottomK] += gap;
-      } else {
-        // No active units at all — put all overburden in layer 0
-        finalThick[0] = overburden;
-      }
-    }
-
-    // Step D: cumulative boundaries — STRICTLY CLAMPED to >= zR (NO SOIL BELOW BEDROCK!)
-    cumBnd[0][s] = zG;
-    for (let k = 0; k < K; k++) {
-      cumBnd[k + 1][s] = Math.max(cumBnd[k][s] - finalThick[k], zR);
-    }
-    cumBnd[K][s] = zR; // 100% locked to rockhead elevation
+    soilBasePts.push([xPos(d), yPos(getZGround(d))]);
   }
+  for (let s = numSamples; s >= 0; s--) {
+    const d = distMin + (distSpan * s) / numSamples;
+    soilBasePts.push([xPos(d), yPos(getZRock(d))]);
+  }
+  let soilBaseD = `M${soilBasePts[0][0].toFixed(1)},${soilBasePts[0][1].toFixed(1)} `;
+  for (let s = 1; s < soilBasePts.length; s++) {
+    soilBaseD += `L${soilBasePts[s][0].toFixed(1)},${soilBasePts[s][1].toFixed(1)} `;
+  }
+  soilBaseD += 'Z';
 
-  // Render each unit as a filled polygon
-  masterSoilUnits.forEach((u, k) => {
+  const baseSoilColor = (masterSoilUnits.length && getGraphicInfo(masterSoilUnits[0]).color) ? getGraphicInfo(masterSoilUnits[0]).color : '#c9a876';
+  svg += `<!-- Base Continuous Soil Overburden Fill -->
+  <path d="${soilBaseD}" fill="${baseSoilColor}" stroke="none"/>`;
+
+  // 2. RENDER SOLID BEDROCK MASS BELOW Z_R(x)
+  const rockPolyPts = [];
+  for (let s = 0; s <= numSamples; s++) {
+    const d = distMin + (distSpan * s) / numSamples;
+    rockPolyPts.push([xPos(d), yPos(getZRock(d))]);
+  }
+  let bedrockD = `M${rockPolyPts[0][0].toFixed(1)},${rockPolyPts[0][1].toFixed(1)} `;
+  for (let s = 1; s < rockPolyPts.length; s++) {
+    bedrockD += `L${rockPolyPts[s][0].toFixed(1)},${rockPolyPts[s][1].toFixed(1)} `;
+  }
+  bedrockD += `L${xFrameRight.toFixed(1)},${axisY.toFixed(1)} L${xFrameLeft.toFixed(1)},${axisY.toFixed(1)} Z`;
+
+  svg += `<!-- Bedrock Solid Polygon -->
+  <path d="${bedrockD}" fill="${bedrockColor}" stroke="none"/>
+  <path d="${bedrockD}" fill="url(#pat-bedrock)" stroke="none"/>`;
+
+  // 3. RENDER REAL-WORLD STRATIGRAPHIC SOIL LAYER POLYGONS (EXACT LOGGED ELEVATION ALIGNMENT)
+  // Group layers per graphic unit and draw continuous polygons matching exact borehole log depths.
+
+  masterSoilUnits.forEach((u) => {
     const info = getGraphicInfo(u);
-    const { firstIdx, lastIdx } = unitExtents[k];
-    if (firstIdx === -1) return;
+    const code = (u || '').trim();
 
-    const dFirst = distances[firstIdx], dLast = distances[lastIdx];
-    const dDrawStart = firstIdx === 0 ? distMin : (distances[firstIdx - 1] + dFirst) / 2;
-    const dDrawEnd   = lastIdx === rows.length - 1 ? distMax : (dLast + distances[lastIdx + 1]) / 2;
+    // Collect absolute top and bottom elevations at each borehole
+    const bhLayerRanges = rows.map((r, i) => {
+      const lys = layersArr[i];
+      const zG = levelsArr[i].elevation !== null ? levelsArr[i].elevation : maxElev;
+      if (!lys || !lys.length) return null;
+      const unitLys = lys.filter(l => (l.graphic || '').trim() === code && !getGraphicInfo(l.graphic).isRock);
+      if (!unitLys.length) return null;
 
+      const minDepth = Math.min(...unitLys.map(l => l.depth));
+      const maxBottom = Math.max(...unitLys.map(l => l.bottom));
+      return { zTop: zG - minDepth, zBot: zG - maxBottom };
+    });
+
+    // Check if present at any borehole
+    const presentIndices = [];
+    bhLayerRanges.forEach((range, i) => {
+      if (range !== null) presentIndices.push(i);
+    });
+    if (presentIndices.length === 0) return;
+
+    // Build continuous top/bottom curve across profile samples
     const topCurvePts = [];
     const botCurvePts = [];
     let hasArea = false;
@@ -2579,14 +2503,89 @@ function buildProfileSvg(rows) {
     for (let s = 0; s <= numSamples; s++) {
       const d = distMin + (distSpan * s) / numSamples;
       const x = xPos(d);
-      const outside = d < dDrawStart || d > dDrawEnd;
+      const zG = getZGround(d);
+      const zR = getZRock(d);
 
-      const zTop = cumBnd[k][s];
-      const zBot = outside ? zTop : cumBnd[k + 1][s];
+      let zTop = zG, zBot = zG;
+
+      // Find surrounding boreholes in distances array
+      let iLeft = -1, iRight = -1;
+      for (let i = 0; i < rows.length; i++) {
+        if (distances[i] <= d) iLeft = i;
+        if (distances[i] >= d && iRight === -1) iRight = i;
+      }
+      if (iLeft === -1) iLeft = 0;
+      if (iRight === -1) iRight = rows.length - 1;
+
+      if (iLeft === iRight) {
+        // Exactly at a borehole position
+        const range = bhLayerRanges[iLeft];
+        if (range) {
+          zTop = range.zTop;
+          zBot = range.zBot;
+        } else {
+          zTop = zG; zBot = zG;
+        }
+      } else {
+        const dA = distances[iLeft], dB = distances[iRight];
+        const rangeA = bhLayerRanges[iLeft], rangeB = bhLayerRanges[iRight];
+
+        if (rangeA && rangeB) {
+          // Unit present in BOTH boreholes -> smooth interpolation
+          const t = (d - dA) / (dB - dA);
+          const smt = 3*t*t - 2*t*t*t;
+          zTop = rangeA.zTop + (rangeB.zTop - rangeA.zTop) * smt;
+          zBot = rangeA.zBot + (rangeB.zBot - rangeA.zBot) * smt;
+        } else if (rangeA && !rangeB) {
+          // Present at A, pinches out in middle towards B
+          const dMid = (dA + dB) / 2;
+          if (d >= dMid) {
+            zTop = zG; zBot = zG;
+          } else {
+            const t = (d - dA) / (dMid - dA);
+            const smt = 3*t*t - 2*t*t*t;
+            const zPinch = (rangeA.zTop + rangeA.zBot) / 2;
+            zTop = rangeA.zTop + (zPinch - rangeA.zTop) * smt;
+            zBot = rangeA.zBot + (zPinch - rangeA.zBot) * smt;
+          }
+        } else if (!rangeA && rangeB) {
+          // Pinch out from middle towards B
+          const dMid = (dA + dB) / 2;
+          if (d <= dMid) {
+            zTop = zG; zBot = zG;
+          } else {
+            const t = (d - dMid) / (dB - dMid);
+            const smt = 3*t*t - 2*t*t*t;
+            const zPinch = (rangeB.zTop + rangeB.zBot) / 2;
+            zTop = zPinch + (rangeB.zTop - zPinch) * smt;
+            zBot = zPinch + (rangeB.zBot - zPinch) * smt;
+          }
+        } else {
+          // Absent in both adjacent BHs
+          zTop = zG; zBot = zG;
+        }
+      }
+
+      // Handle side extensions (left of first BH, right of last BH)
+      if (d < distances[0]) {
+        const range = bhLayerRanges[0];
+        if (range) { zTop = range.zTop; zBot = range.zBot; }
+        else { zTop = zG; zBot = zG; }
+      } else if (d > distances[distances.length - 1]) {
+        const lastIdx = distances.length - 1;
+        const range = bhLayerRanges[lastIdx];
+        if (range) { zTop = range.zTop; zBot = range.zBot; }
+        else { zTop = zG; zBot = zG; }
+      }
+
+      // Strictly clamp layer boundaries to overburden zone [zR, zG]
+      zTop = Math.min(Math.max(zTop, zR), zG);
+      zBot = Math.min(Math.max(zBot, zR), zG);
+      if (zBot > zTop) zBot = zTop;
 
       topCurvePts.push([x, yPos(zTop)]);
       botCurvePts.push([x, yPos(zBot)]);
-      if (!outside && (zTop - zBot) > 0.01) hasArea = true;
+      if (zTop - zBot > 0.01) hasArea = true;
     }
 
     if (hasArea) {
@@ -2601,21 +2600,19 @@ function buildProfileSvg(rows) {
       else if (uUp === 'CL' || uUp === 'CH' || uUp === 'CI' || uUp.includes('CLAY')) patternUrl = 'url(#pat-clay)';
       else if (uUp === 'GM' || uUp === 'GC' || uUp.includes('GRAVEL')) patternUrl = 'url(#pat-gravel)';
 
-      svg += `<!-- Soil Layer: ${info.label} -->
+      svg += `<!-- Stratigraphic Layer: ${info.label} -->
       <path d="${layerD}" fill="${info.color}" stroke="${info.color}" stroke-width="0.5"/>`;
       if (patternUrl) svg += `<path d="${layerD}" fill="${patternUrl}" stroke="none"/>`;
 
       let topContactD = '', inSeg = false;
       for (let s = 0; s <= numSamples; s++) {
-        const d = distMin + (distSpan * s) / numSamples;
-        const inside = d >= dDrawStart && d <= dDrawEnd;
         const thick = Math.abs(topCurvePts[s][1] - botCurvePts[s][1]);
-        if (inside && thick > 0.5) {
+        if (thick > 0.5) {
           topContactD += (inSeg ? ' L' : 'M') + `${topCurvePts[s][0].toFixed(1)},${topCurvePts[s][1].toFixed(1)}`;
           inSeg = true;
         } else { inSeg = false; }
       }
-      if (topContactD) svg += `<path d="${topContactD}" fill="none" stroke="#443322" stroke-width="0.8" opacity="0.55"/>`;
+      if (topContactD) svg += `<path d="${topContactD}" fill="none" stroke="#443322" stroke-width="0.8" opacity="0.5"/>`;
     }
   });
 
