@@ -2969,27 +2969,17 @@ function exportProfileToDXF(customRows) {
 </script>
 
 <script>
+  // Unregister any service worker left over from a previous version of this
+  // page. A stuck/broken SW registration (e.g. a failed cache.addAll() during
+  // install) can cause the browser to hard-fail every request to this origin,
+  // including ERR_CONNECTION_RESET on reload — so we proactively clear it.
   if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-      const swCode = `
-        const CACHE_NAME = 'nbri-borehole-map-v1';
-        const ASSETS = [
-          './', './index.html',
-          'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css',
-          'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js',
-          'https://unpkg.com/papaparse@5.4.1/papaparse.min.js',
-          'https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.9.2/proj4.js',
-          'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap'
-        ];
-        self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE_NAME).then(c => c.addAll(ASSETS)).then(self.skipWaiting())); });
-        self.addEventListener('fetch', e => {
-          if (e.request.url.includes('google.com/spreadsheets')) return;
-          e.respondWith(caches.match(e.request).then(res => res || fetch(e.request)));
-        });
-      `;
-      const blob = new Blob([swCode], {type: 'application/javascript'});
-      navigator.serviceWorker.register(URL.createObjectURL(blob)).catch(err => console.error('SW init failed:', err));
-    });
+    navigator.serviceWorker.getRegistrations().then(regs => {
+      regs.forEach(reg => reg.unregister());
+    }).catch(() => {});
+  }
+  if ('caches' in window) {
+    caches.keys().then(names => { names.forEach(n => caches.delete(n)); }).catch(() => {});
   }
 </script>
 </body>
