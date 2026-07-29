@@ -684,14 +684,7 @@
       <input id="search" type="text" placeholder="Search BH name, lot, package&hellip;" />
     </div>
     
-    <div class="block">
-      <h2>Timeline Slider</h2>
-      <div class="filter-group">
-        <label id="timeline-label">Showing All Dates (Cumulative)</label>
-        <input id="timeline-slider" type="range" min="0" max="100" value="100" style="width:100%; margin-top:6px;" disabled />
-        <button id="timeline-reset-btn" class="kml-btn" style="margin-top:8px; padding:4px 8px; text-align:center; display:none;">Reset Timeline</button>
-      </div>
-    </div>
+
 
     <div class="block">
       <h2>Filters</h2>
@@ -1113,35 +1106,64 @@ function cleanBHKey(key) {
   return (key || '').trim().toUpperCase().replace(/[\s\-_]/g, '');
 }
 
-function fetchBHProfileLog(){
-  Papa.parse(BH_PROFILE_CSV_URL, {
+function parseCsvWithProxy(url, onComplete, onError) {
+  Papa.parse(url, {
     download: true, header: true, skipEmptyLines: true,
     complete: (results) => {
-      const grouped = {};
-      results.data.forEach(raw => {
-        const row = normalizeRow(raw);
-        const pointId = (row['PointID'] || row['Point ID'] || row['BH_ID'] || row['BH ID'] || row['BH Name'] || '').trim();
-        const depth = toNum(row['Depth']);
-        const bottom = toNum(row['Bottom']);
-        const graphic = (row['Graphic'] || '').trim();
-        if (!pointId || depth === null || bottom === null) return;
-
-        const rawKey = pointId;
-        const normKey = cleanBHKey(pointId);
-
-        if (!grouped[rawKey]) grouped[rawKey] = [];
-        grouped[rawKey].push({ depth, bottom, graphic });
-
-        if (normKey && normKey !== rawKey) {
-          if (!grouped[normKey]) grouped[normKey] = [];
-          grouped[normKey].push({ depth, bottom, graphic });
-        }
-      });
-      Object.keys(grouped).forEach(k => grouped[k].sort((a,b) => a.depth - b.depth));
-      profileLayersByBH = grouped;
-      if (allRows && allRows.length) render();
+      if (results.data && results.data.length > 0) {
+        onComplete(results.data);
+      } else {
+        tryProxy();
+      }
     },
-    error: (err) => console.error('Could not load BH Profile log:', err)
+    error: () => tryProxy()
+  });
+
+  function tryProxy() {
+    const proxyUrl = 'https://api.allorigins.win/raw?url=' + encodeURIComponent(url);
+    Papa.parse(proxyUrl, {
+      download: true, header: true, skipEmptyLines: true,
+      complete: (results) => {
+        if (results.data && results.data.length > 0) {
+          onComplete(results.data);
+        } else if (onError) {
+          onError();
+        }
+      },
+      error: () => {
+        if (onError) onError();
+      }
+    });
+  }
+}
+
+function fetchBHProfileLog(){
+  parseCsvWithProxy(BH_PROFILE_CSV_URL, (data) => {
+    const grouped = {};
+    data.forEach(raw => {
+      const row = normalizeRow(raw);
+      const pointId = (row['PointID'] || row['Point ID'] || row['BH_ID'] || row['BH ID'] || row['BH Name'] || '').trim();
+      const depth = toNum(row['Depth']);
+      const bottom = toNum(row['Bottom']);
+      const graphic = (row['Graphic'] || '').trim();
+      if (!pointId || depth === null || bottom === null) return;
+
+      const rawKey = pointId;
+      const normKey = cleanBHKey(pointId);
+
+      if (!grouped[rawKey]) grouped[rawKey] = [];
+      grouped[rawKey].push({ depth, bottom, graphic });
+
+      if (normKey && normKey !== rawKey) {
+        if (!grouped[normKey]) grouped[normKey] = [];
+        grouped[normKey].push({ depth, bottom, graphic });
+      }
+    });
+    Object.keys(grouped).forEach(k => grouped[k].sort((a,b) => a.depth - b.depth));
+    profileLayersByBH = grouped;
+    if (allRows && allRows.length) render();
+  }, () => {
+    console.error('Could not load BH Profile log from primary or proxy URL.');
   });
 }
 
@@ -1512,16 +1534,13 @@ function fetchData(){
   }
   if (SHEET_CSV_URL){
     setStatus('Refreshing from Google Sheet…');
-    Papa.parse(SHEET_CSV_URL, {
-      download: true, header: true, skipEmptyLines: true,
-      complete: (results) => {
-        loadRows(results.data); setStatus('Live — synced ' + new Date().toLocaleTimeString(), 'ok');
-        document.getElementById('dash-updated').textContent = formatDateDMY(new Date()) + ', ' + new Date().toLocaleTimeString();
-      },
-      error: (err) => {
-        console.error(err); setStatus('Could not reach sheet — showing sample data', 'err');
-        Papa.parse(SAMPLE_CSV, { header:true, skipEmptyLines:true, complete: r => loadRows(r.data) });
-      }
+    parseCsvWithProxy(SHEET_CSV_URL, (data) => {
+      loadRows(data);
+      setStatus('Live — synced ' + new Date().toLocaleTimeString(), 'ok');
+      document.getElementById('dash-updated').textContent = formatDateDMY(new Date()) + ', ' + new Date().toLocaleTimeString();
+    }, () => {
+      setStatus('Could not reach sheet — showing sample data', 'err');
+      Papa.parse(SAMPLE_CSV, { header:true, skipEmptyLines:true, complete: r => loadRows(r.data) });
     });
   } else {
     Papa.parse(SAMPLE_CSV, { header:true, skipEmptyLines:true, complete: r => loadRows(r.data) });
@@ -1529,46 +1548,8 @@ function fetchData(){
   }
 }
 
-function initTimelineSlider() {
-  const slider = document.getElementById('timeline-slider');
-  const label = document.getElementById('timeline-label');
-  const resetBtn = document.getElementById('timeline-reset-btn');
-
-  if (progressSeries.length === 0) {
-    label.textContent = "Timeline unavailable (progress sheet not connected yet)";
-    slider.disabled = true;
-    return;
-  }
-  slider.disabled = false;
-  slider.min = 0;
-  slider.max = progressSeries.length - 1;
-  slider.value = progressSeries.length - 1;
-
-  slider.oninput = (e) => {
-    const idx = parseInt(e.target.value, 10);
-    const entry = progressSeries[idx];
-    timelineActiveDate = entry.date;
-    const pctText = (entry.percentage !== null) ? entry.percentage.toFixed(1) + '%' : '';
-    label.innerHTML = `📅 As of <b>${formatDateDMY(entry.date)}</b> — ${entry.cumulative} completed ${pctText ? '(' + pctText + ')' : ''}`;
-    resetBtn.style.display = 'block';
-    render();
-    updateDashboardTimelineOverride(entry);
-  };
-  resetBtn.onclick = () => {
-    timelineActiveDate = null;
-    slider.value = progressSeries.length - 1;
-    label.textContent = "Showing All Dates (Cumulative)";
-    resetBtn.style.display = 'none';
-    render();
-    updateDashboard();
-  };
-}
-
-function updateDashboardTimelineOverride(entry) {
-  document.getElementById('dash-completed').textContent = entry.cumulative;
-  document.getElementById('dash-progress').textContent =
-    (entry.percentage !== null) ? entry.percentage.toFixed(1) + '%' : '—';
-}
+function initTimelineSlider() {}
+function updateDashboardTimelineOverride() {}
 
 document.getElementById('measure-btn').addEventListener('click', function() {
   isMeasuring = !isMeasuring; const panel = document.getElementById('measure-output');
