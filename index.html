@@ -1377,7 +1377,7 @@ function buildBoreholeLogMarkup(levels, layers){
   return `<div class="bh-log-wrap"><div class="bh-log-title">Borehole Log (schematic)</div><div class="bh-log-row">${svg}</div><div class="bh-log-caption">${captionParts}</div>${legendRow}</div>`;
 }
 
-function popupHtml(row){
+function popupHtml(row, rowIdx){
   const levels = computeBHLevels(row);
   const bhName = (row['BH Name'] || '').trim();
   const logDates = bhDatesLookup[bhName] || {};
@@ -1395,7 +1395,7 @@ function popupHtml(row){
   const tableRows = rows.map(([k,v]) => `<tr><td class="k">${k}</td><td>${v}</td></tr>`).join('');
   const pdfUrl = (row['PDF Link'] || row['Log PDF'] || row['Borehole Log'] || '').trim();
   const pdfButton = pdfUrl ? `<a href="${pdfUrl}" target="_blank" rel="noopener" class="pdf-link-btn">&#128196; View / Download Borehole Log</a>` : '';
-  const profileBtn = `<button onclick="toggleProfileSelection('${bhName}')" style="width:100%; margin-top:8px; padding:6px; background:linear-gradient(135deg, var(--accent), var(--accent-2)); color:#fff; border:none; border-radius:4px; font-weight:700; font-size:11px; cursor:pointer; box-shadow:0 1px 3px rgba(0,0,0,0.15);">📐 Add / Remove from 2D Profile</button>`;
+  const profileBtn = `<button onclick="toggleProfileSelection(${rowIdx})" style="width:100%; margin-top:8px; padding:6px; background:linear-gradient(135deg, var(--accent), var(--accent-2)); color:#fff; border:none; border-radius:4px; font-weight:700; font-size:11px; cursor:pointer; box-shadow:0 1px 3px rgba(0,0,0,0.15);">📐 Add / Remove from 2D Profile</button>`;
   const logHtml = buildBoreholeLogMarkup(levels, getBHLayers(row));
   
   return `<div class="popup-title">${bhName} <span class="status-pill" style="background:${colorFor(row['Status'])}">${row['Status'] || 'Planned'}</span></div><table class="popup-table">${tableRows}</table>${pdfButton}${profileBtn}${logHtml}`;
@@ -1436,7 +1436,7 @@ function render(){
   markersLayer.clearLayers(); markers = [];
   let shown = 0; const bounds = []; const labeledPackages = new Set();
   
-  allRows.forEach(row => {
+  allRows.forEach((row, rowIdx) => {
     const status = row['Status'] || '';
     const contractor = row['Contractor Done'] || row['Contractor'] || '';
     const lot = row['Lot'] || ''; const pkg = row['Package'] || ''; const name = row['BH Name'] || '';
@@ -1463,10 +1463,10 @@ function render(){
     const ll = convertToLatLon(e, n); if (!ll) return;
     
     const marker = L.marker([ll.lat, ll.lon], { icon: makeIcon(status, pkg) });
-    marker.bindPopup(popupHtml(row), { maxWidth: 280 });
+    marker.bindPopup(popupHtml(row, rowIdx), { maxWidth: 280 });
     marker.on('click', () => {
       if (profileSelectMode){
-        toggleProfileSelection(name.trim());
+        toggleProfileSelection(rowIdx);
       }
     });
     
@@ -1962,7 +1962,8 @@ document.getElementById('pdf-map-btn').addEventListener('click', exportMapPDF);
    Borehole Profile — 2D Cross-Section (Engineering Geology Engine)
    ============================================================ */
 let profileSelectMode = false;
-let profileSelectedNames = [];
+let profileSelectedIdx = []; // indices into allRows — unique per physical borehole,
+                              // unlike BH Name which can repeat across sections
 
 const profileSelectBtn = document.getElementById('profile-select-btn');
 profileSelectBtn.addEventListener('click', () => {
@@ -1971,12 +1972,12 @@ profileSelectBtn.addEventListener('click', () => {
   profileSelectBtn.textContent = profileSelectMode ? '✅ Click Boreholes Now (tap again to stop)' : '📍 Select Boreholes on Map';
 });
 
-function toggleProfileSelection(bhName){
-  const idx = profileSelectedNames.indexOf(bhName);
+function toggleProfileSelection(rowIdx){
+  const idx = profileSelectedIdx.indexOf(rowIdx);
   if (idx === -1){
-    profileSelectedNames.push(bhName);
+    profileSelectedIdx.push(rowIdx);
   } else {
-    profileSelectedNames.splice(idx, 1);
+    profileSelectedIdx.splice(idx, 1);
   }
   updateProfileChips();
 }
@@ -1984,31 +1985,33 @@ function toggleProfileSelection(bhName){
 function updateProfileChips(){
   const wrap = document.getElementById('profile-selected-list');
   const chipsEl = document.getElementById('profile-chips');
-  if (profileSelectedNames.length === 0){
+  if (profileSelectedIdx.length === 0){
     wrap.style.display = 'none';
     return;
   }
   wrap.style.display = 'block';
-  chipsEl.innerHTML = profileSelectedNames.map((n, i) =>
-    `<span class="profile-chip" data-name="${n}">${i+1}. ${n} &times;</span>`
-  ).join('');
+  chipsEl.innerHTML = profileSelectedIdx.map((rowIdx, i) => {
+    const r = allRows[rowIdx];
+    const n = r ? (r['BH Name'] || '').trim() : '(missing)';
+    return `<span class="profile-chip" data-idx="${rowIdx}">${i+1}. ${n} &times;</span>`;
+  }).join('');
   chipsEl.querySelectorAll('.profile-chip').forEach(chip => {
-    chip.addEventListener('click', () => toggleProfileSelection(chip.getAttribute('data-name')));
+    chip.addEventListener('click', () => toggleProfileSelection(parseInt(chip.getAttribute('data-idx'), 10)));
   });
 }
 
 document.getElementById('profile-clear-btn').addEventListener('click', () => {
-  profileSelectedNames = [];
+  profileSelectedIdx = [];
   updateProfileChips();
 });
 
 document.getElementById('profile-generate-btn').addEventListener('click', () => {
-  if (profileSelectedNames.length < 2){
+  if (profileSelectedIdx.length < 2){
     alert('Select at least 2 boreholes first (click them on the map while "Select Boreholes on Map" is active).');
     return;
   }
-  let rows = profileSelectedNames
-    .map(n => allRows.find(r => (r['BH Name'] || '').trim() === n))
+  let rows = profileSelectedIdx
+    .map(rowIdx => allRows[rowIdx])
     .filter(Boolean);
 
   // AUTO-SORT by geographic position along the section line
@@ -2450,30 +2453,37 @@ function buildProfileSvg(rows) {
 
   const numSamples = Math.max(Math.round(plotW / 2), 160);
 
+  // Build ONE shared sample-distance array, used for every curve (ground, rock,
+  // layer fills, GWT). Crucially it MERGES IN the exact borehole distances, so
+  // every fill polygon passes exactly through the true logged boundary at each
+  // pillar instead of only approaching it via the nearest evenly-spaced sample
+  // — this is what caused thin mismatched slivers right at the BH columns.
+  const sampleDists = (() => {
+    const uniform = [];
+    for (let s = 0; s <= numSamples; s++) uniform.push(distMin + (distSpan * s) / numSamples);
+    const merged = uniform.concat(distances.filter(d => d >= distMin && d <= distMax));
+    merged.sort((a, b) => a - b);
+    // De-duplicate near-identical values (within 1e-6 of the total span)
+    const eps = distSpan * 1e-6;
+    const out = [];
+    merged.forEach(d => {
+      if (out.length === 0 || d - out[out.length - 1] > eps) out.push(d);
+    });
+    return out;
+  })();
+
   // Compute rockhead points array (reused for bedrock polygon and rockhead line)
   const rockPolyPts = [];
-  for (let s = 0; s <= numSamples; s++) {
-    const d = distMin + (distSpan * s) / numSamples;
+  sampleDists.forEach(d => {
     rockPolyPts.push([xPos(d), yPos(getZRock(d))]);
-  }
+  });
   let bedrockD = ptsToCubicBezier(rockPolyPts)
     + ` L${xFrameRight.toFixed(1)},${axisY.toFixed(1)} L${xFrameLeft.toFixed(1)},${axisY.toFixed(1)} Z`;
 
   // STEP A: Paint overburden base matrix fill (entire soil zone, base colour = first soil unit)
-  const soilBasePts = [];
-  for (let s = 0; s <= numSamples; s++) {
-    const d = distMin + (distSpan * s) / numSamples;
-    soilBasePts.push([xPos(d), yPos(getZGround(d))]);
-  }
-  for (let s = numSamples; s >= 0; s--) {
-    const d = distMin + (distSpan * s) / numSamples;
-    soilBasePts.push([xPos(d), yPos(getZRock(d))]);
-  }
-  // soilBasePts = [ground curve forward] + [rock curve reversed]
-  // Split and smooth each half separately so the Bézier stays within overburden
-  const _sbTop = soilBasePts.slice(0, numSamples + 1);
-  const _sbBot = soilBasePts.slice(numSamples + 1);
-  const soilBaseD = closedLayerPath(_sbTop, _sbBot.slice().reverse());
+  const soilBaseTopPts = sampleDists.map(d => [xPos(d), yPos(getZGround(d))]);
+  const soilBaseBotPts = sampleDists.map(d => [xPos(d), yPos(getZRock(d))]);
+  const soilBaseD = closedLayerPath(soilBaseTopPts, soilBaseBotPts);
   const baseSoilColor = (masterSoilUnits.length && getGraphicInfo(masterSoilUnits[0]).color) ? getGraphicInfo(masterSoilUnits[0]).color : '#c9a876';
   svg += `<!-- A: Overburden Base Fill -->
   <path d="${soilBaseD}" fill="${baseSoilColor}" stroke="none"/>`;
@@ -2513,8 +2523,7 @@ function buildProfileSvg(rows) {
     const botCurvePts = [];
     let hasArea = false;
 
-    for (let s = 0; s <= numSamples; s++) {
-      const d = distMin + (distSpan * s) / numSamples;
+    sampleDists.forEach(d => {
       const x = xPos(d);
       const zG = getZGround(d);
       const zR = getZRock(d);
@@ -2545,7 +2554,7 @@ function buildProfileSvg(rows) {
       topCurvePts.push([x, yPos(zTop)]);
       botCurvePts.push([x, yPos(zBot)]);
       if (zTop - zBot > 0.01) hasArea = true;
-    }
+    });
 
     if (hasArea) {
       const layerD = closedLayerPath(topCurvePts, botCurvePts);
@@ -2585,12 +2594,11 @@ function buildProfileSvg(rows) {
   // 4. RENDER GROUNDWATER TABLE LINE (full width, terrain-following, strictly below ground)
   if (gwDepthPts.length >= 1) {
     const gwCurvePts = [];
-    for (let s = 0; s <= numSamples; s++) {
-      const d = distMin + (distSpan * s) / numSamples;
+    sampleDists.forEach(d => {
       const x = xPos(d);
       const zGw = getZWater(d);
       if (zGw !== null) gwCurvePts.push([x, yPos(zGw)]);
-    }
+    });
     if (gwCurvePts.length >= 2) {
       svg += `<!-- Groundwater Table Line -->
       <path d="${ptsToCubicBezier(gwCurvePts)}" fill="none" stroke="#1e6fd9" stroke-width="2.0" stroke-dasharray="5,3"/>`;
@@ -2606,13 +2614,7 @@ function buildProfileSvg(rows) {
   }
 
   // 5. RENDER GROUND SURFACE SMOOTH LINE (full width including side extensions)
-  const groundPolyPts = [];
-  for (let s = 0; s <= numSamples; s++) {
-    const d = distMin + (distSpan * s) / numSamples;
-    const x = xPos(d);
-    const zG = getZGround(d);
-    groundPolyPts.push([x, yPos(zG)]);
-  }
+  const groundPolyPts = sampleDists.map(d => [xPos(d), yPos(getZGround(d))]);
   svg += `<!-- Ground Surface Smooth Profile -->
   <path d="${ptsToCubicBezier(groundPolyPts)}" fill="none" stroke="#2f6f5e" stroke-width="2.8"/>`;
 
@@ -2883,8 +2885,8 @@ function exportProfileToDXF(customRows) {
     rows = currentProfileRows;
   }
   if (!rows || !rows.length) {
-    if (profileSelectedBHs && profileSelectedBHs.length >= 2) {
-      rows = profileSelectedBHs.map(name => allRows.find(r => (r['BH Name']||'').trim() === name)).filter(Boolean);
+    if (profileSelectedIdx && profileSelectedIdx.length >= 2) {
+      rows = profileSelectedIdx.map(rowIdx => allRows[rowIdx]).filter(Boolean);
     }
   }
   if (!rows || rows.length < 2) {
