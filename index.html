@@ -2502,28 +2502,28 @@ function buildProfileSvg(rows) {
           zTop = rangeA.zTop + (rangeB.zTop - rangeA.zTop) * smt;
           zBot = rangeA.zBot + (rangeB.zBot - rangeA.zBot) * smt;
         } else if (rangeA && !rangeB) {
-          // Present at A, pinches out in middle towards B
+          // Present at A, pinches out towards B — layer wedges UP to ground surface at midpoint
           const dMid = (dA + dB) / 2;
           if (d >= dMid) {
-            zTop = zG; zBot = zG;
+            zTop = zG; zBot = zG; // fully pinched out
           } else {
             const t = (d - dA) / (dMid - dA);
-            const smt = 3*t*t - 2*t*t*t;
-            const zPinch = (rangeA.zTop + rangeA.zBot) / 2;
-            zTop = rangeA.zTop + (zPinch - rangeA.zTop) * smt;
-            zBot = rangeA.zBot + (zPinch - rangeA.zBot) * smt;
+            const smt = 3*t*t - 2*t*t*t; // smoothstep
+            // Pinch point = ground surface (layer tapers upward to surface, geologically correct)
+            zTop = rangeA.zTop + (zG - rangeA.zTop) * smt;
+            zBot = rangeA.zBot + (zG - rangeA.zBot) * smt;
           }
         } else if (!rangeA && rangeB) {
-          // Pinch out from middle towards B
+          // Emerges from ground surface, widening towards B
           const dMid = (dA + dB) / 2;
           if (d <= dMid) {
-            zTop = zG; zBot = zG;
+            zTop = zG; zBot = zG; // not yet present
           } else {
             const t = (d - dMid) / (dB - dMid);
             const smt = 3*t*t - 2*t*t*t;
-            const zPinch = (rangeB.zTop + rangeB.zBot) / 2;
-            zTop = zPinch + (rangeB.zTop - zPinch) * smt;
-            zBot = zPinch + (rangeB.zBot - zPinch) * smt;
+            // Emerge from ground surface (symmetric to pinch-out above)
+            zTop = zG + (rangeB.zTop - zG) * smt;
+            zBot = zG + (rangeB.zBot - zG) * smt;
           }
         } else {
           // Absent in both adjacent BHs
@@ -2569,15 +2569,19 @@ function buildProfileSvg(rows) {
       <path d="${layerD}" fill="${info.color}" stroke="${info.color}" stroke-width="0.5"/>`;
       if (patternUrl) svg += `<path d="${layerD}" fill="${patternUrl}" stroke="none"/>`;
 
+      // Draw top contact line only where layer has meaningful thickness (>= 2px)
+      // This prevents hairline artifact lines after the layer has pinched out
       let topContactD = '', inSeg = false;
       for (let s = 0; s <= numSamples; s++) {
         const thick = Math.abs(topCurvePts[s][1] - botCurvePts[s][1]);
-        if (thick > 0.5) {
+        if (thick >= 2.0) {
           topContactD += (inSeg ? ' L' : 'M') + `${topCurvePts[s][0].toFixed(1)},${topCurvePts[s][1].toFixed(1)}`;
           inSeg = true;
-        } else { inSeg = false; }
+        } else {
+          inSeg = false; // Break segment — no trailing ghost line after pinch
+        }
       }
-      if (topContactD) svg += `<path d="${topContactD}" fill="none" stroke="#443322" stroke-width="0.8" opacity="0.5"/>`;
+      if (topContactD) svg += `<path d="${topContactD}" fill="none" stroke="#554433" stroke-width="0.7" opacity="0.35"/>`;
     }
   });
 
@@ -2656,25 +2660,27 @@ function buildProfileSvg(rows) {
         const yTop = yPos(zG - l.depth);
         const yBot = yPos(zG - l.bottom);
         const h = Math.max(yBot - yTop, 0.4);
-        svg += `<rect x="${(x - colW / 2).toFixed(1)}" y="${yTop.toFixed(1)}" width="${colW.toFixed(1)}" height="${h.toFixed(1)}" fill="${info.color}" stroke="#333333" stroke-width="0.6"/>`;
+        // Lighter border: #909090 (medium ash grey) instead of near-black #333333
+        svg += `<rect x="${(x - colW / 2).toFixed(1)}" y="${yTop.toFixed(1)}" width="${colW.toFixed(1)}" height="${h.toFixed(1)}" fill="${info.color}" stroke="#909090" stroke-width="0.5"/>`;
         if (info.isRock) {
           for (let hy = yTop; hy < yBot; hy += 7) {
-            svg += `<line x1="${(x - colW / 2).toFixed(1)}" y1="${hy.toFixed(1)}" x2="${(x + colW / 2).toFixed(1)}" y2="${hy.toFixed(1)}" stroke="#333" stroke-width="0.4" opacity="0.5"/>`;
+            svg += `<line x1="${(x - colW / 2).toFixed(1)}" y1="${hy.toFixed(1)}" x2="${(x + colW / 2).toFixed(1)}" y2="${hy.toFixed(1)}" stroke="#999" stroke-width="0.4" opacity="0.4"/>`;
           }
         }
       });
     } else {
       const zR = effectiveRockLevel[i] !== null ? effectiveRockLevel[i] : zG - 5;
       const yR = yPos(zR);
-      svg += `<rect x="${(x - colW / 2).toFixed(1)}" y="${yG.toFixed(1)}" width="${colW.toFixed(1)}" height="${Math.max(yR - yG, 0).toFixed(1)}" fill="#c9a876" stroke="#333" stroke-width="0.6"/>`;
+      svg += `<rect x="${(x - colW / 2).toFixed(1)}" y="${yG.toFixed(1)}" width="${colW.toFixed(1)}" height="${Math.max(yR - yG, 0).toFixed(1)}" fill="#c9a876" stroke="#909090" stroke-width="0.5"/>`;
       if (yTerm > yR) {
-        svg += `<rect x="${(x - colW / 2).toFixed(1)}" y="${yR.toFixed(1)}" width="${colW.toFixed(1)}" height="${(yTerm - yR).toFixed(1)}" fill="#8f8f95" stroke="#333" stroke-width="0.6"/>`;
+        svg += `<rect x="${(x - colW / 2).toFixed(1)}" y="${yR.toFixed(1)}" width="${colW.toFixed(1)}" height="${(yTerm - yR).toFixed(1)}" fill="#8f8f95" stroke="#909090" stroke-width="0.5"/>`;
       }
     }
 
-    svg += `<rect x="${(x - colW / 2).toFixed(1)}" y="${yG.toFixed(1)}" width="${colW.toFixed(1)}" height="${(yTerm - yG).toFixed(1)}" fill="none" stroke="#111111" stroke-width="1.2"/>`;
+    // Outer pillar outline: lighter ash grey #666666 (was near-black #111111)
+    svg += `<rect x="${(x - colW / 2).toFixed(1)}" y="${yG.toFixed(1)}" width="${colW.toFixed(1)}" height="${(yTerm - yG).toFixed(1)}" fill="none" stroke="#666666" stroke-width="1.0"/>`;
 
-    svg += `<line x1="${x.toFixed(1)}" y1="${(yG - 26).toFixed(1)}" x2="${x.toFixed(1)}" y2="${yG.toFixed(1)}" stroke="#6b6459" stroke-width="1" stroke-dasharray="2,2"/>`;
+    svg += `<line x1="${x.toFixed(1)}" y1="${(yG - 26).toFixed(1)}" x2="${x.toFixed(1)}" y2="${yG.toFixed(1)}" stroke="#8a8478" stroke-width="0.8" stroke-dasharray="2,2"/>`;
 
     const nameW = bhName.length * 6.4 + 14;
     const glText = `GL ${zG.toFixed(1)}m`;
