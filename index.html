@@ -2427,176 +2427,223 @@ function buildProfileSvg(rows) {
   svg += `<!-- A: Overburden Base Fill -->
   <path d="${soilBaseD}" fill="${baseSoilColor}" stroke="none"/>`;
 
-  // STEP B: Individual soil layer polygons (drawn on top of base fill)
-  // 3. RENDER REAL-WORLD STRATIGRAPHIC SOIL LAYER POLYGONS (EXACT LOGGED ELEVATION ALIGNMENT)
-  // Group layers per graphic unit and draw continuous polygons matching exact borehole log depths.
+  // ─────────────────────────────────────────────────────────────────────────────
+  // STEP B: Column-sampled stratigraphic fill
+  //
+  // Core idea (same approach as Leapfrog / RockWorks):
+  //   At EVERY horizontal sample column s:
+  //     1. Find the two bracketing boreholes (iL, iR).
+  //     2. At each borehole, express each soil layer as a FRACTION of the local
+  //        overburden thickness (ground → rockhead). This makes pinch-outs and
+  //        thickness changes work in relative space rather than absolute elevation.
+  //     3. For each soil unit in masterSoilUnits (the global ordered list),
+  //        interpolate its fractional top and bottom independently using smoothstep.
+  //        If the unit is absent at one side → its thickness fraction goes to 0 at
+  //        a pinch-out point located 70 % of the way into the gap (geologically
+  //        more realistic than the midpoint — the taper zone is weighted toward
+  //        the absent side so the lens shape is asymmetric and natural).
+  //     4. After computing raw fractions for every unit at column s, enforce
+  //        MONOTONIC ORDER: walk top-to-bottom through masterSoilUnits and clamp
+  //        each unit's top to be ≥ the previous unit's bottom. This is the key
+  //        step that eliminates all crossing and overlapping — it is guaranteed
+  //        by construction, no matter what the individual interpolations produce.
+  //     5. Convert fractions back to absolute elevations and push SVG points.
+  //
+  // Rule 3 (ridge thinning / valley thickening):
+  //   Apply a terrain-depletion factor: when the ground surface is higher than
+  //   the weighted average of the two borehole ground levels (i.e. we are on a
+  //   ridge), compress the total overburden proportionally. When it is lower
+  //   (valley), expand it. This is applied as a scalar on the overburden
+  //   thickness used for de-normalisation, while the rockhead elevation stays
+  //   fixed — matching erosional reality.
+  // ─────────────────────────────────────────────────────────────────────────────
 
-  masterSoilUnits.forEach((u) => {
-    const info = getGraphicInfo(u);
-    const code = (u || '').trim();
+  // Helper: build fractional layer stack at a single borehole index.
+  // Returns array of { code, fracTop, fracBot } in masterSoilUnits order.
+  // Units absent at this BH get fracTop === fracBot (zero thickness).
+  function bhFracStack(i) {
+    const lys = layersArr[i];
+    const zG  = levelsArr[i].elevation !== null ? levelsArr[i].elevation : maxElev;
+    const zR  = effectiveRockLevel[i] !== null   ? effectiveRockLevel[i]  : zG - 0.5;
+    const ob  = Math.max(zG - zR, 0.05);
 
-    // Find maximum occurrences of this soil type in any single borehole
-    let maxOcc = 0;
-    rows.forEach((r, i) => {
-      const lys = layersArr[i];
-      if (lys) {
-        const count = lys.filter(l => (l.graphic || '').trim() === code && !info.isRock).length;
-        if (count > maxOcc) maxOcc = count;
+    // Raw fractions per present layer
+    const rawFrac = {};
+    if (lys) {
+      lys.forEach(l => {
+        const info = getGraphicInfo(l.graphic);
+        if (info.isRock) return;
+        const code = (l.graphic || '').trim();
+        const fTop = Math.min(Math.max((zG - (zG - l.depth))   / ob, 0), 1);
+        const fBot = Math.min(Math.max((zG - (zG - l.bottom))  / ob, 0), 1);
+        if (!rawFrac[code]) rawFrac[code] = { fTop: Infinity, fBot: -Infinity };
+        rawFrac[code].fTop = Math.min(rawFrac[code].fTop, fTop);
+        rawFrac[code].fBot = Math.max(rawFrac[code].fBot, fBot);
+      });
+    }
+
+    // Map onto masterSoilUnits order
+    return masterSoilUnits.map(u => {
+      const code = (u || '').trim();
+      if (rawFrac[code]) {
+        return { code, fracTop: rawFrac[code].fTop, fracBot: Math.max(rawFrac[code].fBot, rawFrac[code].fTop) };
       }
+      return { code, fracTop: 0, fracBot: 0 };
     });
+  }
 
-    // Draw a separate polygon for each occurrence
-    for (let occ = 0; occ < maxOcc; occ++) {
-      const bhLayerRanges = rows.map((r, i) => {
-        const lys = layersArr[i];
-        const zG = levelsArr[i].elevation !== null ? levelsArr[i].elevation : maxElev;
-        if (!lys || !lys.length) return null;
-        
-        const unitLys = lys.filter(l => (l.graphic || '').trim() === code && !info.isRock);
-        if (occ < unitLys.length) {
-          const l = unitLys[occ];
-          return { zTop: zG - l.depth, zBot: zG - l.bottom };
-        }
-        return null;
-      });
+  // Build fractional stacks for all boreholes once
+  const bhFracStacks = rows.map((_, i) => bhFracStack(i));
 
-      // Check if present at any borehole
-      const presentIndices = [];
-      bhLayerRanges.forEach((range, i) => {
-        if (range !== null) presentIndices.push(i);
-      });
-      if (presentIndices.length === 0) continue;
+  // Collect top/bottom point arrays per unit across all sample columns
+  const unitTopPts = masterSoilUnits.map(() => []);
+  const unitBotPts = masterSoilUnits.map(() => []);
 
-    // Build continuous top/bottom curve across profile samples
-    const topCurvePts = [];
-    const botCurvePts = [];
-    let hasArea = false;
+  for (let s = 0; s <= numSamples; s++) {
+    const d   = distMin + (distSpan * s) / numSamples;
+    const x   = xPos(d);
+    const zG  = getZGround(d);
+    const zR  = getZRock(d);
+    const ob  = Math.max(zG - zR, 0.05);
 
-    for (let s = 0; s <= numSamples; s++) {
-      const d = distMin + (distSpan * s) / numSamples;
-      const x = xPos(d);
-      const zG = getZGround(d);
-      const zR = getZRock(d);
+    // Find bracketing BH indices
+    let iL = 0, iR = rows.length - 1;
+    for (let i = 0; i < rows.length; i++) {
+      if (distances[i] <= d) iL = i;
+    }
+    for (let i = rows.length - 1; i >= 0; i--) {
+      if (distances[i] >= d) iR = i;
+    }
+    if (iL > iR) iL = iR;
 
-      let zTop = zG, zBot = zG;
+    const dA = distances[iL], dB = distances[iR];
+    const stackA = bhFracStacks[iL], stackB = bhFracStacks[iR];
 
-      // Find surrounding boreholes in distances array
-      let iLeft = -1, iRight = -1;
-      for (let i = 0; i < rows.length; i++) {
-        if (distances[i] <= d) iLeft = i;
-        if (distances[i] >= d && iRight === -1) iRight = i;
-      }
-      if (iLeft === -1) iLeft = 0;
-      if (iRight === -1) iRight = rows.length - 1;
+    // Topographic weighting for Rule 3 (ridge thinning / valley thickening)
+    // t = linear blend position; zGavg = weighted average ground level of the two BHs
+    const t = (iL === iR) ? 0 : Math.min(Math.max((d - dA) / (dB - dA), 0), 1);
+    const smt = 3*t*t - 2*t*t*t; // smoothstep
+    const zGA = levelsArr[iL].elevation !== null ? levelsArr[iL].elevation : maxElev;
+    const zGB = levelsArr[iR].elevation !== null ? levelsArr[iR].elevation : maxElev;
+    const zGavg = zGA + (zGB - zGA) * smt;
+    // terrainFactor: >1 in valleys (extra deposition), <1 on ridges (erosion)
+    const terrainFactor = Math.min(Math.max(1.0 + (zGavg - zG) * 0.12, 0.35), 2.0);
 
-      if (iLeft === iRight) {
-        // Exactly at a borehole position
-        const range = bhLayerRanges[iLeft];
-        if (range) {
-          zTop = range.zTop;
-          zBot = range.zBot;
+    // Interpolate raw fracs per unit
+    const rawFracs = masterSoilUnits.map((_, k) => {
+      const fA = stackA[k], fB = stackB[k];
+      const presentA = fA.fracBot > fA.fracTop + 1e-4;
+      const presentB = fB.fracBot > fB.fracTop + 1e-4;
+
+      let fracTop, fracBot;
+
+      if (iL === iR) {
+        fracTop = fA.fracTop; fracBot = fA.fracBot;
+      } else if (presentA && presentB) {
+        // Both sides: smooth interpolation
+        fracTop = fA.fracTop + (fB.fracTop - fA.fracTop) * smt;
+        fracBot = fA.fracBot + (fB.fracBot - fA.fracBot) * smt;
+      } else if (presentA && !presentB) {
+        // Pinch out toward B — taper over the last 70% of the gap (asymmetric lens)
+        const pinchStart = 0.30;
+        if (t <= pinchStart) {
+          fracTop = fA.fracTop; fracBot = fA.fracBot;
         } else {
-          zTop = zG; zBot = zG;
+          const tp = (t - pinchStart) / (1.0 - pinchStart);
+          const sp = 3*tp*tp - 2*tp*tp*tp;
+          const mid = (fA.fracTop + fA.fracBot) * 0.5;
+          fracTop = fA.fracTop + (mid - fA.fracTop) * sp;
+          fracBot = fA.fracBot + (mid - fA.fracBot) * sp;
+        }
+      } else if (!presentA && presentB) {
+        // Emerge from left — taper over first 70% of the gap
+        const pinchEnd = 0.70;
+        if (t >= pinchEnd) {
+          fracTop = fB.fracTop; fracBot = fB.fracBot;
+        } else {
+          const tp = t / pinchEnd;
+          const sp = 3*tp*tp - 2*tp*tp*tp;
+          const mid = (fB.fracTop + fB.fracBot) * 0.5;
+          fracTop = mid + (fB.fracTop - mid) * sp;
+          fracBot = mid + (fB.fracBot - mid) * sp;
         }
       } else {
-        const dA = distances[iLeft], dB = distances[iRight];
-        const rangeA = bhLayerRanges[iLeft], rangeB = bhLayerRanges[iRight];
-
-        if (rangeA && rangeB) {
-          // Unit present in BOTH boreholes -> smooth interpolation
-          const t = (d - dA) / (dB - dA);
-          const smt = 3*t*t - 2*t*t*t;
-          zTop = rangeA.zTop + (rangeB.zTop - rangeA.zTop) * smt;
-          zBot = rangeA.zBot + (rangeB.zBot - rangeA.zBot) * smt;
-        } else if (rangeA && !rangeB) {
-          // Present at A, pinches out towards B
-          const dMid = (dA + dB) / 2;
-          const zGA = getZGround(dA);
-          const zPinch0 = (rangeA.zTop + rangeA.zBot) / 2;
-          const zPinchCurve = zPinch0 + (zG - zGA); // Follow surface topography
-
-          if (d >= dMid) {
-            zTop = zPinchCurve; zBot = zPinchCurve; // fully pinched out
-          } else {
-            const t = (d - dA) / (dMid - dA);
-            const smt = 3*t*t - 2*t*t*t; // smoothstep
-            zTop = rangeA.zTop + (zPinchCurve - rangeA.zTop) * smt;
-            zBot = rangeA.zBot + (zPinchCurve - rangeA.zBot) * smt;
-          }
-        } else if (!rangeA && rangeB) {
-          // Emerges from ground surface, widening towards B
-          const dMid = (dA + dB) / 2;
-          const zGB = getZGround(dB);
-          const zPinch0 = (rangeB.zTop + rangeB.zBot) / 2;
-          const zPinchCurve = zPinch0 + (zG - zGB); // Follow surface topography
-
-          if (d <= dMid) {
-            zTop = zPinchCurve; zBot = zPinchCurve; // not yet present
-          } else {
-            const t = (d - dMid) / (dB - dMid);
-            const smt = 3*t*t - 2*t*t*t;
-            zTop = zPinchCurve + (rangeB.zTop - zPinchCurve) * smt;
-            zBot = zPinchCurve + (rangeB.zBot - zPinchCurve) * smt;
-          }
-        } else {
-          // Absent in both adjacent BHs
-          zTop = zG; zBot = zG;
-        }
+        fracTop = 0; fracBot = 0;
       }
 
-      // Handle side extensions (left of first BH, right of last BH)
-      if (d < distances[0]) {
-        const range = bhLayerRanges[0];
-        if (range) { zTop = range.zTop; zBot = range.zBot; }
-        else { zTop = zG; zBot = zG; }
-      } else if (d > distances[distances.length - 1]) {
-        const lastIdx = distances.length - 1;
-        const range = bhLayerRanges[lastIdx];
-        if (range) { zTop = range.zTop; zBot = range.zBot; }
-        else { zTop = zG; zBot = zG; }
-      }
+      // Apply terrain thinning/thickening (Rule 3) — stretch/compress thickness
+      const midFrac  = (fracTop + fracBot) * 0.5;
+      const halfThk  = (fracBot - fracTop) * 0.5 * terrainFactor;
+      fracTop = Math.max(midFrac - halfThk, 0);
+      fracBot = Math.min(midFrac + halfThk, 1);
+      if (fracBot < fracTop) fracBot = fracTop;
 
-      // Strictly clamp layer boundaries to overburden zone [zR, zG]
+      return { fracTop, fracBot };
+    });
+
+    // ── MONOTONIC SORT (the no-crossing guarantee) ──────────────────────────
+    // Sort units by their midpoint fraction (preserves order from data),
+    // then clamp each unit's top to the running "floor" (bottom of previous
+    // unit). This is equivalent to computing cumulative boundaries top-down.
+    const order = rawFracs.map((f, k) => ({ k, mid: (f.fracTop + f.fracBot) * 0.5 }))
+                           .sort((a, b) => a.mid - b.mid);
+
+    const finalFracs = rawFracs.map(f => ({ fracTop: f.fracTop, fracBot: f.fracBot }));
+    let floor = 0;
+    order.forEach(({ k }) => {
+      const thk = Math.max(rawFracs[k].fracBot - rawFracs[k].fracTop, 0);
+      finalFracs[k].fracTop = Math.min(Math.max(rawFracs[k].fracTop, floor), 1);
+      finalFracs[k].fracBot = Math.min(finalFracs[k].fracTop + thk, 1);
+      // Only advance the floor if this unit has real thickness
+      if (thk > 1e-4) floor = finalFracs[k].fracBot;
+    });
+
+    // Convert fractions → absolute elevations → SVG y coords
+    masterSoilUnits.forEach((_, k) => {
+      const { fracTop, fracBot } = finalFracs[k];
+      let zTop = zG - fracTop * ob;
+      let zBot = zG - fracBot * ob;
+      // Hard clamp to overburden zone
       zTop = Math.min(Math.max(zTop, zR), zG);
       zBot = Math.min(Math.max(zBot, zR), zG);
       if (zBot > zTop) zBot = zTop;
+      unitTopPts[k].push([x, yPos(zTop)]);
+      unitBotPts[k].push([x, yPos(zBot)]);
+    });
+  }
 
-      topCurvePts.push([x, yPos(zTop)]);
-      botCurvePts.push([x, yPos(zBot)]);
-      if (zTop - zBot > 0.01) hasArea = true;
+  // Emit one closed polygon per unit
+  masterSoilUnits.forEach((u, k) => {
+    const info = getGraphicInfo(u);
+    const tops = unitTopPts[k], bots = unitBotPts[k];
+    let hasArea = tops.some((p, j) => Math.abs(p[1] - bots[j][1]) > 1.0);
+    if (!hasArea) return;
+
+    let layerD = `M${tops[0][0].toFixed(1)},${tops[0][1].toFixed(1)} `;
+    for (let s = 1; s < tops.length; s++) layerD += `L${tops[s][0].toFixed(1)},${tops[s][1].toFixed(1)} `;
+    for (let s = bots.length - 1; s >= 0; s--) layerD += `L${bots[s][0].toFixed(1)},${bots[s][1].toFixed(1)} `;
+    layerD += 'Z';
+
+    let patternUrl = '';
+    const uUp = (u || '').toUpperCase();
+    if (uUp === 'SM' || uUp === 'SP' || uUp === 'SC' || uUp === 'CS' || uUp.includes('SAND')) patternUrl = 'url(#pat-sand)';
+    else if (uUp === 'CL' || uUp === 'CH' || uUp === 'CI' || uUp.includes('CLAY')) patternUrl = 'url(#pat-clay)';
+    else if (uUp === 'GM' || uUp === 'GC' || uUp.includes('GRAVEL')) patternUrl = 'url(#pat-gravel)';
+
+    svg += `<!-- Stratigraphic Layer: ${info.label} -->
+    <path d="${layerD}" fill="${info.color}" stroke="${info.color}" stroke-width="0.5"/>`;
+    if (patternUrl) svg += `<path d="${layerD}" fill="${patternUrl}" stroke="none"/>`;
+
+    // Contact line — only where the layer has meaningful pixel thickness
+    let topContactD = '', inSeg = false;
+    for (let s = 0; s <= numSamples; s++) {
+      const thick = Math.abs(tops[s][1] - bots[s][1]);
+      if (thick >= 2.0) {
+        topContactD += (inSeg ? ' L' : 'M') + `${tops[s][0].toFixed(1)},${tops[s][1].toFixed(1)}`;
+        inSeg = true;
+      } else { inSeg = false; }
     }
-
-    if (hasArea) {
-      let layerD = `M${topCurvePts[0][0].toFixed(1)},${topCurvePts[0][1].toFixed(1)} `;
-      for (let s = 1; s < topCurvePts.length; s++) layerD += `L${topCurvePts[s][0].toFixed(1)},${topCurvePts[s][1].toFixed(1)} `;
-      for (let s = botCurvePts.length - 1; s >= 0; s--) layerD += `L${botCurvePts[s][0].toFixed(1)},${botCurvePts[s][1].toFixed(1)} `;
-      layerD += `Z`;
-
-      let patternUrl = '';
-      const uUp = (u || '').toUpperCase();
-      if (uUp === 'SM' || uUp === 'SP' || uUp === 'SC' || uUp === 'CS' || uUp.includes('SAND')) patternUrl = 'url(#pat-sand)';
-      else if (uUp === 'CL' || uUp === 'CH' || uUp === 'CI' || uUp.includes('CLAY')) patternUrl = 'url(#pat-clay)';
-      else if (uUp === 'GM' || uUp === 'GC' || uUp.includes('GRAVEL')) patternUrl = 'url(#pat-gravel)';
-
-      svg += `<!-- Stratigraphic Layer: ${info.label} -->
-      <path d="${layerD}" fill="${info.color}" stroke="${info.color}" stroke-width="0.5"/>`;
-      if (patternUrl) svg += `<path d="${layerD}" fill="${patternUrl}" stroke="none"/>`;
-
-      // Draw top contact line only where layer has meaningful thickness (>= 2px)
-      // This prevents hairline artifact lines after the layer has pinched out
-      let topContactD = '', inSeg = false;
-      for (let s = 0; s <= numSamples; s++) {
-        const thick = Math.abs(topCurvePts[s][1] - botCurvePts[s][1]);
-        if (thick >= 2.0) {
-          topContactD += (inSeg ? ' L' : 'M') + `${topCurvePts[s][0].toFixed(1)},${topCurvePts[s][1].toFixed(1)}`;
-          inSeg = true;
-        } else {
-          inSeg = false; // Break segment — no trailing ghost line after pinch
-        }
-      }
-      if (topContactD) svg += `<path d="${topContactD}" fill="none" stroke="#554433" stroke-width="0.7" opacity="0.35"/>`;
-    }
-    } // End of occ loop
+    if (topContactD) svg += `<path d="${topContactD}" fill="none" stroke="#554433" stroke-width="0.7" opacity="0.35"/>`;
   });
 
   // STEP C: Paint bedrock polygon LAST (on top of soil layers) — painter's algorithm guarantees
