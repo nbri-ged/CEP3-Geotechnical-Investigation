@@ -2393,27 +2393,27 @@ function buildProfileSvg(rows) {
     svg += `<text x="${x.toFixed(1)}" y="${(axisY + 17).toFixed(1)}" font-size="9" fill="#6b6459" font-weight="500" text-anchor="middle">${Math.round(d)}</text>`;
   }
 
-  // 1. RENDER CONTINUOUS BEDROCK POLYGON (extends across full plot including side extensions)
+  // RENDERING ORDER (Geologically correct, back-to-front painter's algorithm):
+  // Step A: Overburden base fill (ground surface down to rockhead) — fills the entire soil zone
+  // Step B: Individual soil layer polygons — paint on top with correct unit colours
+  // Step C: Bedrock polygon — painted LAST, covers anything below rockhead
+  // Step D: Rockhead dashed line + GWT line + BH pillars (drawn after bedrock)
+
   const numSamples = Math.max(Math.round(plotW / 2), 160);
+
+  // Compute rockhead points array (reused for bedrock polygon and rockhead line)
   const rockPolyPts = [];
   for (let s = 0; s <= numSamples; s++) {
     const d = distMin + (distSpan * s) / numSamples;
-    const x = xPos(d);
-    const zR = getZRock(d);
-    rockPolyPts.push([x, yPos(zR)]);
+    rockPolyPts.push([xPos(d), yPos(getZRock(d))]);
   }
-
   let bedrockD = `M${rockPolyPts[0][0].toFixed(1)},${rockPolyPts[0][1].toFixed(1)} `;
   for (let s = 1; s < rockPolyPts.length; s++) {
     bedrockD += `L${rockPolyPts[s][0].toFixed(1)},${rockPolyPts[s][1].toFixed(1)} `;
   }
   bedrockD += `L${xFrameRight.toFixed(1)},${axisY.toFixed(1)} L${xFrameLeft.toFixed(1)},${axisY.toFixed(1)} Z`;
 
-  svg += `<!-- Bedrock Solid Polygon -->
-  <path d="${bedrockD}" fill="${bedrockColor}" stroke="none"/>
-  <path d="${bedrockD}" fill="url(#pat-bedrock)" stroke="none"/>`;
-
-  // 1. RENDER CONTINUOUS OVERBURDEN BASE MATRIX FILL (ZERO WHITE SPACE GUARANTEED)
+  // STEP A: Paint overburden base matrix fill (entire soil zone, base colour = first soil unit)
   const soilBasePts = [];
   for (let s = 0; s <= numSamples; s++) {
     const d = distMin + (distSpan * s) / numSamples;
@@ -2428,27 +2428,11 @@ function buildProfileSvg(rows) {
     soilBaseD += `L${soilBasePts[s][0].toFixed(1)},${soilBasePts[s][1].toFixed(1)} `;
   }
   soilBaseD += 'Z';
-
   const baseSoilColor = (masterSoilUnits.length && getGraphicInfo(masterSoilUnits[0]).color) ? getGraphicInfo(masterSoilUnits[0]).color : '#c9a876';
-  svg += `<!-- Base Continuous Soil Overburden Fill -->
+  svg += `<!-- A: Overburden Base Fill -->
   <path d="${soilBaseD}" fill="${baseSoilColor}" stroke="none"/>`;
 
-  // 2. RENDER SOLID BEDROCK MASS BELOW Z_R(x)
-  const rockPolyPts = [];
-  for (let s = 0; s <= numSamples; s++) {
-    const d = distMin + (distSpan * s) / numSamples;
-    rockPolyPts.push([xPos(d), yPos(getZRock(d))]);
-  }
-  let bedrockD = `M${rockPolyPts[0][0].toFixed(1)},${rockPolyPts[0][1].toFixed(1)} `;
-  for (let s = 1; s < rockPolyPts.length; s++) {
-    bedrockD += `L${rockPolyPts[s][0].toFixed(1)},${rockPolyPts[s][1].toFixed(1)} `;
-  }
-  bedrockD += `L${xFrameRight.toFixed(1)},${axisY.toFixed(1)} L${xFrameLeft.toFixed(1)},${axisY.toFixed(1)} Z`;
-
-  svg += `<!-- Bedrock Solid Polygon -->
-  <path d="${bedrockD}" fill="${bedrockColor}" stroke="none"/>
-  <path d="${bedrockD}" fill="url(#pat-bedrock)" stroke="none"/>`;
-
+  // STEP B: Individual soil layer polygons (drawn on top of base fill)
   // 3. RENDER REAL-WORLD STRATIGRAPHIC SOIL LAYER POLYGONS (EXACT LOGGED ELEVATION ALIGNMENT)
   // Group layers per graphic unit and draw continuous polygons matching exact borehole log depths.
 
@@ -2597,6 +2581,13 @@ function buildProfileSvg(rows) {
     }
   });
 
+  // STEP C: Paint bedrock polygon LAST (on top of soil layers) — painter's algorithm guarantees
+  // nothing soil-coloured appears below the rockhead contact line.
+  svg += `<!-- C: Bedrock Polygon (painted last, covers any soil artifact below rockhead) -->
+  <path d="${bedrockD}" fill="${bedrockColor}" stroke="none"/>
+  <path d="${bedrockD}" fill="url(#pat-bedrock)" stroke="none"/>`;
+
+  // STEP D: Rockhead contact dashed line (on top of everything)
   // 3. RENDER ROCKHEAD CONTACT LINE (full width including side extensions)
   let rockheadD = `M${rockPolyPts[0][0].toFixed(1)},${rockPolyPts[0][1].toFixed(1)} `;
   for (let s = 1; s < rockPolyPts.length; s++) {
