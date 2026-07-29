@@ -2392,7 +2392,7 @@ function buildProfileSvg(rows) {
 
   const legendRowH = 24;
   const legendRows = Math.ceil(legendItems.length / 4);
-  const padBottom = 80 + legendRows * legendRowH + 40; // extra space for caution note line
+  const padBottom = 80 + legendRows * legendRowH + 40 + 18; // extra space for caution note + copyright line
   const svgH = plotH + padTop + padBottom;
   const axisY = padTop + plotH;
 
@@ -2418,13 +2418,14 @@ function buildProfileSvg(rows) {
 
   svg += `<rect x="0" y="0" width="${svgW}" height="${svgH}" fill="#ffffff"/>`;
 
-  // Grid Lines & Y Axis
-  const gridSteps = 6;
-  for (let i = 0; i <= gridSteps; i++) {
-    const elev = minElev + (elevRange / gridSteps) * i;
+  // Grid Lines & Y Axis — use a "nice" integer step so labels read as whole metres
+  const targetElevStep = elevRange / 6;
+  const elevStep = niceScaleMeters(Math.max(targetElevStep, 1));
+  const gridStartElev = Math.ceil(minElev / elevStep) * elevStep;
+  for (let elev = gridStartElev; elev <= maxElev + 0.001; elev += elevStep) {
     const y = yPos(elev);
     svg += `<line x1="${padLeft}" y1="${y.toFixed(1)}" x2="${padLeft + plotW}" y2="${y.toFixed(1)}" stroke="#e5e0d3" stroke-width="1"/>`;
-    svg += `<text x="${padLeft - 8}" y="${(y + 3.5).toFixed(1)}" font-size="10" fill="#6b6459" text-anchor="end" font-weight="600">${elev.toFixed(1)}</text>`;
+    svg += `<text x="${padLeft - 8}" y="${(y + 3.5).toFixed(1)}" font-size="10" fill="#6b6459" text-anchor="end" font-weight="600">${Math.round(elev)}</text>`;
   }
 
   // Axis Titles
@@ -2485,37 +2486,27 @@ function buildProfileSvg(rows) {
     const info = getGraphicInfo(u);
     const code = (u || '').trim();
 
-    // Find maximum occurrences of this soil type in any single borehole
-    let maxOcc = 0;
-    rows.forEach((r, i) => {
-      const lys = layersArr[i];
-      if (lys) {
-        const count = lys.filter(l => (l.graphic || '').trim() === code && !info.isRock).length;
-        if (count > maxOcc) maxOcc = count;
-      }
-    });
-
-    // Draw a separate polygon for each occurrence
-    for (let occ = 0; occ < maxOcc; occ++) {
+    // Single continuous polygon per master unit, driven by the shared cumulative
+    // boundary array (bhCumBoundaries / getCumBoundaryAtX). Using the SAME master
+    // fraction stack that establishes stacking order guarantees every layer ties
+    // in exactly with its neighbours above/below at every borehole, and pinches
+    // out smoothly (zero-thickness) wherever the unit is absent — no separate,
+    // independently-interpolated per-occurrence polygon that can drift out of
+    // registration with the rest of the stack.
+    const uIdx = masterSoilUnits.indexOf(u);
+    {
       const bhLayerRanges = rows.map((r, i) => {
-        const lys = layersArr[i];
         const zG = levelsArr[i].elevation !== null ? levelsArr[i].elevation : maxElev;
-        if (!lys || !lys.length) return null;
-        
-        const unitLys = lys.filter(l => (l.graphic || '').trim() === code && !info.isRock);
-        if (occ < unitLys.length) {
-          const l = unitLys[occ];
-          return { zTop: zG - l.depth, zBot: zG - l.bottom };
-        }
-        return null;
+        const zR = effectiveRockLevel[i] !== null ? effectiveRockLevel[i] : zG - 5;
+        const overburden = Math.max(zG - zR, 0.1);
+        const C = bhCumBoundaries[i];
+        const present = bhUnitPresent[i][uIdx];
+        return {
+          present,
+          zTop: zG - C[uIdx] * overburden,
+          zBot: zG - C[uIdx + 1] * overburden
+        };
       });
-
-      // Check if present at any borehole
-      const presentIndices = [];
-      bhLayerRanges.forEach((range, i) => {
-        if (range !== null) presentIndices.push(i);
-      });
-      if (presentIndices.length === 0) continue;
 
     // Build continuous top/bottom curve across profile samples
     const topCurvePts = [];
@@ -2527,83 +2518,23 @@ function buildProfileSvg(rows) {
       const x = xPos(d);
       const zG = getZGround(d);
       const zR = getZRock(d);
+      const overburdenAtD = Math.max(zG - zR, 0.1);
 
-      let zTop = zG, zBot = zG;
+      const fTop = getCumBoundaryAtX(uIdx, d);
+      const fBot = getCumBoundaryAtX(uIdx + 1, d);
+      let zTop = zG - fTop * overburdenAtD;
+      let zBot = zG - fBot * overburdenAtD;
 
-      // Find surrounding boreholes in distances array
-      let iLeft = -1, iRight = -1;
-      for (let i = 0; i < rows.length; i++) {
-        if (distances[i] <= d) iLeft = i;
-        if (distances[i] >= d && iRight === -1) iRight = i;
-      }
-      if (iLeft === -1) iLeft = 0;
-      if (iRight === -1) iRight = rows.length - 1;
-
-      if (iLeft === iRight) {
-        // Exactly at a borehole position
-        const range = bhLayerRanges[iLeft];
-        if (range) {
-          zTop = range.zTop;
-          zBot = range.zBot;
-        } else {
-          zTop = zG; zBot = zG;
-        }
-      } else {
-        const dA = distances[iLeft], dB = distances[iRight];
-        const rangeA = bhLayerRanges[iLeft], rangeB = bhLayerRanges[iRight];
-
-        if (rangeA && rangeB) {
-          // Unit present in BOTH boreholes -> smooth interpolation
-          const t = (d - dA) / (dB - dA);
-          const smt = 3*t*t - 2*t*t*t;
-          zTop = rangeA.zTop + (rangeB.zTop - rangeA.zTop) * smt;
-          zBot = rangeA.zBot + (rangeB.zBot - rangeA.zBot) * smt;
-        } else if (rangeA && !rangeB) {
-          // Present at A, pinches out towards B
-          const dMid = (dA + dB) / 2;
-          const zGA = getZGround(dA);
-          const zPinch0 = (rangeA.zTop + rangeA.zBot) / 2;
-          const zPinchCurve = zPinch0 + (zG - zGA); // Follow surface topography
-
-          if (d >= dMid) {
-            zTop = zPinchCurve; zBot = zPinchCurve; // fully pinched out
-          } else {
-            const t = (d - dA) / (dMid - dA);
-            const smt = 3*t*t - 2*t*t*t; // smoothstep
-            zTop = rangeA.zTop + (zPinchCurve - rangeA.zTop) * smt;
-            zBot = rangeA.zBot + (zPinchCurve - rangeA.zBot) * smt;
-          }
-        } else if (!rangeA && rangeB) {
-          // Emerges from ground surface, widening towards B
-          const dMid = (dA + dB) / 2;
-          const zGB = getZGround(dB);
-          const zPinch0 = (rangeB.zTop + rangeB.zBot) / 2;
-          const zPinchCurve = zPinch0 + (zG - zGB); // Follow surface topography
-
-          if (d <= dMid) {
-            zTop = zPinchCurve; zBot = zPinchCurve; // not yet present
-          } else {
-            const t = (d - dMid) / (dB - dMid);
-            const smt = 3*t*t - 2*t*t*t;
-            zTop = zPinchCurve + (rangeB.zTop - zPinchCurve) * smt;
-            zBot = zPinchCurve + (rangeB.zBot - zPinchCurve) * smt;
-          }
-        } else {
-          // Absent in both adjacent BHs
-          zTop = zG; zBot = zG;
-        }
-      }
-
-      // Handle side extensions (left of first BH, right of last BH)
+      // Handle side extensions (left of first BH, right of last BH) — clamp
+      // to the terminal borehole's own range rather than re-interpolating.
       if (d < distances[0]) {
         const range = bhLayerRanges[0];
-        if (range) { zTop = range.zTop; zBot = range.zBot; }
-        else { zTop = zG; zBot = zG; }
+        zTop = range.present ? range.zTop : zG;
+        zBot = range.present ? range.zBot : zG;
       } else if (d > distances[distances.length - 1]) {
-        const lastIdx = distances.length - 1;
-        const range = bhLayerRanges[lastIdx];
-        if (range) { zTop = range.zTop; zBot = range.zBot; }
-        else { zTop = zG; zBot = zG; }
+        const range = bhLayerRanges[bhLayerRanges.length - 1];
+        zTop = range.present ? range.zTop : zG;
+        zBot = range.present ? range.zBot : zG;
       }
 
       // Strictly clamp layer boundaries to overburden zone [zR, zG]
@@ -2637,7 +2568,7 @@ function buildProfileSvg(rows) {
         svg += `<path d="${ptsToCubicBezier(contactSeg)}" fill="none" stroke="#554433" stroke-width="0.7" opacity="0.35"/>`;
       }
     }
-    } // End of occ loop
+    }
   });
 
   // STEP C: Paint bedrock polygon LAST (on top of soil layers) — painter's algorithm guarantees
@@ -2817,6 +2748,9 @@ function buildProfileSvg(rows) {
   const noteY = legBodyY + (curRow + 1) * legendRowH + 16;
   svg += `<text x="${legX}" y="${noteY}" font-size="8.5" fill="#c0392b" font-weight="700">⚠️ CAUTION NOTE:</text>`;
   svg += `<text x="${legX + 85}" y="${noteY}" font-size="8.5" fill="#555555" font-style="italic">This 2D cross-section is automatically generated by spatial interpolation between borehole data. Use with caution for preliminary conceptual modeling only.</text>`;
+
+  const copyrightY = noteY + 20;
+  svg += `<text x="${legX}" y="${copyrightY}" font-size="8" fill="#8a8378" font-weight="500">© ${new Date().getFullYear()} Geotechnical Engineering Division, National Building Research Institute (NBRI). All rights reserved.</text>`;
   svg += `</g>`;
 
   svg += `</svg>`;
