@@ -1170,6 +1170,42 @@ function normalizeWeatheringGrade(raw) {
   return WEATHERING_GRADE_MAP[clean] || 'fresh';
 }
 
+// Builds a single borehole's piecewise-linear fade profile (depth-below-
+// rockhead -> fade fraction 0..1), given its own weathering readings and rock
+// span. Standalone/global so both the section-profile renderer and the
+// borehole popup log can share identical fade logic for one column.
+function buildSingleBHFadeProfile(readings, rockDepthTop, termDepthAbs) {
+  if (!readings || !readings.length) return null;
+  const pts = readings
+    .map(pt => ({ depthBelowRock: pt.depth - rockDepthTop, fade: WEATHERING_GRADE_FADE_POS[pt.grade] }))
+    .filter(p => p.depthBelowRock >= -0.01)
+    .sort((a, b) => a.depthBelowRock - b.depthBelowRock);
+  if (!pts.length) return null;
+  const anchors = [{ depth: 0, fade: pts[0].fade }];
+  pts.forEach(p => {
+    const last = anchors[anchors.length - 1];
+    if (p.depthBelowRock > last.depth) anchors.push({ depth: p.depthBelowRock, fade: p.fade });
+    else last.fade = p.fade;
+  });
+  const rockSpan = Math.max(termDepthAbs - rockDepthTop, 0.1);
+  const last = anchors[anchors.length - 1];
+  if (last.depth < rockSpan) anchors.push({ depth: rockSpan, fade: 1.0 });
+  return { anchors, rockSpan };
+}
+function evalSingleBHFade(profile, depthBelowRock) {
+  const a = profile.anchors;
+  if (depthBelowRock <= a[0].depth) return a[0].fade;
+  if (depthBelowRock >= a[a.length - 1].depth) return a[a.length - 1].fade;
+  for (let k = 0; k < a.length - 1; k++) {
+    if (depthBelowRock >= a[k].depth && depthBelowRock <= a[k + 1].depth) {
+      const span = a[k + 1].depth - a[k].depth;
+      const t = span > 0 ? (depthBelowRock - a[k].depth) / span : 0;
+      return a[k].fade + (a[k + 1].fade - a[k].fade) * t;
+    }
+  }
+  return 1.0;
+}
+
 
 
 
@@ -1402,7 +1438,7 @@ function rockLevelDisplay(levels){
   return `Depth ${levels.overburden.toFixed(2)} m`;
 }
 
-function buildBoreholeLogSvg(levels, layers){
+function buildBoreholeLogSvg(levels, layers, row){
   const { termDepth, overburden, gwDepth } = levels;
   const effectiveTermDepth = (layers && layers.length)
     ? Math.max(...layers.map(l => l.bottom))
@@ -1413,6 +1449,20 @@ function buildBoreholeLogSvg(levels, layers){
   const scale = colH / effectiveTermDepth;
   const gwPx = (gwDepth !== null) ? Math.min(Math.max(gwDepth * scale, 0), colH) : null;
 
+  // Same continuous weathering fade used in the section profile, built for
+  // just this one borehole's own log, so the popup matches the section.
+  const POPUP_BEDROCK_COLOR = '#8f8f95';
+  let fadeProfile = null;
+  let rockDepthTopForFade = null;
+  if (row) {
+    const readings = getBHWeathering(row);
+    if (readings && readings.length) {
+      const rockLayer = (layers && layers.length) ? layers.find(l => getGraphicInfo(l.graphic).isRock) : null;
+      rockDepthTopForFade = rockLayer ? rockLayer.depth : 0;
+      fadeProfile = buildSingleBHFadeProfile(readings, rockDepthTopForFade, effectiveTermDepth);
+    }
+  }
+
   let svg = `<svg width="260" height="${colH + 26}" viewBox="0 0 260 ${colH + 26}" xmlns="http://www.w3.org/2000/svg">`;
 
   if (layers && layers.length){
@@ -1422,7 +1472,13 @@ function buildBoreholeLogSvg(levels, layers){
       const yTop = y0 + Math.min(layer.depth * scale, colH);
       const yBot = y0 + Math.min(layer.bottom * scale, colH);
       const h = Math.max(yBot - yTop, 0.3);
-      svg += `<rect x="${x0}" y="${yTop.toFixed(1)}" width="${colW}" height="${h.toFixed(1)}" fill="${info.color}" stroke="#6b6459" stroke-width="0.4"/>`;
+      let fillColor = info.color;
+      if (info.isRock && fadeProfile) {
+        const midDepth = (layer.depth + layer.bottom) / 2;
+        const fade = evalSingleBHFade(fadeProfile, midDepth - rockDepthTopForFade);
+        fillColor = colorAtFadePosition(fade, POPUP_BEDROCK_COLOR);
+      }
+      svg += `<rect x="${x0}" y="${yTop.toFixed(1)}" width="${colW}" height="${h.toFixed(1)}" fill="${fillColor}" stroke="#6b6459" stroke-width="0.4"/>`;
       if (info.isRock){
         for (let hy = yTop; hy < yBot; hy += 8){
           svg += `<line x1="${x0}" y1="${hy.toFixed(1)}" x2="${(x0+colW).toFixed(1)}" y2="${hy.toFixed(1)}" stroke="#5c5c60" stroke-width="0.4" opacity="0.4"/>`;
@@ -1442,7 +1498,19 @@ function buildBoreholeLogSvg(levels, layers){
     const rkPx = colH - overburdenPx;
     svg += `<rect x="${x0}" y="${y0}" width="${colW}" height="${overburdenPx.toFixed(1)}" fill="#c9a876" stroke="#8a7350" stroke-width="0.5"/>`;
     if (rkPx > 0.3){
-      svg += `<rect x="${x0}" y="${(y0+overburdenPx).toFixed(1)}" width="${colW}" height="${rkPx.toFixed(1)}" fill="#8f8f95" stroke="#5c5c60" stroke-width="0.5"/>`;
+      if (fadeProfile) {
+        const stripH = 4;
+        for (let hy = overburdenPx; hy < colH; hy += stripH) {
+          const depthBelowRock = ((hy - overburdenPx) + stripH / 2) / scale;
+          const fade = evalSingleBHFade(fadeProfile, depthBelowRock);
+          const col = colorAtFadePosition(fade, POPUP_BEDROCK_COLOR);
+          const hh = Math.min(stripH, colH - hy);
+          svg += `<rect x="${x0}" y="${(y0+hy).toFixed(1)}" width="${colW}" height="${hh.toFixed(1)}" fill="${col}" stroke="none"/>`;
+        }
+        svg += `<rect x="${x0}" y="${(y0+overburdenPx).toFixed(1)}" width="${colW}" height="${rkPx.toFixed(1)}" fill="none" stroke="#5c5c60" stroke-width="0.5"/>`;
+      } else {
+        svg += `<rect x="${x0}" y="${(y0+overburdenPx).toFixed(1)}" width="${colW}" height="${rkPx.toFixed(1)}" fill="${POPUP_BEDROCK_COLOR}" stroke="#5c5c60" stroke-width="0.5"/>`;
+      }
       for (let hy = overburdenPx; hy < colH; hy += 10){
         svg += `<line x1="${x0}" y1="${(y0+hy).toFixed(1)}" x2="${(x0+colW).toFixed(1)}" y2="${(y0+hy).toFixed(1)}" stroke="#5c5c60" stroke-width="0.4" opacity="0.4"/>`;
       }
@@ -1463,22 +1531,40 @@ function buildBoreholeLogSvg(levels, layers){
   return svg;
 }
 
-function buildLayerLegendHtml(layers){
+function buildLayerLegendHtml(layers, row){
   if (!layers || !layers.length) return '';
   const seen = {};
   layers.forEach(l => {
     const info = getGraphicInfo(l.graphic);
-    seen[info.label] = info.color;
+    if (!info.isRock) seen[info.label] = info.color;
   });
-  return Object.keys(seen).map(label =>
+  let html = Object.keys(seen).map(label =>
     `<span style="display:inline-flex; align-items:center; gap:3px; margin-right:8px; font-size:10px; color:#6b6459;">
       <span style="width:9px; height:9px; background:${seen[label]}; border:1px solid #999; display:inline-block; border-radius:2px;"></span>${label}
     </span>`
   ).join('');
+  const readings = row ? getBHWeathering(row) : null;
+  if (readings && readings.length) {
+    const POPUP_BEDROCK_COLOR = '#8f8f95';
+    html += WEATHERING_GRADE_ORDER.map(g => {
+      const col = colorAtFadePosition(WEATHERING_GRADE_FADE_POS[g], POPUP_BEDROCK_COLOR);
+      return `<span style="display:inline-flex; align-items:center; gap:3px; margin-right:8px; font-size:10px; color:#6b6459;">
+        <span style="width:9px; height:9px; background:${col}; border:1px solid #999; display:inline-block; border-radius:2px;"></span>${WEATHERING_GRADE_LABELS[g]}
+      </span>`;
+    }).join('');
+  } else {
+    const hasRock = layers.some(l => getGraphicInfo(l.graphic).isRock);
+    if (hasRock) {
+      html += `<span style="display:inline-flex; align-items:center; gap:3px; margin-right:8px; font-size:10px; color:#6b6459;">
+        <span style="width:9px; height:9px; background:#8f8f95; border:1px solid #999; display:inline-block; border-radius:2px;"></span>Bedrock
+      </span>`;
+    }
+  }
+  return html;
 }
 
-function buildBoreholeLogMarkup(levels, layers){
-  const svg = buildBoreholeLogSvg(levels, layers); if (!svg) return '';
+function buildBoreholeLogMarkup(levels, layers, row){
+  const svg = buildBoreholeLogSvg(levels, layers, row); if (!svg) return '';
   const overburdenTxt = levels.overburden !== null ? ('Overburden: ' + levels.overburden.toFixed(2) + 'm') : '';
   const rockTxt = levels.rockCoring !== null ? ('Rock Coring: ' + levels.rockCoring.toFixed(2) + 'm') : '';
   const rlTxt = levels.elevation !== null ? ('MSL(elev) ' + levels.elevation.toFixed(2) + 'm') : '';
@@ -1486,7 +1572,7 @@ function buildBoreholeLogMarkup(levels, layers){
   const termRlTxt = levels.terminationLevel !== null ? ('MSL(term) ' + levels.terminationLevel.toFixed(2) + 'm') : '';
   const gwlRlTxt = levels.gwLevel !== null ? ('MSL(GWL) ' + levels.gwLevel.toFixed(2) + 'm') : '';
   const captionParts = [overburdenTxt, rockTxt, rlTxt, rockRlTxt, termRlTxt, gwlRlTxt].filter(Boolean).join(' &middot; ');
-  const legendHtml = buildLayerLegendHtml(layers);
+  const legendHtml = buildLayerLegendHtml(layers, row);
   const legendRow = legendHtml ? `<div style="margin-top:5px;">${legendHtml}</div>` : '';
   return `<div class="bh-log-wrap"><div class="bh-log-title">Borehole Log (schematic)</div><div class="bh-log-row">${svg}</div><div class="bh-log-caption">${captionParts}</div>${legendRow}</div>`;
 }
@@ -1510,7 +1596,7 @@ function popupHtml(row, rowIdx){
   const pdfUrl = (row['PDF Link'] || row['Log PDF'] || row['Borehole Log'] || '').trim();
   const pdfButton = pdfUrl ? `<a href="${pdfUrl}" target="_blank" rel="noopener" class="pdf-link-btn">&#128196; View / Download Borehole Log</a>` : '';
   const profileBtn = `<button onclick="toggleProfileSelection(${rowIdx})" style="width:100%; margin-top:8px; padding:6px; background:linear-gradient(135deg, var(--accent), var(--accent-2)); color:#fff; border:none; border-radius:4px; font-weight:700; font-size:11px; cursor:pointer; box-shadow:0 1px 3px rgba(0,0,0,0.15);">📐 Add / Remove from 2D Profile</button>`;
-  const logHtml = buildBoreholeLogMarkup(levels, getBHLayers(row));
+  const logHtml = buildBoreholeLogMarkup(levels, getBHLayers(row), row);
   
   return `<div class="popup-title">${bhName} <span class="status-pill" style="background:${colorFor(row['Status'])}">${row['Status'] || 'Planned'}</span></div><table class="popup-table">${tableRows}</table>${pdfButton}${profileBtn}${logHtml}`;
 }
@@ -2565,14 +2651,34 @@ function buildProfileSvg(rows) {
   }
 
   // Continuous fade fraction (0=highly weathered tint .. 1=fresh/bedrock) at
-  // any (distance, elevation) point within the rock mass. Laterally, we find
-  // the two boreholes bracketing `d`, evaluate each one's own fade profile at
-  // the SAME RELATIVE POSITION within its own rock span (so shallow and deep
-  // rockheads still line up sensibly), and blend by horizontal position.
-  // Boreholes with no data act as a constant fade=1.0 (fresh/bedrock) profile,
-  // so interpolating toward a no-data borehole fades smoothly into plain rock.
+  // any (distance, elevation) point within the rock mass. Depth is measured
+  // relative to the LOCAL (interpolated) rockhead and termination surfaces at
+  // that exact distance — getZRock(d)/getZTerm(d) — NOT each borehole's own
+  // absolute rockhead elevation. This is what makes the fade follow the
+  // sloped/undulating bedrock contact and termination surface instead of
+  // forming flat horizontal stripes that cut across a dipping rockhead.
+  // We convert `elev` to a FRACTION of the local rock span (0=at local
+  // rockhead, 1=at local termination), then apply that fraction to each
+  // bracketing borehole's OWN rock span to look up its fade profile — so a
+  // borehole with a much deeper/shallower rockhead than its neighbour still
+  // contributes its own true weathering profile at the correspondingly
+  // rescaled depth, and the two are blended horizontally as before.
+  function getZTermAtX(d) {
+    const pts = rows.map((r, i) => ({ x: distances[i], y: effectiveTermLevel[i] !== null ? effectiveTermLevel[i] : (effectiveRockLevel[i] !== null ? effectiveRockLevel[i] - 5 : maxElev - 10) }));
+    return d <= pts[0].x ? pts[0].y
+      : d >= pts[pts.length - 1].x ? pts[pts.length - 1].y
+      : interpolateSpline(pts, d);
+  }
+
   function getFadeFractionAt(d, elev) {
     if (!anyWeatheringData) return 1.0;
+    const zRockLocal = getZRock(d);
+    const zTermLocal = getZTermAtX(d);
+    const localSpan = Math.max(zRockLocal - zTermLocal, 0.1);
+    // Fraction of the LOCAL rock column (0 = at local rockhead, 1 = at local
+    // termination) — this is what stays constant along the sloped contact.
+    const localFrac = Math.max(0, Math.min(1, (zRockLocal - elev) / localSpan));
+
     let iLeft = -1, iRight = -1;
     for (let i = 0; i < rows.length; i++) {
       if (distances[i] <= d) iLeft = i;
@@ -2583,11 +2689,11 @@ function buildProfileSvg(rows) {
 
     function fadeForBH(i) {
       const profile = bhFadeProfile[i];
-      const zRock = effectiveRockLevel[i] !== null ? effectiveRockLevel[i] : maxElev - 5;
-      const zTerm = effectiveTermLevel[i] !== null ? effectiveTermLevel[i] : zRock - 5;
-      const rockSpan = Math.max(zRock - zTerm, 0.1);
-      const relDepth = Math.max(0, Math.min(1, (zRock - elev) / rockSpan)) * rockSpan;
       if (!profile) return 1.0; // no data at this BH: treat as fresh/bedrock
+      // Apply the SAME local fraction to this borehole's own rock span, so
+      // e.g. "80% of the way down to termination" looks up that same
+      // relative point in BH i's actual logged profile.
+      const relDepth = localFrac * profile.rockSpan;
       return fadeAtProfileDepth(profile, relDepth);
     }
 
@@ -2898,8 +3004,18 @@ function buildProfileSvg(rows) {
         const yTop = yPos(zG - l.depth);
         const yBot = yPos(zG - l.bottom);
         const h = Math.max(yBot - yTop, 0.4);
+        // For rock layers, tint with the same continuous weathering fade used
+        // in the section fill, evaluated at this layer's own depth — so the
+        // pillar reads consistently with the surrounding fade instead of a
+        // flat, unrelated rock colour.
+        let fillColor = info.color;
+        if (info.isRock && anyWeatheringData) {
+          const zMid = zG - (l.depth + l.bottom) / 2;
+          const fade = getFadeFractionAt(distances[i], zMid);
+          fillColor = colorAtFadePosition(fade, bedrockColor);
+        }
         // Lighter border: #909090 (medium ash grey) instead of near-black #333333
-        svg += `<rect x="${(x - colW / 2).toFixed(1)}" y="${yTop.toFixed(1)}" width="${colW.toFixed(1)}" height="${h.toFixed(1)}" fill="${info.color}" stroke="#909090" stroke-width="0.5"/>`;
+        svg += `<rect x="${(x - colW / 2).toFixed(1)}" y="${yTop.toFixed(1)}" width="${colW.toFixed(1)}" height="${h.toFixed(1)}" fill="${fillColor}" stroke="#909090" stroke-width="0.5"/>`;
         if (info.isRock) {
           for (let hy = yTop; hy < yBot; hy += 7) {
             svg += `<line x1="${(x - colW / 2).toFixed(1)}" y1="${hy.toFixed(1)}" x2="${(x + colW / 2).toFixed(1)}" y2="${hy.toFixed(1)}" stroke="#999" stroke-width="0.4" opacity="0.4"/>`;
@@ -2911,7 +3027,21 @@ function buildProfileSvg(rows) {
       const yR = yPos(zR);
       svg += `<rect x="${(x - colW / 2).toFixed(1)}" y="${yG.toFixed(1)}" width="${colW.toFixed(1)}" height="${Math.max(yR - yG, 0).toFixed(1)}" fill="#c9a876" stroke="#909090" stroke-width="0.5"/>`;
       if (yTerm > yR) {
-        svg += `<rect x="${(x - colW / 2).toFixed(1)}" y="${yR.toFixed(1)}" width="${colW.toFixed(1)}" height="${(yTerm - yR).toFixed(1)}" fill="#8f8f95" stroke="#909090" stroke-width="0.5"/>`;
+        if (anyWeatheringData) {
+          // Draw the no-layer-data rock portion as a thin stack of tinted
+          // strips so it still reflects the fade rather than flat bedrock.
+          const stripH = 6;
+          for (let yy = yR; yy < yTerm; yy += stripH) {
+            const zStripMid = zR - ((yy - yR) + stripH / 2) / (yTerm - yR) * (zR - zTerm);
+            const fade = getFadeFractionAt(distances[i], zStripMid);
+            const col = colorAtFadePosition(fade, bedrockColor);
+            const hh = Math.min(stripH, yTerm - yy);
+            svg += `<rect x="${(x - colW / 2).toFixed(1)}" y="${yy.toFixed(1)}" width="${colW.toFixed(1)}" height="${hh.toFixed(1)}" fill="${col}" stroke="none"/>`;
+          }
+          svg += `<rect x="${(x - colW / 2).toFixed(1)}" y="${yR.toFixed(1)}" width="${colW.toFixed(1)}" height="${(yTerm - yR).toFixed(1)}" fill="none" stroke="#909090" stroke-width="0.5"/>`;
+        } else {
+          svg += `<rect x="${(x - colW / 2).toFixed(1)}" y="${yR.toFixed(1)}" width="${colW.toFixed(1)}" height="${(yTerm - yR).toFixed(1)}" fill="#8f8f95" stroke="#909090" stroke-width="0.5"/>`;
+        }
       }
     }
 
