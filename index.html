@@ -1099,6 +1099,67 @@ function getGraphicInfo(code){
 }
 
 let profileLayersByBH = {};
+let profileWeatheringByBH = {}; // { bhKey: [ {depth, grade}, ... ] } sorted by depth
+
+// Maps raw "Primary Weathering" sheet values to 4 canonical grades.
+// Blank/unrecognized values default to 'fresh' per spec.
+const WEATHERING_GRADE_MAP = {
+  'highly weathered': 'highly',
+  'moderately weathered': 'moderately',
+  'moderately': 'moderately',
+  'slightly weathered': 'slightly',
+  'fresh': 'fresh'
+};
+function normalizeWeatheringGrade(raw) {
+  const clean = (raw || '').trim().toLowerCase();
+  if (!clean) return 'fresh';
+  return WEATHERING_GRADE_MAP[clean] || 'fresh';
+}
+
+// Fixed colour ramp: same hue family as bedrock, stepped from a light faded
+// tint (highly weathered) to the full solid bedrock colour (fresh). These are
+// discrete bands — NOT a blended/interpolated gradient between them.
+const WEATHERING_GRADE_COLORS = {
+  highly:     '#c9c2b4',
+  moderately: '#a89f8d',
+  slightly:   '#847a68',
+  fresh:      '#5f5648'
+};
+const WEATHERING_GRADE_ORDER = ['highly', 'moderately', 'slightly', 'fresh'];
+const WEATHERING_GRADE_LABELS = {
+  highly: 'Highly Weathered Rock',
+  moderately: 'Moderately Weathered Rock',
+  slightly: 'Slightly Weathered Rock',
+  fresh: 'Fresh Rock'
+};
+
+// Converts a sorted array of point weathering readings (depth below rockhead,
+// grade) into depth ZONES using MIDPOINT boundaries between consecutive
+// readings. First zone starts at the rock surface (depth 0); last zone runs
+// to the borehole's rock termination depth. Adjacent zones sharing the same
+// grade are merged into one band; non-adjacent same-grade zones (e.g. an
+// alternating slightly/fresh/slightly sequence) are kept SEPARATE, since real
+// weathering can recur with depth and must not be collapsed into one span.
+function buildWeatheringZones(readings, terminationDepth) {
+  if (!readings || !readings.length) return [];
+  const pts = readings.slice().sort((a, b) => a.depth - b.depth);
+  const rawZones = [];
+  for (let i = 0; i < pts.length; i++) {
+    const top = i === 0 ? 0 : (pts[i - 1].depth + pts[i].depth) / 2;
+    const bot = i === pts.length - 1 ? terminationDepth : (pts[i].depth + pts[i + 1].depth) / 2;
+    if (bot > top) rawZones.push({ top, bottom: bot, grade: pts[i].grade });
+  }
+  const merged = [];
+  rawZones.forEach(z => {
+    const last = merged[merged.length - 1];
+    if (last && last.grade === z.grade) {
+      last.bottom = z.bottom;
+    } else {
+      merged.push(Object.assign({}, z));
+    }
+  });
+  return merged;
+}
 
 function cleanBHKey(key) {
   return (key || '').trim().toUpperCase().replace(/[\s\-_]/g, '');
@@ -1138,12 +1199,30 @@ function parseCsvWithProxy(url, onComplete, onError) {
 function fetchBHProfileLog(){
   parseCsvWithProxy(BH_PROFILE_CSV_URL, (data) => {
     const grouped = {};
+    const weatherGrouped = {};
     data.forEach(raw => {
       const row = normalizeRow(raw);
       const pointId = (row['PointID'] || row['Point ID'] || row['BH_ID'] || row['BH ID'] || row['BH Name'] || '').trim();
       const depth = toNum(row['Depth']);
       const bottom = toNum(row['Bottom']);
       const graphic = (row['Graphic'] || '').trim();
+
+      // Rock weathering (cols G-K on the BH Profile tab): Primary Weathering,
+      // Rock Type Name. These are point readings (one depth, no bottom) —
+      // handled separately from the soil-layer depth/bottom intervals below.
+      const weatherRaw = row['Primary Weathering'];
+      if (pointId && depth !== null && weatherRaw !== undefined && String(weatherRaw).trim() !== '') {
+        const grade = normalizeWeatheringGrade(weatherRaw);
+        const wRawKey = pointId;
+        const wNormKey = cleanBHKey(pointId);
+        if (!weatherGrouped[wRawKey]) weatherGrouped[wRawKey] = [];
+        weatherGrouped[wRawKey].push({ depth, grade });
+        if (wNormKey && wNormKey !== wRawKey) {
+          if (!weatherGrouped[wNormKey]) weatherGrouped[wNormKey] = [];
+          weatherGrouped[wNormKey].push({ depth, grade });
+        }
+      }
+
       if (!pointId || depth === null || bottom === null) return;
 
       const rawKey = pointId;
@@ -1158,7 +1237,9 @@ function fetchBHProfileLog(){
       }
     });
     Object.keys(grouped).forEach(k => grouped[k].sort((a,b) => a.depth - b.depth));
+    Object.keys(weatherGrouped).forEach(k => weatherGrouped[k].sort((a,b) => a.depth - b.depth));
     profileLayersByBH = grouped;
+    profileWeatheringByBH = weatherGrouped;
     if (allRows && allRows.length) render();
   }, () => {
     console.error('Could not load BH Profile log from primary or proxy URL.');
@@ -1187,6 +1268,27 @@ function getBHLayers(rOrName) {
     if (profileLayersByBH[c]) return profileLayersByBH[c];
     const norm = cleanBHKey(c);
     if (profileLayersByBH[norm]) return profileLayersByBH[norm];
+  }
+  return null;
+}
+
+// Same name-resolution strategy as getBHLayers, for the weathering point log.
+function getBHWeathering(rOrName) {
+  if (!rOrName) return null;
+  if (typeof rOrName === 'string') {
+    const raw = rOrName.trim();
+    const norm = cleanBHKey(raw);
+    return profileWeatheringByBH[raw] || profileWeatheringByBH[norm] || null;
+  }
+  const r = rOrName;
+  const candidates = [
+    r['BH Name'], r['PointID'], r['Point ID'], r['BH_ID'], r['BH ID'],
+    r['Old BH ID'], r['New BH ID']
+  ].filter(Boolean).map(s => String(s).trim());
+  for (const c of candidates) {
+    if (profileWeatheringByBH[c]) return profileWeatheringByBH[c];
+    const norm = cleanBHKey(c);
+    if (profileWeatheringByBH[norm]) return profileWeatheringByBH[norm];
   }
   return null;
 }
@@ -2377,6 +2479,64 @@ function buildProfileSvg(rows) {
     return { firstIdx, lastIdx };
   }
 
+  // ---- ROCK WEATHERING ZONES ----
+  // Each borehole's weathering log becomes an ORDERED list of depth zones
+  // (buildWeatheringZones, midpoint-bounded). Unlike the soil-layer approach
+  // (one fixed slot per unit type), zones here are matched between adjacent
+  // boreholes BY POSITION IN SEQUENCE, not by grade — this correctly handles
+  // alternating bands (e.g. slightly -> fresh -> slightly -> fresh) that a
+  // single fixed slot per grade cannot represent.
+  const bhWeatherZonesElev = rows.map((r, i) => {
+    const readings = getBHWeathering(r);
+    const zGround = levelsArr[i].elevation !== null ? levelsArr[i].elevation : maxElev;
+    const zRock = effectiveRockLevel[i] !== null ? effectiveRockLevel[i] : zGround - 5;
+    const zTerm = effectiveTermLevel[i] !== null ? effectiveTermLevel[i] : zRock - 5;
+    if (!readings || !readings.length) return null;
+    const rockDepthTop = zGround - zRock; // depth of rockhead below ground
+    const termDepthRel = Math.max((zGround - zTerm) - rockDepthTop, 0.1); // rock interval length
+    // Convert readings from depth-below-ground to depth-below-rockhead
+    const rel = readings.map(pt => ({ depth: pt.depth - rockDepthTop, grade: pt.grade }))
+                        .filter(pt => pt.depth >= -0.01);
+    if (!rel.length) return null;
+    const zones = buildWeatheringZones(rel, termDepthRel);
+    // Convert zone (top,bottom) depths-below-rockhead into absolute elevations
+    return zones.map(z => ({
+      zTop: zRock - z.top,
+      zBot: zRock - z.bottom,
+      grade: z.grade
+    }));
+  });
+
+  const anyWeatheringData = bhWeatherZonesElev.some(z => z !== null && z.length);
+
+  // Pads the shorter of two zone lists to match the longer one's count, by
+  // splitting the shorter list's LAST zone proportionally. This lets us draw
+  // a continuous band polygon between any two adjacent boreholes even when
+  // they logged a different number of weathering transitions.
+  function padZoneList(zones, targetCount) {
+    if (zones.length >= targetCount) return zones.slice();
+    const out = zones.slice();
+    while (out.length < targetCount) {
+      const last = out[out.length - 1];
+      const mid = (last.zTop + last.zBot) / 2;
+      out[out.length - 1] = { zTop: last.zTop, zBot: mid, grade: last.grade };
+      out.push({ zTop: mid, zBot: last.zBot, grade: last.grade });
+    }
+    return out;
+  }
+
+  // Builds the list of band "slots" to render between borehole i and i+1.
+  // Boreholes with NO weathering data are treated as a single all-"fresh"
+  // slot spanning their full rock interval, so the join to a no-data BH
+  // still renders (fading toward plain bedrock) instead of leaving a gap.
+  function weatherSlotsFor(i) {
+    const z = bhWeatherZonesElev[i];
+    if (z && z.length) return z;
+    const zRock = effectiveRockLevel[i] !== null ? effectiveRockLevel[i] : maxElev - 5;
+    const zTerm = effectiveTermLevel[i] !== null ? effectiveTermLevel[i] : zRock - 5;
+    return [{ zTop: zRock, zBot: zTerm, grade: 'fresh' }];
+  }
+
   const legendItems = masterSoilUnits.map(u => {
     const info = getGraphicInfo(u);
     return { label: info.label, color: info.color, isRock: false };
@@ -2389,7 +2549,13 @@ function buildProfileSvg(rows) {
       if (info.isRock) bedrockColor = info.color;
     });
   });
-  legendItems.push({ label: 'Bedrock', color: bedrockColor, isRock: true });
+  if (anyWeatheringData) {
+    WEATHERING_GRADE_ORDER.forEach(grade => {
+      legendItems.push({ label: WEATHERING_GRADE_LABELS[grade], color: WEATHERING_GRADE_COLORS[grade], isRock: true });
+    });
+  } else {
+    legendItems.push({ label: 'Bedrock', color: bedrockColor, isRock: true });
+  }
   legendItems.push({ label: 'Groundwater Table', color: '#1e6fd9', isLine: true, dash: '5,3' });
   legendItems.push({ label: 'Bedrock Contact', color: '#7a2f1e', isLine: true, dash: '6,4' });
 
@@ -2585,6 +2751,58 @@ function buildProfileSvg(rows) {
   svg += `<!-- C: Bedrock Polygon (painted last, covers any soil artifact below rockhead) -->
   <path d="${bedrockD}" fill="${bedrockColor}" stroke="none"/>
   <path d="${bedrockD}" fill="url(#pat-bedrock)" stroke="none"/>`;
+
+  // STEP C2: Rock weathering bands, painted over the bedrock fill. Zones are
+  // matched by SEQUENCE POSITION between each adjacent borehole pair (not by
+  // grade), so alternating bands interpolate correctly. Each segment is a
+  // simple quadrilateral (straight sides) between the two boreholes' matched
+  // zone boundaries — smoothing/Bezier isn't applied here since a weathering
+  // transition is a real depth-specific reading, not a gradual soil pinch.
+  if (anyWeatheringData) {
+    svg += `<!-- C2: Rock Weathering Bands -->`;
+    for (let i = 0; i < rows.length - 1; i++) {
+      const dA = distances[i], dB = distances[i + 1];
+      const zonesA = weatherSlotsFor(i);
+      const zonesB = weatherSlotsFor(i + 1);
+      const n = Math.max(zonesA.length, zonesB.length);
+      const padA = padZoneList(zonesA, n);
+      const padB = padZoneList(zonesB, n);
+      const xA = xPos(dA), xB = xPos(dB);
+      for (let s = 0; s < n; s++) {
+        const a = padA[s], b = padB[s];
+        // Colour: use the LEFT borehole's grade for the left half, right
+        // borehole's grade for the right half, split at the segment midpoint,
+        // so a grade change between boreholes shows as a hard boundary at
+        // mid-span rather than inventing a blended colour.
+        const xMid = (xA + xB) / 2;
+        const zAtopMid = a.zTop + (b.zTop - a.zTop) * 0.5;
+        const zAbotMid = a.zBot + (b.zBot - a.zBot) * 0.5;
+        const yA_top = yPos(a.zTop), yA_bot = yPos(a.zBot);
+        const yB_top = yPos(b.zTop), yB_bot = yPos(b.zBot);
+        const yMid_top = yPos(zAtopMid), yMid_bot = yPos(zAbotMid);
+        // Left half (borehole A's grade)
+        svg += `<polygon points="${xA.toFixed(1)},${yA_top.toFixed(1)} ${xMid.toFixed(1)},${yMid_top.toFixed(1)} ${xMid.toFixed(1)},${yMid_bot.toFixed(1)} ${xA.toFixed(1)},${yA_bot.toFixed(1)}" fill="${WEATHERING_GRADE_COLORS[a.grade]}" stroke="none" opacity="0.92"/>`;
+        // Right half (borehole B's grade)
+        svg += `<polygon points="${xMid.toFixed(1)},${yMid_top.toFixed(1)} ${xB.toFixed(1)},${yB_top.toFixed(1)} ${xB.toFixed(1)},${yB_bot.toFixed(1)} ${xMid.toFixed(1)},${yMid_bot.toFixed(1)}" fill="${WEATHERING_GRADE_COLORS[b.grade]}" stroke="none" opacity="0.92"/>`;
+      }
+    }
+    // Side extensions: extend the first/last borehole's own zones flat to the
+    // plot edges, same convention as the soil-layer side extensions.
+    if (rows.length >= 1) {
+      const firstZones = weatherSlotsFor(0);
+      const xEdgeL = xPos(distMin), xBH0 = xPos(distances[0]);
+      firstZones.forEach(z => {
+        const yTop = yPos(z.zTop), yBot = yPos(z.zBot);
+        svg += `<polygon points="${xEdgeL.toFixed(1)},${yTop.toFixed(1)} ${xBH0.toFixed(1)},${yTop.toFixed(1)} ${xBH0.toFixed(1)},${yBot.toFixed(1)} ${xEdgeL.toFixed(1)},${yBot.toFixed(1)}" fill="${WEATHERING_GRADE_COLORS[z.grade]}" stroke="none" opacity="0.92"/>`;
+      });
+      const lastZones = weatherSlotsFor(rows.length - 1);
+      const xEdgeR = xPos(distMax), xBHn = xPos(distances[distances.length - 1]);
+      lastZones.forEach(z => {
+        const yTop = yPos(z.zTop), yBot = yPos(z.zBot);
+        svg += `<polygon points="${xBHn.toFixed(1)},${yTop.toFixed(1)} ${xEdgeR.toFixed(1)},${yTop.toFixed(1)} ${xEdgeR.toFixed(1)},${yBot.toFixed(1)} ${xBHn.toFixed(1)},${yBot.toFixed(1)}" fill="${WEATHERING_GRADE_COLORS[z.grade]}" stroke="none" opacity="0.92"/>`;
+      });
+    }
+  }
 
   // STEP D: Rockhead contact dashed line (on top of everything)
   // 3. RENDER ROCKHEAD CONTACT LINE (full width including side extensions)
