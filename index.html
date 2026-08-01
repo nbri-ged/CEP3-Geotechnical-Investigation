@@ -2663,8 +2663,9 @@ function buildProfileSvg(rows) {
   // borehole with a much deeper/shallower rockhead than its neighbour still
   // contributes its own true weathering profile at the correspondingly
   // rescaled depth, and the two are blended horizontally as before.
+  const _termInterpPts = rows.map((r, i) => ({ x: distances[i], y: effectiveTermLevel[i] !== null ? effectiveTermLevel[i] : (effectiveRockLevel[i] !== null ? effectiveRockLevel[i] - 5 : maxElev - 10) }));
   function getZTermAtX(d) {
-    const pts = rows.map((r, i) => ({ x: distances[i], y: effectiveTermLevel[i] !== null ? effectiveTermLevel[i] : (effectiveRockLevel[i] !== null ? effectiveRockLevel[i] - 5 : maxElev - 10) }));
+    const pts = _termInterpPts;
     return d <= pts[0].x ? pts[0].y
       : d >= pts[pts.length - 1].x ? pts[pts.length - 1].y
       : interpolateSpline(pts, d);
@@ -2679,13 +2680,19 @@ function buildProfileSvg(rows) {
     // termination) — this is what stays constant along the sloped contact.
     const localFrac = Math.max(0, Math.min(1, (zRockLocal - elev) / localSpan));
 
-    let iLeft = -1, iRight = -1;
-    for (let i = 0; i < rows.length; i++) {
-      if (distances[i] <= d) iLeft = i;
-      if (distances[i] >= d && iRight === -1) iRight = i;
+    // Binary search for the bracketing boreholes (distances[] is sorted
+    // ascending) instead of a full linear scan — matters once the raster
+    // grid gets fine enough to call this thousands of times per profile.
+    let lo = 0, hi = rows.length - 1;
+    if (d <= distances[0]) { lo = 0; hi = 0; }
+    else if (d >= distances[distances.length - 1]) { lo = hi = distances.length - 1; }
+    else {
+      while (hi - lo > 1) {
+        const mid = (lo + hi) >> 1;
+        if (distances[mid] <= d) lo = mid; else hi = mid;
+      }
     }
-    if (iLeft === -1) iLeft = 0;
-    if (iRight === -1) iRight = rows.length - 1;
+    const iLeft = lo, iRight = hi;
 
     function fadeForBH(i) {
       const profile = bhFadeProfile[i];
@@ -2921,28 +2928,39 @@ function buildProfileSvg(rows) {
     const clipId = 'clip-bedrock-' + Math.random().toString(36).slice(2, 9);
     svg += `<defs><clipPath id="${clipId}"><path d="${bedrockD}"/></clipPath></defs>`;
     svg += `<!-- C2: Rock Weathering Continuous Fade -->`;
-    const cellW = 6;   // px, fine enough to read as smooth, coarse enough to stay light
-    const cellH = 6;
+    const cellW = 2.2;   // finer grid for a smoother-looking fade
+    const cellH = 2.2;
     const xStart = xFrameLeft, xEnd = xFrameRight;
     const yStart = padTop, yEnd = padTop + plotH;
+    // Precompute the shallowest rockhead elevation across all boreholes once,
+    // so each raster row can fast-reject with a single comparison instead of
+    // rescanning every borehole per row.
+    const shallowestRockElev = Math.max(...rows.map((r, i) => effectiveRockLevel[i] !== null ? effectiveRockLevel[i] : maxElev - 5));
     svg += `<g clip-path="url(#${clipId})">`;
     for (let py = yStart; py < yEnd; py += cellH) {
       const elevMid = maxElev - ((py + cellH / 2) - padTop) / plotH * elevRange;
-      // Skip cells whose entire row is above every borehole's rockhead (fast
-      // reject) — cheap win since the raster spans the full plot height.
-      let anyRockHere = false;
-      for (let i = 0; i < rows.length; i++) {
-        const zR = effectiveRockLevel[i] !== null ? effectiveRockLevel[i] : maxElev - 5;
-        if (elevMid <= zR + 1) { anyRockHere = true; break; }
-      }
-      if (!anyRockHere) continue;
+      if (elevMid > shallowestRockElev + 1) continue;
+      // Merge consecutive same-colour cells along this row into one wider
+      // rect — the fade changes gradually, so most neighbouring cells round
+      // to the same hex colour, keeping the SVG small even at fine density.
+      let runStartX = null, runColor = null;
+      const flushRun = (endX) => {
+        if (runStartX !== null) {
+          svg += `<rect x="${runStartX.toFixed(1)}" y="${py.toFixed(1)}" width="${(endX - runStartX + 0.6).toFixed(1)}" height="${(cellH + 0.6).toFixed(1)}" fill="${runColor}"/>`;
+        }
+      };
       for (let px = xStart; px < xEnd; px += cellW) {
         const xMid = px + cellW / 2;
         const dMid = distMin + ((xMid - xFrameLeft) / (xFrameRight - xFrameLeft)) * distSpan;
         const fade = getFadeFractionAt(dMid, elevMid);
         const col = colorAtFadePosition(fade, bedrockColor);
-        svg += `<rect x="${px.toFixed(1)}" y="${py.toFixed(1)}" width="${(cellW + 0.6).toFixed(1)}" height="${(cellH + 0.6).toFixed(1)}" fill="${col}"/>`;
+        if (col !== runColor) {
+          flushRun(px);
+          runStartX = px;
+          runColor = col;
+        }
       }
+      flushRun(xEnd);
     }
     svg += `</g>`;
     // Subtle bedrock texture on top of the fade, same pattern used before, so
