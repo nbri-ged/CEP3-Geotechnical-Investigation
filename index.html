@@ -1054,21 +1054,68 @@ function normalizeRow(row){
 
 let bhDatesLookup = {};
 
+// BS 5930 (British Soil Classification System, BSCS) letter code table.
+// First letter = primary soil type: C=Clay, M=Silt, S=Sand, G=Gravel.
+// For FINE soils (C/M), the second letter is the PLASTICITY grade based on
+// liquid limit: L=Low (<35%), I=Intermediate (35-50%), H=High (50-70%),
+// V=Very High (70-90%), E=Extremely High (>90%). An 'O' suffix denotes
+// organic material (e.g. CHO = High plasticity CLAY, Organic).
+// For COARSE soils (S/G), the second letter is a SECONDARY CONSTITUENT
+// qualifier (e.g. SC = Sandy... no — S=Sand with C=Clayey fines; the
+// direction of the compound reads primary-soil-plus-secondary-fines for
+// S/G, but primary-soil-plus-plasticity for C/M — this is standard BS 5930
+// usage, not a project quirk). Two codes (CS, MG) were confirmed directly
+// against the project's own usage rather than inferred from the letter
+// scheme alone, since a literal reading of the standard's C/M-second-letter
+// convention would treat 'S' and 'G' as invalid plasticity grades: CS =
+// Sandy CLAY, MG = Gravelly SILT (both confirmed).
 const GRAPHIC_CODE_INFO = {
-  'MS': { label: 'Sandy SILT', color: '#c9a84e' },
-  'SM': { label: 'Silty SAND', color: '#e0b23c' },
-  'SC': { label: 'Clayey SAND', color: '#9c7a3a' },
-  'SP': { label: 'Poorly Graded SAND', color: '#f0d98a' },
-  'GM': { label: 'Silty GRAVEL', color: '#8a7a63' },
-  'GC': { label: 'Clayey GRAVEL', color: '#5f5240' },
-  'CL': { label: 'Low Plasticity CLAY', color: '#bd6b46' },
-  'CH': { label: 'High Plasticity CLAY', color: '#8a4530' },
-  'ML': { label: 'Low Plasticity SILT', color: '#a8b06a' },
-  'MH': { label: 'High Plasticity SILT', color: '#9a9e5a' },
-  'CI': { label: 'CI (intermediate CLAY)', color: '#b04a8a' },
-  'OL': { label: 'Organic SILT/CLAY', color: '#6a5a40' },
-  'OH': { label: 'Organic CLAY', color: '#5a4030' },
-  'FILL': { label: 'Engineered Fill', color: '#d9a05b' },
+  // ---- Fine soils: CLAY (C) ----
+  'CL':  { label: 'Low Plasticity CLAY', color: '#bd6b46' },
+  'CI':  { label: 'Intermediate Plasticity CLAY', color: '#b04a8a' },
+  'CH':  { label: 'High Plasticity CLAY', color: '#8a4530' },
+  'CV':  { label: 'Very High Plasticity CLAY', color: '#6e3020' },
+  'CE':  { label: 'Extremely High Plasticity CLAY', color: '#521f14' },
+  'CS':  { label: 'Sandy CLAY', color: '#a56942' }, // confirmed against project usage
+  'CLO': { label: 'Low Plasticity CLAY (Organic)', color: '#7a5238' },
+  'CIO': { label: 'Intermediate Plasticity CLAY (Organic)', color: '#6f3a60' },
+  'CHO': { label: 'High Plasticity CLAY (Organic)', color: '#5c3020' },
+  'CVO': { label: 'Very High Plasticity CLAY (Organic)', color: '#4a2415' },
+  'CSO': { label: 'Sandy CLAY (Organic)', color: '#6f4a30' },
+
+  // ---- Fine soils: SILT (M) ----
+  'ML':  { label: 'Low Plasticity SILT', color: '#a8b06a' },
+  'MI':  { label: 'Intermediate Plasticity SILT', color: '#96a352' },
+  'MH':  { label: 'High Plasticity SILT', color: '#9a9e5a' },
+  'MV':  { label: 'Very High Plasticity SILT', color: '#7d8248' },
+  'ME':  { label: 'Extremely High Plasticity SILT', color: '#636836' },
+  'MS':  { label: 'Sandy SILT', color: '#c9a84e' }, // confirmed against project usage (matches CS pattern)
+  'MG':  { label: 'Gravelly SILT', color: '#8f8f5a' }, // confirmed against project usage
+  'MLO': { label: 'Low Plasticity SILT (Organic)', color: '#6a5a40' },
+  'MHO': { label: 'High Plasticity SILT (Organic)', color: '#5a4d2c' },
+  'MEO': { label: 'Extremely High Plasticity SILT (Organic)', color: '#494024' },
+
+  // ---- Coarse soils: SAND (S) ----
+  'SW':  { label: 'Well Graded SAND', color: '#e8c85a' },
+  'SP':  { label: 'Poorly Graded SAND', color: '#f0d98a' },
+  'SM':  { label: 'Silty SAND', color: '#e0b23c' },
+  'SC':  { label: 'Clayey SAND', color: '#9c7a3a' },
+  // Dual/borderline classifications (5-15% fines, both gradation and
+  // plasticity assessed — standard BS 5930 dual notation).
+  'SPC': { label: 'Poorly Graded SAND with Clay', color: '#c9a55a' },
+  'SME': { label: 'Silty SAND (Extremely High Plasticity fines)', color: '#b8963c' },
+
+  // ---- Coarse soils: GRAVEL (G) ----
+  'GW':  { label: 'Well Graded GRAVEL', color: '#726352' },
+  'GP':  { label: 'Poorly Graded GRAVEL', color: '#8a7a63' },
+  'GM':  { label: 'Silty GRAVEL', color: '#8a7a63' },
+  'GC':  { label: 'Clayey GRAVEL', color: '#5f5240' },
+  'GPG': { label: 'Poorly Graded GRAVEL (Gravelly fines)', color: '#6e6250' },
+
+  // ---- Other / project-specific ----
+  'OL':  { label: 'Organic SILT/CLAY', color: '#6a5a40' },
+  'OH':  { label: 'Organic CLAY', color: '#5a4030' },
+  'FILL':{ label: 'Engineered Fill', color: '#d9a05b' },
   'WEATHERED ROCK': { label: 'Weathered Rock / Saprolite', color: '#a39c87' }
 };
 const ROCK_KEYWORDS = ['BEDROCK','ROCK','GNEISS','GRANITE','QUARTZITE','SCHIST','MARBLE','DOLERITE','CHARNOCKITE','GABBRO','LIMESTONE'];
@@ -1132,6 +1179,15 @@ function rgbToHex(r, g, b) {
 function lightenColor(hex, amount) {
   const { r, g, b } = hexToRgb(hex);
   return rgbToHex(r + (255 - r) * amount, g + (255 - g) * amount, b + (255 - b) * amount);
+}
+// Linearly blends between two hex colours at fraction t (0=colorA, 1=colorB).
+// Used to smoothly transition a connected multi-origin unit's colour between
+// two boreholes' different dominant materials, instead of a hard vertical
+// seam at the midpoint (rule 10 refinement — curved/smoothed boundaries).
+function blendColors(hexA, hexB, t) {
+  const a = hexToRgb(hexA), b = hexToRgb(hexB);
+  const tt = Math.max(0, Math.min(1, t));
+  return rgbToHex(a.r + (b.r - a.r) * tt, a.g + (b.g - a.g) * tt, a.b + (b.b - a.b) * tt);
 }
 // Builds the {highly, moderately, slightly, fresh} colour map as tints of the
 // real bedrock colour: fresh = bedrockColor exactly (amount 0), highly = most
@@ -1244,10 +1300,363 @@ function parseCsvWithProxy(url, onComplete, onError) {
   }
 }
 
+/* ============================================================
+   GEOLOGICAL RULES — READ ME BEFORE EDITING SOIL/ROCK RENDERING
+   ============================================================
+   This block is the single source of truth for the geological
+   modelling rules encoded in this file. If you (human or AI) add,
+   change, or remove a geological behaviour anywhere in this file,
+   UPDATE THIS BLOCK IN THE SAME EDIT. Do not let this note go stale
+   — a future editor (human or AI) with zero other context needs to
+   be able to read this and understand every rule currently active.
+
+   1. SOIL ORIGIN IS THE PRIMARY PARTITION, BSCS IS SECONDARY.
+      Two soil layers are only allowed to interpolate/connect across
+      neighbouring boreholes if they belong to the SAME "origin
+      family" (see ORIGIN_FAMILY below). BSCS grain-size code (SM,
+      MS, CS, etc.) only matters WITHIN a family — it no longer
+      drives interpolation on its own the way it used to. Two layers
+      can share an identical BSCS code and still be geologically
+      unconnectable if their Origins put them in different families
+      (e.g. an "Alluvium/SM" layer must NEVER blend into a
+      neighbouring "Residual/SM" layer just because both are SM).
+
+   2. ORIGIN FAMILIES (which Origins are allowed to connect):
+        Family "residual"   -> Residual, Completely Weathered Rock
+                                (these two are genetically the same
+                                in-situ weathering profile — CWR is
+                                just the most-weathered end-member of
+                                Residual soil — so they DO connect
+                                and interpolate continuously, exactly
+                                like ordinary soil layers do today.)
+        Family "alluvium"   -> Alluvium (isolated; see rule 3, lens
+                                geometry, not tabular pinch-out)
+        Family "colluvium"  -> Colluvium (isolated, lens-type, same
+                                treatment as Alluvium — gravity-
+                                transported, not a regional blanket)
+        Family "made_ground"-> Made Ground, Engineered Fill (isolated
+                                — both are human-placed, so treated
+                                as local/bounded features, never
+                                extended into natural soil)
+        Every other Origin value (Aeolian, Estuarine, Marine, Peat/
+        Organic, Laterite, Saprolite, Glacial/Glaciofluvial,
+        Lacustrine, or blank/unknown) currently falls back to its
+        own single-Origin family: it only connects to an identical
+        Origin string at a neighbouring borehole. This is a
+        deliberate simplification (see rule 5) — extend the mapping
+        below (ORIGIN_FAMILY) if a specific pairing rule is needed.
+
+   3. LENS GEOMETRY FOR TRANSPORTED DEPOSITS — CORRECTED, connectivity-
+      based (Alluvium, Colluvium, Made Ground, Engineered Fill):
+      these do NOT automatically get the ordinary "pinch out halfway
+      to the next borehole" tabular treatment just by having a
+      lens-eligible Origin — but they DO get it if a neighbouring
+      borehole logs the SAME origin family AND same representative
+      graphic/BSCS (see hasMatchingNeighborBlock). Only a block with
+      NO such match at either adjacent borehole is treated as an
+      isolated lens: rendered as a self-contained shape around its
+      OWN borehole, capped at a FIXED maximum lateral half-width
+      (LENS_MAX_HALF_WIDTH_M below), tapering to a point. This
+      matters because a real Alluvium blanket that's genuinely
+      continuous across several boreholes (common near a floodplain
+      surface) should NOT be fragmented into disconnected lenses just
+      because its Origin is a "lens-eligible" family — the family
+      only controls ELIGIBILITY for lens treatment, not a blanket
+      requirement for it. (An earlier version of this rule forced
+      every occurrence of these origins into an isolated lens
+      unconditionally — that was wrong and has been corrected.)
+
+   4. WEATHERING GRADE FADE (rock) is unaffected by this partitioning
+      — it already has its own continuous-fade system (see the
+      WEATHERING_GRADE_* constants and getFadeFractionAt), anchored
+      so 'fresh' always equals the plain bedrock colour. That system
+      is unchanged by the origin rules above.
+
+   5. SIMPLIFICATION WE'RE ACCEPTING: "same Origin family + same
+      representative graphic at neighbouring boreholes = connectable"
+      is assumed without verifying it's genuinely the same physical
+      deposit (e.g. two separate Alluvium channels could share the
+      label). This mirrors the same assumption the original BSCS-only
+      pinch-out logic made. A future improvement would need an
+      explicit deposit/body ID column, which the source sheet does
+      not currently have.
+
+   6. HATCH / TEXTURE OVERLAY PER ORIGIN: BS 5930 Table 16 defines
+      hatch patterns for MATERIAL/LITHOLOGY (sand, clay, gravel,
+      chalk, etc.), not for depositional ORIGIN — there is no
+      official BS 5930 symbol for "Alluvium" vs "Residual" as such.
+      The origin hatch set used here (see ORIGIN_HATCH_INFO /
+      buildOriginHatchDefs) is therefore a PROJECT CONVENTION we
+      designed, not a literal BS 5930 citation, layered on top of the
+      BS-5930-informed BSCS fill colours which remain the material-
+      type authority. This is called out here so nobody mistakes the
+      origin hatch for an official standard symbol. REVISED: Residual
+      and Completely Weathered Rock now EACH have their own distinct
+      hatch texture (an earlier version left the whole family
+      texture-free to avoid competing with the rock weathering fade;
+      that was changed on direction — both origins should appear in
+      the Soil Origin legend even though they remain one CONNECTIVITY
+      family, i.e. they can still interpolate into each other across
+      boreholes per rule 1/2). Because Residual and Completely
+      Weathered Rock share one family but need different textures,
+      hatch lookup uses a separate, finer-grained key
+      (originHatchKeyOf) than the coarser family used for stacking/
+      connectivity decisions — most origins' hatch key equals their
+      family; Residual/CWR is the one case where it doesn't. The
+      hatch key is rendered as its own legend section, separate from
+      the BSCS colour legend, since origin texture and material
+      colour are independent visual channels on the same layer.
+      MOTIF COLLISION FIX: the first Residual/CWR patterns used small
+      circles/dots — the SAME visual language as the sand material
+      pattern (pat-sand, filled dots) and gravel (pat-gravel, outlined
+      circles). Since origin and material hatches are layered on the
+      same shape (e.g. an Alluvium/Sand layer shows both), any
+      dot/circle-based origin motif is genuinely ambiguous with those
+      material patterns — a real, confirmed legibility bug, not a
+      style nitpick. Redesigned Residual/CWR to use a chevron/tick
+      motif instead, which doesn't collide with any existing material
+      pattern (sand=dots, gravel=outlined circles, clay=short line
+      segments). If you add a new origin hatch in future, check it
+      against ALL existing material AND origin patterns for motif
+      collisions, not just origin patterns against each other.
+
+   7. LAYER MERGING WITHIN ONE ORIGIN BLOCK: a borehole log often
+      records several different BSCS/grain-size readings within what
+      is really ONE continuous depositional unit (e.g. "Alluvium:
+      0-1.5m MS, 1.5-3m MH, 3-6m SC" is one Alluvium deposit with
+      internal grain-size variation, not three separate deposits).
+      Rendering each sub-reading as its own polygon fragments the
+      picture and multiplies unrelated lens shapes. Every CONTIGUOUS
+      run of layers sharing the same origin family is collapsed into
+      ONE merged block before any interpolation/lens decision is
+      made; the merged block's representative graphic/colour is
+      whichever sub-layer is THICKEST. Rock layers are never merged
+      this way. See the layersArr collapsing step near the top of
+      buildProfileSvg for the implementation.
+
+   8. LEGEND COMPLETENESS: the legend must list every distinct
+      material actually drawn on the canvas — both tabular
+      (masterSoilUnits) AND lens-only occurrences. An earlier version
+      of this file only listed masterSoilUnits, silently omitting any
+      layer that got lens treatment; that was a real bug, not a
+      design choice, and has been fixed (see the legendItems
+      construction, which now merges both sources before
+      deduplicating by label). A SECOND, deeper legend bug existed
+      alongside this: a unit could be listed in masterSoilUnits
+      (present at one borehole) yet render with ZERO actual area
+      everywhere it was sampled — the legend must check "did this
+      actually draw", not just "does this unit exist in the data
+      structure" (see masterUnitHasRenderedArea, which reuses the
+      exact sampling loop the real fill pass uses so the two checks
+      can never disagree).
+
+   9. ORIGIN-FAMILY STACKING PRIORITY (real bug fix): master units are
+      NOT sorted by BSCS/material rank alone (getGraphicRank) — origin
+      family determines coarse stacking order FIRST, and BSCS rank
+      only breaks ties WITHIN the same family (see
+      originFamilyStackPriority). Sorting by BSCS rank alone was a
+      real, confirmed bug: a connected Alluvium block can end up
+      represented by whichever BSCS code has the greatest summed
+      thickness (rule 7b), and that code can easily rank AFTER a
+      neighbouring Residual block's own representative code in
+      GraphicHierarchy — which silently stacked Alluvium BENEATH
+      Residual soil in the cumulative boundary system at some
+      boreholes. That is geologically backwards: a transported
+      surface deposit (Alluvium/Colluvium) or human-placed fill (Made
+      Ground) can never sit beneath in-situ Residual soil. Fixed
+      stacking priority, top to bottom: Made Ground → Alluvium/
+      Colluvium → unknown/other named origins → Residual (+
+      Completely Weathered Rock, same family) → Rock. If you add a
+      new Origin family, add its priority here too, or it will fall
+      into the "unknown/other" tier by default.
+
+   10. SUPERSEDED — connected multi-origin units render EXACTLY like
+      Residual's own internal BSCS variation (final resolution of
+      rule 7b): an earlier version of this file special-cased a
+      "connected" lens-family block (e.g. Alluvium judged continuous
+      across boreholes via sub-layer overlap) into a SINGLE combined
+      master-unit slot per origin family, painted either with one
+      fixed colour or, later, a smooth per-borehole colour blend. Both
+      versions were reverted on direction: a connected multi-origin
+      unit now simply keys by family+BSCS the same as every other
+      unit (see unitKey), so it SPLITS into one slot per distinct
+      BSCS code — a real thick clay zone at one borehole shows as its
+      own separately-pinching sub-layer, exactly the way a Residual
+      sub-layer would, rather than being merged/blended/hidden into a
+      combined block. This is simpler and keeps every origin family's
+      internal treatment consistent. (blendColors/lightenColor-style
+      per-position blending is still used elsewhere, e.g. the rock
+      weathering fade — this reversal is specific to soil layer
+      colouring, not a removal of that technique in general.)
+
+   11. CWR SUB-RANGE HATCH OVERLAY (real bug fix): the layer-merging
+      step (rule 7) collapses a contiguous same-FAMILY run into one
+      block and freezes that block's `origin` field at whichever
+      sub-layer STARTED the run. Since Residual and Completely
+      Weathered Rock share one connectivity family and CWR
+      consistently appears as the LAST sub-layer before rock, a
+      merged run almost always freezes on "Residual" — meaning CWR's
+      own distinct hatch texture (rule 6) was silently unreachable via
+      that frozen field, even though real CWR data exists and the
+      block's `subLayers` array still has it. Confirmed via direct
+      inspection of real project data (three boreholes, each with a
+      genuine 1.5-2.1m Completely Weathered Rock zone immediately above
+      rock) that this texture was never appearing anywhere in output.
+      Fixed with a SEPARATE overlay pass, scoped to 'residual'-family
+      master units only: for each borehole, walk its own merged
+      block's subLayers to find the actual CWR depth sub-range (if
+      any), convert it to the same fraction-of-overburden system the
+      main fill uses, interpolate between boreholes the same way, and
+      draw a second polygon — clipped to just that inner portion —
+      textured with CWR's own pattern. The legend's hatch-key
+      collection was fixed the same way (must scan subLayers, not just
+      each block's frozen top-level origin field, or CWR would still
+      be missing from the Soil Origin legend section even after the
+      fill itself was fixed).
+
+   12. TERMINATION LABEL COLLISION AVOIDANCE (real bug fix): "Term
+      X.Xm" labels were drawn immediately in the same pass as the
+      borehole pillars, always at a fixed yTerm+4 offset with NO
+      collision checking — two boreholes terminating at similar
+      depths close together produced visibly overlapping label boxes.
+      Fixed the same way the BH header labels already were: collect
+      termination info (termLabelInfo) during the pillar pass, then
+      render them in a DEFERRED second pass that stacks a colliding
+      label to the next row, same X, mirroring the BH header label
+      algorithm (see the "VERTICAL-STAGGER BH HEADER LABELS" pass)
+      almost exactly — except termination labels stack DOWNWARD (away
+      from the pillars, since they sit at the bottom of the profile)
+      where BH headers stack upward. padBottom's fixed reserve was
+      increased to accommodate a few stacked rows, consistent with how
+      padTop is already a fixed (not dynamically computed) budget for
+      the BH header stacking case.
+
+   13. BS 5930 (BSCS) LETTER CODE TABLE — GRAPHIC_CODE_INFO expanded to
+      cover the actual BS 5930 soil classification letter system, not
+      just the handful of codes originally hard-coded. Standard
+      convention: first letter = primary soil type (C=Clay, M=Silt,
+      S=Sand, G=Gravel). For FINE soils (C/M), the second letter is a
+      PLASTICITY grade from liquid limit: L=Low(<35%),
+      I=Intermediate(35-50%), H=High(50-70%), V=Very High(70-90%),
+      E=Extremely High(>90%); an 'O' suffix denotes organic material
+      (e.g. CHO = High plasticity Clay, Organic). For COARSE soils
+      (S/G), the second letter is a secondary-constituent qualifier
+      instead (e.g. SM = Silty Sand, GC = Clayey Gravel) — this is
+      standard BS 5930 usage, not a project quirk, and the two letter
+      systems (plasticity vs constituent) read differently depending
+      on whether the primary letter is C/M or S/G.
+      Before this fix, any code not in the small original hard-coded
+      set (CS, CV, ME, MG, MI, MV, SME, SPC, SW, GP, GPG, and the
+      *O organic variants, all confirmed present in real project data
+      via direct inspection of the BH Profile CSV) fell through to a
+      generic hash-based colour with no readable label — meaning the
+      legend and BH pillar/popup logs showed a meaningless raw code
+      string for a large fraction of real logged layers.
+      TWO CODES NEEDED PROJECT-SPECIFIC CONFIRMATION rather than a
+      literal reading of the standard, since 'S' and 'G' aren't valid
+      plasticity-grade second letters for C/M: CS = Sandy CLAY, MG =
+      Gravelly SILT (both confirmed directly with the user — do not
+      assume the reverse reading "Clayey Sand"/"Silty Gravel", those
+      are SC/GM respectively, already distinct existing codes).
+      REMAINING LOWER-CONFIDENCE ENTRIES (best inference, not
+      standard- or project-confirmed): SPC ("Poorly Graded Sand with
+      Clay") and SME ("Silty Sand, Extremely High Plasticity fines")
+      are dual/borderline BS 5930-style notations inferred from the
+      letter pattern, not confirmed against a project key or lab
+      report — flag to the user if precision here matters for a
+      specific deliverable, and update this note if/when confirmed.
+   ============================================================ */
+
+const LENS_MAX_HALF_WIDTH_M = 15; // rule 3: fixed max lateral half-width for lens-type origins
+
+// Origin hatch/texture overlay (rule 6) — a PROJECT CONVENTION, not a literal
+// BS 5930 symbol (see GEOLOGICAL RULES block, rule 6, for why). Applied on
+// top of the BSCS colour fill, same layering already used for the sand/
+// clay/gravel material patterns.
+//
+// NOTE (rule 6 revised): Residual and Completely Weathered Rock share one
+// CONNECTIVITY family ('residual' — see ORIGIN_FAMILY_MAP, they can still
+// interpolate into each other across boreholes per rule 1/2) but need
+// visually DISTINCT hatch textures, since they're still recognisably
+// different materials on a log even though they're part of one continuous
+// weathering profile. So hatch lookup uses a separate, finer-grained key
+// (originHatchKeyOf) than the coarser family used for stacking/connectivity
+// — most origins' hatch key equals their family; Residual/CWR is the one
+// case where it doesn't.
+function originHatchKeyOf(rawOrigin) {
+  const clean = (rawOrigin || '').trim().toLowerCase();
+  if (clean === 'completely weathered rock') return 'completely_weathered_rock';
+  if (clean === 'residual') return 'residual';
+  return originFamilyOf(rawOrigin);
+}
+
+const ORIGIN_HATCH_INFO = {
+  made_ground:  { patternId: 'pat-origin-made-ground',  label: 'Made Ground / Engineered Fill' },
+  alluvium:     { patternId: 'pat-origin-alluvium',      label: 'Alluvium' },
+  colluvium:    { patternId: 'pat-origin-colluvium',     label: 'Colluvium' },
+  residual:     { patternId: 'pat-origin-residual',      label: 'Residual Soil' },
+  completely_weathered_rock: { patternId: 'pat-origin-cwr', label: 'Completely Weathered Rock' },
+};
+
+// Returns the <pattern> element markup for every origin hatch, to be
+// concatenated into the SVG's single <defs> block.
+function buildOriginHatchDefs() {
+  return `
+    <pattern id="pat-origin-made-ground" width="10" height="10" patternUnits="userSpaceOnUse">
+      <line x1="0" y1="0" x2="10" y2="10" stroke="#3a3a3a" stroke-width="0.8" opacity="0.45"/>
+      <line x1="10" y1="0" x2="0" y2="10" stroke="#3a3a3a" stroke-width="0.8" opacity="0.45"/>
+    </pattern>
+    <pattern id="pat-origin-alluvium" width="14" height="6" patternUnits="userSpaceOnUse">
+      <path d="M0,3 Q3.5,0.5 7,3 T14,3" fill="none" stroke="#2a5a7a" stroke-width="0.6" opacity="0.4"/>
+    </pattern>
+    <pattern id="pat-origin-colluvium" width="10" height="10" patternUnits="userSpaceOnUse" patternTransform="rotate(-30)">
+      <line x1="0" y1="0" x2="0" y2="4" stroke="#6b4a2a" stroke-width="0.9" opacity="0.4"/>
+      <line x1="5" y1="5" x2="5" y2="9" stroke="#6b4a2a" stroke-width="0.9" opacity="0.4"/>
+    </pattern>
+    <pattern id="pat-origin-residual" width="10" height="10" patternUnits="userSpaceOnUse">
+      <!-- Small chevron/tick motif — deliberately NOT circular, so it never
+           reads as "sand" (pat-sand, filled dots) or "gravel" (pat-gravel,
+           outlined circles) at a glance. A short single tick per cell keeps
+           it light/sparse since Residual is the common baseline material. -->
+      <path d="M2,7 L4,3 L6,7" fill="none" stroke="#4a3f2f" stroke-width="0.7" opacity="0.4"/>
+    </pattern>
+    <pattern id="pat-origin-cwr" width="10" height="10" patternUnits="userSpaceOnUse">
+      <!-- Same chevron motif as Residual (same weathering continuum) but
+           DOUBLED/denser, hinting CWR is the "further along" end — still
+           non-circular, so no ambiguity with sand/gravel material hatches. -->
+      <path d="M2,7 L4,3 L6,7" fill="none" stroke="#4a3f2f" stroke-width="0.9" opacity="0.55"/>
+      <path d="M2,3 L4,-1 L6,3" fill="none" stroke="#4a3f2f" stroke-width="0.9" opacity="0.55"/>
+    </pattern>`;
+}
+
+const ORIGIN_FAMILY_MAP = {
+  'residual': 'residual',
+  'completely weathered rock': 'residual',
+  'alluvium': 'alluvium',
+  'colluvium': 'colluvium',
+  'made ground': 'made_ground',
+  'engineered fill': 'made_ground',
+};
+// Origins whose family uses LENS geometry (rule 3) instead of ordinary
+// tabular pinch-out interpolation.
+const LENS_ORIGIN_FAMILIES = new Set(['alluvium', 'colluvium', 'made_ground']);
+
+function originFamilyOf(originRaw) {
+  const clean = (originRaw || '').trim().toLowerCase();
+  if (!clean) return 'unknown';
+  return ORIGIN_FAMILY_MAP[clean] || ('other:' + clean); // rule 2 fallback: own family per unique label
+}
+
 function fetchBHProfileLog(){
   parseCsvWithProxy(BH_PROFILE_CSV_URL, (data) => {
     const grouped = {};
     const weatherGrouped = {};
+    // Origin/Consistency readings, keyed same as grouped/weatherGrouped, used
+    // to annotate graphic layers below by depth-match (rule: the Origin table
+    // and Graphic table are separate column groups from the same sheet fetch
+    // and may not share identical breakpoints in every borehole, so we match
+    // by nearest top-depth rather than assuming row alignment).
+    const originGrouped = {};
     data.forEach(raw => {
       const row = normalizeRow(raw);
       const pointId = (row['PointID'] || row['Point ID'] || row['BH_ID'] || row['BH ID'] || row['BH Name'] || '').trim();
@@ -1271,6 +1680,21 @@ function fetchBHProfileLog(){
         }
       }
 
+      // Soil Origin + Primary Consistency (cols M-Q on the BH Profile tab).
+      const originRaw = row['Soil Origin'];
+      const consistencyRaw = row['Primary Consistency'];
+      if (pointId && depth !== null && ((originRaw !== undefined && String(originRaw).trim() !== '') || (consistencyRaw !== undefined && String(consistencyRaw).trim() !== ''))) {
+        const entry = { depth, origin: (originRaw || '').trim(), consistency: (consistencyRaw || '').trim() };
+        const oRawKey = pointId;
+        const oNormKey = cleanBHKey(pointId);
+        if (!originGrouped[oRawKey]) originGrouped[oRawKey] = [];
+        originGrouped[oRawKey].push(entry);
+        if (oNormKey && oNormKey !== oRawKey) {
+          if (!originGrouped[oNormKey]) originGrouped[oNormKey] = [];
+          originGrouped[oNormKey].push(entry);
+        }
+      }
+
       if (!pointId || depth === null || bottom === null) return;
 
       const rawKey = pointId;
@@ -1286,6 +1710,32 @@ function fetchBHProfileLog(){
     });
     Object.keys(grouped).forEach(k => grouped[k].sort((a,b) => a.depth - b.depth));
     Object.keys(weatherGrouped).forEach(k => weatherGrouped[k].sort((a,b) => a.depth - b.depth));
+    Object.keys(originGrouped).forEach(k => originGrouped[k].sort((a,b) => a.depth - b.depth));
+
+    // Attach origin/consistency to each graphic layer by nearest top-depth
+    // match (tolerance-based, since the two tables can have slightly
+    // different breakpoints in general even though they align exactly in
+    // the sample data we've validated against).
+    Object.keys(grouped).forEach(k => {
+      const origins = originGrouped[k];
+      if (!origins || !origins.length) return;
+      grouped[k].forEach(layer => {
+        let best = null, bestDist = Infinity;
+        origins.forEach(o => {
+          const d = Math.abs(o.depth - layer.depth);
+          if (d < bestDist) { bestDist = d; best = o; }
+        });
+        // Accept the match only if it's reasonably close (within 0.51m,
+        // i.e. tighter than the typical 1.5m sampling interval) — an
+        // unmatched layer just has no origin/consistency annotation rather
+        // than a wrong guess.
+        if (best && bestDist <= 0.51) {
+          layer.origin = best.origin;
+          layer.consistency = best.consistency;
+        }
+      });
+    });
+
     profileLayersByBH = grouped;
     profileWeatheringByBH = weatherGrouped;
     if (allRows && allRows.length) render();
@@ -1319,6 +1769,7 @@ function getBHLayers(rOrName) {
   }
   return null;
 }
+
 
 // Same name-resolution strategy as getBHLayers, for the weathering point log.
 function getBHWeathering(rOrName) {
@@ -2282,7 +2733,68 @@ function buildProfileSvg(rows) {
   const distances = computeProfilePositions(rows);
   const levelsArr = rows.map(computeBHLevels);
   const bhNames = rows.map(r => (r['BH Name'] || '').trim());
-  const layersArr = rows.map(r => getBHLayers(r) || null);
+  const rawLayersArr = rows.map(r => getBHLayers(r) || null);
+
+  // Collapse contiguous same-Origin-family runs of layers into ONE merged
+  // block per run (rule 7 below), rather than rendering every BSCS grain-
+  // size sub-layer within a single Origin deposit as its own separate
+  // polygon. A borehole logging "Alluvium: MS/MH/SC" across 0-6m is ONE
+  // deposit with internal grain-size variation, not three stacked deposits
+  // — fragmenting it visually misrepresents how the log is actually read
+  // and also produces one master-unit slot per fragment (rule 1), which
+  // both clutters the legend and multiplies unrelated lens shapes. The
+  // merged block's representative BSCS/graphic is whichever sub-layer is
+  // THICKEST (best single visual proxy for "what this deposit mostly is");
+  // rock layers are left completely untouched (they're never collapsed).
+  const layersArr = rawLayersArr.map(layers => {
+    if (!layers || !layers.length) return layers;
+    const merged = [];
+    layers.forEach(l => {
+      const info = getGraphicInfo(l.graphic);
+      const fam = info.isRock ? null : originFamilyOf(l.origin);
+      const last = merged[merged.length - 1];
+      if (!info.isRock && last && !last.isRockBlock && last.originFamily === fam && Math.abs(last.bottom - l.depth) < 0.01) {
+        // Extend the current merged block; representative graphic/BSCS is
+        // whichever CODE has the greatest TOTAL thickness summed across all
+        // its sub-layer occurrences (not the single thickest individual
+        // reading — three separate 1.5m CS readings collectively outweigh
+        // one 2.1m SM reading and should win, which a per-reading max would
+        // miss).
+        last.bottom = l.bottom;
+        last.subLayers.push(l);
+        const thicknessByCode = {};
+        last.subLayers.forEach(sl => {
+          const g = (sl.graphic || '').trim();
+          thicknessByCode[g] = (thicknessByCode[g] || 0) + (sl.bottom - sl.depth);
+        });
+        let bestCode = last.graphic, bestThickness = -1;
+        Object.keys(thicknessByCode).forEach(g => {
+          if (thicknessByCode[g] > bestThickness) { bestThickness = thicknessByCode[g]; bestCode = g; }
+        });
+        last.graphic = bestCode;
+      } else {
+        merged.push({
+          depth: l.depth,
+          bottom: l.bottom,
+          graphic: l.graphic,
+          origin: l.origin,
+          consistency: l.consistency,
+          originFamily: fam,
+          isRockBlock: info.isRock,
+          subLayers: [l]
+          // NOTE: `origin` above is frozen at whichever sub-layer started
+          // this merged run — subLayers retains the full depth-ordered list
+          // so a later origin (e.g. Completely Weathered Rock appearing
+          // after Residual within one contiguous run) can still be found
+          // and hatch-textured over its own actual sub-range; see the
+          // per-origin hatch overlay pass in the fill-rendering loop, which
+          // walks subLayers rather than trusting the single frozen `origin`
+          // field for anything beyond stacking/connectivity purposes.
+        });
+      }
+    });
+    return merged;
+  });
 
   const effectiveRockLevel = levelsArr.map((lv, i) => {
     const layers = layersArr[i];
@@ -2316,6 +2828,29 @@ function buildProfileSvg(rows) {
   const plotW = minInnerW + plotMargin * 2;
   const plotH = 440;
   const svgW = plotW + padLeft + padRight;
+
+  const numSamples = Math.max(Math.round(plotW / 2), 160);
+  // Build ONE shared sample-distance array, used for every curve (ground, rock,
+  // layer fills, GWT) AND the legend's hasArea dry-run check. Crucially it
+  // MERGES IN the exact borehole distances, so every fill polygon passes
+  // exactly through the true logged boundary at each pillar instead of only
+  // approaching it via the nearest evenly-spaced sample — this is what caused
+  // thin mismatched slivers right at the BH columns. Defined early (right
+  // after plotW/distSpan) rather than later, because the legend needs it for
+  // its dry-run "did this unit actually render" check, and the legend size
+  // must be known before the SVG header line further down.
+  const sampleDists = (() => {
+    const uniform = [];
+    for (let s = 0; s <= numSamples; s++) uniform.push(distMin + (distSpan * s) / numSamples);
+    const merged = uniform.concat(distances.filter(d => d >= distMin && d <= distMax));
+    merged.sort((a, b) => a - b);
+    const eps = distSpan * 1e-6;
+    const out = [];
+    merged.forEach(d => {
+      if (out.length === 0 || d - out[out.length - 1] > eps) out.push(d);
+    });
+    return out;
+  })();
 
   let maxElev = -Infinity, minElev = Infinity;
   levelsArr.forEach((lv, i) => {
@@ -2353,20 +2888,126 @@ function buildProfileSvg(rows) {
     return idx !== -1 ? idx : 50;
   }
 
-  const soilGraphicSet = new Set();
+  // Compound "master unit" key (see GEOLOGICAL RULES rule 1/2). Always
+  // origin-family + BSCS graphic — two layers only ever share a slot (and
+  // therefore only ever interpolate) if BOTH match. This means a connected
+  // multi-origin unit (rule 7b: e.g. Alluvium judged continuous across
+  // several boreholes via sub-layer overlap) still SPLITS into one slot per
+  // distinct BSCS code it contains, exactly the same way Residual's own
+  // internal BSCS variation does — each code pinches in/out independently
+  // rather than being merged into a single "thickest code wins" block. (An
+  // earlier version special-cased connected lens-family blocks into one
+  // combined ||__connected__ slot per family; that hid real material
+  // differences between boreholes — e.g. a genuine thick clay zone at one
+  // borehole was invisible, absorbed into a neighbour's colour — and has
+  // been reverted in favour of this simpler, Residual-consistent approach.)
+  function unitKey(layerLike, originFamily) {
+    const graphic = typeof layerLike === 'string' ? layerLike : layerLike.graphic;
+    return originFamily + '||' + (graphic || '').trim();
+  }
+
+  // ---- CONNECTIVITY CHECK (corrected rule 3, refined per rule 7b below): a
+  // merged Origin block is only rendered as an isolated LENS if NO merged
+  // block at EITHER adjacent borehole shares the same origin family AND at
+  // least one overlapping sub-layer BSCS code. We deliberately do NOT
+  // require the two blocks' "thickest" representative codes to match exactly
+  // — two occurrences of what's really the same continuous deposit can each
+  // have a different DOMINANT grain size (e.g. one location happens to have
+  // slightly more silt, the other slightly more clay) while still clearly
+  // being the same sheet, evidenced by sharing at least one common BSCS
+  // reading somewhere in their logged column. Requiring an exact
+  // representative-code match was too strict and incorrectly isolated
+  // deposits that should connect (see rule 7b). The merged block still
+  // RENDERS as one shape using its own thickest sub-layer's colour — only
+  // the connectivity DECISION uses the looser any-sub-layer-overlap test.
+  function hasMatchingNeighborBlock(bhIdx, family, subLayerCodes) {
+    const neighbors = [bhIdx - 1, bhIdx + 1].filter(j => j >= 0 && j < rows.length);
+    return neighbors.some(j => {
+      const layers = layersArr[j];
+      if (!layers) return false;
+      return layers.some(l => {
+        if (l.isRockBlock || l.originFamily !== family) return false;
+        const neighborCodes = new Set((l.subLayers || [l]).map(sl => (sl.graphic || '').trim()));
+        return subLayerCodes.some(code => neighborCodes.has(code));
+      });
+    });
+  }
+
+  // Tag every merged block as tabular or lens BEFORE building the master
+  // unit list, so both downstream passes (tabular interpolation, lens
+  // rendering) agree on the same classification for the same block.
+  layersArr.forEach((layers, i) => {
+    if (!layers) return;
+    layers.forEach(l => {
+      if (l.isRockBlock) { l.isLens = false; return; }
+      const isLensFamily = LENS_ORIGIN_FAMILIES.has(l.originFamily);
+      const ownCodes = (l.subLayers || [l]).map(sl => (sl.graphic || '').trim());
+      l.isLens = isLensFamily && !hasMatchingNeighborBlock(i, l.originFamily, ownCodes);
+    });
+  });
+
+  // Master soil units (tabular system) now include any lens-family block
+  // that turned out to be CONNECTED to a neighbour (rule 3 corrected) —
+  // only genuinely isolated blocks (l.isLens === true) are excluded here
+  // and handled by the separate lens pass below.
+  const soilUnitKeySet = new Set();
+  const soilUnitMeta = {}; // unitKey -> { graphic, originFamily }
   layersArr.forEach((layers) => {
     if (layers && layers.length) {
       layers.forEach(l => {
-        const info = getGraphicInfo(l.graphic);
-        if (!info.isRock) soilGraphicSet.add((l.graphic || '').trim());
+        if (l.isRockBlock) return;
+        if (l.isLens) return; // handled by lens pass, not tabular
+        const key = unitKey(l, l.originFamily);
+        soilUnitKeySet.add(key);
+        // Keep the FIRST graphic seen for this key as the representative for
+        // legend/base-colour purposes; a connected-lens key intentionally
+        // groups blocks that may have different representative graphics
+        // across boreholes, so this is necessarily just one illustrative pick.
+        if (!soilUnitMeta[key]) soilUnitMeta[key] = { graphic: (l.graphic || '').trim(), originFamily: l.originFamily, origin: l.origin };
       });
     } else {
-      soilGraphicSet.add('Overburden (soil)');
+      const key = unitKey('Overburden (soil)', 'unknown');
+      soilUnitKeySet.add(key);
+      soilUnitMeta[key] = { graphic: 'Overburden (soil)', originFamily: 'unknown', origin: '' };
     }
   });
 
-  const masterSoilUnits = Array.from(soilGraphicSet).sort((a, b) => getGraphicRank(a) - getGraphicRank(b));
-  if (masterSoilUnits.length === 0) masterSoilUnits.push('Overburden (soil)');
+  // ---- ORIGIN-FAMILY STACKING PRIORITY (rule 9) ----
+  // getGraphicRank alone is NOT sufficient to order master units: it ranks by
+  // BSCS/material code only, with no awareness of depositional Origin. Two
+  // units with the same or similar BSCS code can belong to totally different
+  // origins that MUST stack in a fixed natural order regardless of which
+  // BSCS code either one happens to be represented by (e.g. a connected
+  // Alluvium block might end up represented by "SC" while a Residual block
+  // at the same borehole is represented by "SM" — if SM ranks earlier than
+  // SC in GraphicHierarchy, a BSCS-only sort would incorrectly place
+  // Residual ABOVE Alluvium, which is geologically backwards: Alluvium is a
+  // surface/transported deposit and can never sit beneath in-situ Residual
+  // soil). originFamilyStackPriority fixes this by sorting on ORIGIN FAMILY
+  // PRIORITY first, and only using BSCS rank as a tiebreaker WITHIN the same
+  // family. This was a real bug, not a design choice — found via the
+  // bhCumBoundaries dump showing Alluvium's boundary slot placed below (not
+  // above) a Residual slot at two of three test boreholes.
+  function originFamilyStackPriority(family) {
+    if (family === 'made_ground') return 0;   // human-placed fill, always at/near surface
+    if (family === 'alluvium') return 1;      // transported, surface/near-surface deposit
+    if (family === 'colluvium') return 1;     // transported, surface/near-surface deposit
+    if (family === 'unknown') return 2;       // unclassified soil — treated as ordinary overburden
+    if (family === 'residual') return 3;      // in-situ weathering profile (Residual + CWR)
+    return 2; // any other named origin (Aeolian, Estuarine, etc.) — see rule 2 fallback
+  }
+
+  const masterSoilUnits = Array.from(soilUnitKeySet).sort((a, b) => {
+    const famA = originFamilyStackPriority(soilUnitMeta[a].originFamily);
+    const famB = originFamilyStackPriority(soilUnitMeta[b].originFamily);
+    if (famA !== famB) return famA - famB;
+    return getGraphicRank(soilUnitMeta[a].graphic) - getGraphicRank(soilUnitMeta[b].graphic);
+  });
+  if (masterSoilUnits.length === 0) {
+    const key = unitKey('Overburden (soil)', 'unknown');
+    masterSoilUnits.push(key);
+    soilUnitMeta[key] = { graphic: 'Overburden (soil)', originFamily: 'unknown', origin: '' };
+  }
 
   // Build cumulative boundaries C_0, C_1, ..., C_K at each borehole
   // Also record which units are PRESENT at each borehole (for pinch-out logic)
@@ -2381,28 +3022,35 @@ function buildProfileSvg(rows) {
 
     const unitMap = {};
     if (layers && layers.length) {
-      const soilLayers = layers.filter(l => !getGraphicInfo(l.graphic).isRock);
-      const totalSoilDepth = soilLayers.length ? Math.max(...soilLayers.map(l => l.bottom)) : overburden;
+      // Tabular soil layers = everything NOT rock and NOT tagged as an
+      // isolated lens (see connectivity check above).
+      const soilLayers = layers.filter(l => !l.isRockBlock && !l.isLens);
+      // Depth-normalize against the FULL logged column (including any lens
+      // layers we're excluding here) so tabular units still sit at their
+      // true elevation — only their CONNECTIVITY across boreholes changes,
+      // not their position within this borehole's own column.
+      const allNonRockLayers = layers.filter(l => !l.isRockBlock);
+      const totalSoilDepth = allNonRockLayers.length ? Math.max(...allNonRockLayers.map(l => l.bottom)) : overburden;
       const scaleToOverburden = totalSoilDepth > 0 ? (1.0 / totalSoilDepth) : (1.0 / overburden);
 
       soilLayers.forEach(l => {
-        const code = (l.graphic || '').trim();
+        const key = unitKey(l, l.originFamily);
         const fTop = Math.min(Math.max(l.depth * scaleToOverburden, 0), 1.0);
         const fBot = Math.min(Math.max(l.bottom * scaleToOverburden, 0), 1.0);
-        if (!unitMap[code]) {
-          unitMap[code] = { fTop, fBot };
+        if (!unitMap[key]) {
+          unitMap[key] = { fTop, fBot };
         } else {
           // Merge: extend fTop down, fBot up to cover discontiguous occurrences
-          unitMap[code].fTop = Math.min(unitMap[code].fTop, fTop);
-          unitMap[code].fBot = Math.max(unitMap[code].fBot, fBot);
+          unitMap[key].fTop = Math.min(unitMap[key].fTop, fTop);
+          unitMap[key].fBot = Math.max(unitMap[key].fBot, fBot);
         }
       });
     } else {
-      unitMap['Overburden (soil)'] = { fTop: 0.0, fBot: 1.0 };
+      unitMap[unitKey('Overburden (soil)', 'unknown')] = { fTop: 0.0, fBot: 1.0 };
     }
 
     // Record which units are present
-    const present = masterSoilUnits.map(u => !!unitMap[(u || '').trim()]);
+    const present = masterSoilUnits.map(u => !!unitMap[u]);
     bhUnitPresent.push(present);
 
     // Build cumulative boundaries in the actual LAYER ORDER from the log
@@ -2445,6 +3093,32 @@ function buildProfileSvg(rows) {
     }
     return C;
   });
+
+  // ---- LENS-FAMILY LAYERS (rule 3, corrected): collected here for a
+  // separate, non-tabular rendering pass. Each entry is one borehole's own
+  // logged occurrence of a lens-type origin that has NO matching neighbour
+  // (see hasMatchingNeighborBlock above) — rendered independently around ITS
+  // OWN borehole only, capped at LENS_MAX_HALF_WIDTH_M, never pinched toward
+  // a neighbour.
+  const lensLayers = []; // { bhIdx, graphic, originFamily, origin, zTop, zBot }
+  rows.forEach((r, i) => {
+    const layers = layersArr[i];
+    if (!layers || !layers.length) return;
+    const zG = levelsArr[i].elevation !== null ? levelsArr[i].elevation : maxElev;
+    layers.forEach(l => {
+      if (l.isRockBlock || !l.isLens) return;
+      lensLayers.push({
+        bhIdx: i,
+        graphic: (l.graphic || '').trim(),
+        originFamily: l.originFamily,
+        origin: l.origin,
+        zTop: zG - l.depth,
+        zBot: zG - l.bottom
+      });
+    });
+  });
+
+
 
 
   // ── ptsToCubicBezier ────────────────────────────────────────────────────────
@@ -2711,11 +3385,91 @@ function buildProfileSvg(rows) {
     return fA + (fB - fA) * t;
   }
 
-  const legendItems = masterSoilUnits.map(u => {
-    const info = getGraphicInfo(u);
-    return { label: info.label, color: info.color, isRock: false };
-  });
+  // Origin hatch key (rule 6) — lists each texture actually used anywhere
+  // in this profile (tabular OR lens), separately from the BSCS colour key
+  // above, since origin and material are two independent visual channels.
+  // Uses originHatchKeyOf (finer-grained than originFamily) so Residual and
+  // Completely Weathered Rock — one connectivity family, two textures — both
+  // get their own legend entry. Must scan subLayers too, not just each
+  // merged block's own frozen `origin` field — a merged run can contain a
+  // LATER origin (e.g. CWR after Residual) that the top-level field never
+  // reflects (see the CWR sub-range overlay note in the fill loop above).
+  const usedOriginHatchKeys = new Set();
+  layersArr.forEach(layers => { if (layers) layers.forEach(l => {
+    if (l.isRockBlock) return;
+    const hatchKey = originHatchKeyOf(l.origin);
+    if (ORIGIN_HATCH_INFO[hatchKey]) usedOriginHatchKeys.add(hatchKey);
+    (l.subLayers || []).forEach(sl => {
+      const subKey = originHatchKeyOf(sl.origin);
+      if (ORIGIN_HATCH_INFO[subKey]) usedOriginHatchKeys.add(subKey);
+    });
+  }); });
+  const originLegendItems = Array.from(usedOriginHatchKeys).map(key => ({
+    label: ORIGIN_HATCH_INFO[key].label,
+    patternId: ORIGIN_HATCH_INFO[key].patternId,
+    isOriginHatch: true
+  }));
 
+  // Legend must reflect EVERYTHING actually drawn — both tabular master
+  // units AND lens-only occurrences. A unit can exist in masterSoilUnits
+  // (present at one borehole) yet still end up with zero rendered area after
+  // the shared cumulative-boundary interpolation pinches it out everywhere
+  // it's sampled — so "is this unit in masterSoilUnits" is NOT the same test
+  // as "did this unit actually get drawn", and the legend must use the
+  // SECOND test. This dry-run reuses the identical sampling loop the real
+  // fill loop uses below, so the two can never disagree. (Must run AFTER
+  // sampleDists is initialized, hence its position here rather than earlier
+  // alongside the rest of the legend-prep code.)
+  function masterUnitHasRenderedArea(uIdx) {
+    const bhLayerRanges = rows.map((r, i) => {
+      const zG = levelsArr[i].elevation !== null ? levelsArr[i].elevation : maxElev;
+      const zR = effectiveRockLevel[i] !== null ? effectiveRockLevel[i] : zG - 5;
+      const overburden = Math.max(zG - zR, 0.1);
+      const C = bhCumBoundaries[i];
+      const present = bhUnitPresent[i][uIdx];
+      return { present, zTop: zG - C[uIdx] * overburden, zBot: zG - C[uIdx + 1] * overburden };
+    });
+    for (const d of sampleDists) {
+      const zG = getZGround(d);
+      const zR = getZRock(d);
+      const overburdenAtD = Math.max(zG - zR, 0.1);
+      const fTop = getCumBoundaryAtX(uIdx, d);
+      const fBot = getCumBoundaryAtX(uIdx + 1, d);
+      let zTop = zG - fTop * overburdenAtD;
+      let zBot = zG - fBot * overburdenAtD;
+      if (d < distances[0]) {
+        const range = bhLayerRanges[0];
+        zTop = range.present ? range.zTop : zG; zBot = range.present ? range.zBot : zG;
+      } else if (d > distances[distances.length - 1]) {
+        const range = bhLayerRanges[bhLayerRanges.length - 1];
+        zTop = range.present ? range.zTop : zG; zBot = range.present ? range.zBot : zG;
+      }
+      zTop = Math.min(Math.max(zTop, zR), zG);
+      zBot = Math.min(Math.max(zBot, zR), zG);
+      if (zBot > zTop) zBot = zTop;
+      if (zTop - zBot > 0.01) return true;
+    }
+    return false;
+  }
+
+  const legendSeenGraphics = new Set();
+  const legendItems = [];
+  masterSoilUnits.forEach((u, uIdx) => {
+    if (!masterUnitHasRenderedArea(uIdx)) return; // never actually drawn — omit from legend
+    const meta = soilUnitMeta[u];
+    const info = getGraphicInfo(meta.graphic);
+    const dedupeKey = info.label;
+    if (legendSeenGraphics.has(dedupeKey)) return;
+    legendSeenGraphics.add(dedupeKey);
+    legendItems.push({ label: info.label, color: info.color, isRock: false });
+  });
+  lensLayers.forEach(lens => {
+    const info = getGraphicInfo(lens.graphic);
+    const dedupeKey = info.label;
+    if (legendSeenGraphics.has(dedupeKey)) return;
+    legendSeenGraphics.add(dedupeKey);
+    legendItems.push({ label: info.label, color: info.color, isRock: false });
+  });
   if (anyWeatheringData) {
     WEATHERING_GRADE_ORDER.forEach(grade => {
       legendItems.push({ label: WEATHERING_GRADE_LABELS[grade], color: WEATHERING_GRADE_COLORS[grade], isRock: true });
@@ -2725,10 +3479,13 @@ function buildProfileSvg(rows) {
   }
   legendItems.push({ label: 'Groundwater Table', color: '#1e6fd9', isLine: true, dash: '5,3' });
   legendItems.push({ label: 'Bedrock Contact', color: '#7a2f1e', isLine: true, dash: '6,4' });
-
   const legendRowH = 24;
-  const legendRows = Math.ceil(legendItems.length / 4);
-  const padBottom = 80 + legendRows * legendRowH + 40 + 18; // extra space for caution note + copyright line
+  const legendRows = Math.ceil(legendItems.length / 4) + (originLegendItems.length ? Math.ceil(originLegendItems.length / 4) + 1 : 0);
+  // +60 reserves room for a few stacked termination-label rows (see the
+  // vertical-stagger termination label pass below) — mirrors how padTop is
+  // also a fixed budget rather than dynamically computed from actual label
+  // stacking, consistent with the existing BH header label approach.
+  const padBottom = 80 + legendRows * legendRowH + 40 + 18 + 60;
   const svgH = plotH + padTop + padBottom;
   const axisY = padTop + plotH;
 
@@ -2750,6 +3507,7 @@ function buildProfileSvg(rows) {
       <circle cx="4" cy="4" r="1.8" fill="none" stroke="#333333" stroke-width="0.6" opacity="0.4"/>
       <circle cx="9" cy="9" r="1.5" fill="none" stroke="#333333" stroke-width="0.6" opacity="0.4"/>
     </pattern>
+    ${buildOriginHatchDefs()}
   </defs>`;
 
   svg += `<rect x="0" y="0" width="${svgW}" height="${svgH}" fill="#ffffff"/>`;
@@ -2784,26 +3542,6 @@ function buildProfileSvg(rows) {
   // Step C: Bedrock polygon — painted LAST, covers anything below rockhead
   // Step D: Rockhead dashed line + GWT line + BH pillars (drawn after bedrock)
 
-  const numSamples = Math.max(Math.round(plotW / 2), 160);
-
-  // Build ONE shared sample-distance array, used for every curve (ground, rock,
-  // layer fills, GWT). Crucially it MERGES IN the exact borehole distances, so
-  // every fill polygon passes exactly through the true logged boundary at each
-  // pillar instead of only approaching it via the nearest evenly-spaced sample
-  // — this is what caused thin mismatched slivers right at the BH columns.
-  const sampleDists = (() => {
-    const uniform = [];
-    for (let s = 0; s <= numSamples; s++) uniform.push(distMin + (distSpan * s) / numSamples);
-    const merged = uniform.concat(distances.filter(d => d >= distMin && d <= distMax));
-    merged.sort((a, b) => a - b);
-    // De-duplicate near-identical values (within 1e-6 of the total span)
-    const eps = distSpan * 1e-6;
-    const out = [];
-    merged.forEach(d => {
-      if (out.length === 0 || d - out[out.length - 1] > eps) out.push(d);
-    });
-    return out;
-  })();
 
   // Compute rockhead points array (reused for bedrock polygon and rockhead line)
   const rockPolyPts = [];
@@ -2817,17 +3555,21 @@ function buildProfileSvg(rows) {
   const soilBaseTopPts = sampleDists.map(d => [xPos(d), yPos(getZGround(d))]);
   const soilBaseBotPts = sampleDists.map(d => [xPos(d), yPos(getZRock(d))]);
   const soilBaseD = closedLayerPath(soilBaseTopPts, soilBaseBotPts);
-  const baseSoilColor = (masterSoilUnits.length && getGraphicInfo(masterSoilUnits[0]).color) ? getGraphicInfo(masterSoilUnits[0]).color : '#c9a876';
+  const baseSoilColor = (masterSoilUnits.length && getGraphicInfo(soilUnitMeta[masterSoilUnits[0]].graphic).color) ? getGraphicInfo(soilUnitMeta[masterSoilUnits[0]].graphic).color : '#c9a876';
   svg += `<!-- A: Overburden Base Fill -->
   <path d="${soilBaseD}" fill="${baseSoilColor}" stroke="none"/>`;
 
   // STEP B: Individual soil layer polygons (drawn on top of base fill)
   // 3. RENDER REAL-WORLD STRATIGRAPHIC SOIL LAYER POLYGONS (EXACT LOGGED ELEVATION ALIGNMENT)
-  // Group layers per graphic unit and draw continuous polygons matching exact borehole log depths.
+  // Group layers per master unit (origin family + BSCS, see rule 1/2) and
+  // draw continuous polygons matching exact borehole log depths. Lens-family
+  // origins (Alluvium/Colluvium/Made Ground) are NOT in masterSoilUnits at
+  // all — they're rendered in a separate lens pass below (rule 3).
 
   masterSoilUnits.forEach((u) => {
-    const info = getGraphicInfo(u);
-    const code = (u || '').trim();
+    const meta = soilUnitMeta[u];
+    const info = getGraphicInfo(meta.graphic);
+    const code = meta.graphic;
 
     // Single continuous polygon per master unit, driven by the shared cumulative
     // boundary array (bhCumBoundaries / getCumBoundaryAtX). Using the SAME master
@@ -2892,15 +3634,117 @@ function buildProfileSvg(rows) {
     if (hasArea) {
       const layerD = closedLayerPath(topCurvePts, botCurvePts);
 
+      // Every master unit — Residual, Alluvium, Colluvium, Made Ground,
+      // whatever — now renders the same simple way: one BSCS code, one fixed
+      // colour, ordinary pinch-out at its edges. (An earlier version special-
+      // cased "connected" multi-origin units with clipped per-borehole colour
+      // segments/blends; that's been reverted per direction to just treat
+      // every origin family's internal BSCS variation the same way Residual's
+      // always has — see rule 7b's final note.)
       let patternUrl = '';
-      const uUp = (u || '').toUpperCase();
+      const uUp = (code || '').toUpperCase();
       if (uUp === 'SM' || uUp === 'SP' || uUp === 'SC' || uUp === 'CS' || uUp.includes('SAND')) patternUrl = 'url(#pat-sand)';
       else if (uUp === 'CL' || uUp === 'CH' || uUp === 'CI' || uUp.includes('CLAY')) patternUrl = 'url(#pat-clay)';
       else if (uUp === 'GM' || uUp === 'GC' || uUp.includes('GRAVEL')) patternUrl = 'url(#pat-gravel)';
 
-      svg += `<!-- Stratigraphic Layer: ${info.label} -->
+      svg += `<!-- Stratigraphic Layer: ${info.label} (origin family: ${meta.originFamily}) -->
       <path d="${layerD}" fill="${info.color}" stroke="${info.color}" stroke-width="0.5"/>`;
       if (patternUrl) svg += `<path d="${layerD}" fill="${patternUrl}" stroke="none"/>`;
+      const originHatch = ORIGIN_HATCH_INFO[originHatchKeyOf(meta.origin)];
+      if (originHatch) svg += `<path d="${layerD}" fill="url(#${originHatch.patternId})" stroke="none"/>`;
+
+      // CWR SUB-RANGE HATCH OVERLAY (fixes a real bug): when this master
+      // unit belongs to the 'residual' family, the merged block feeding it
+      // at each borehole may ALSO contain a Completely Weathered Rock
+      // sub-layer merged in alongside Residual (they're one connectivity
+      // family — rule 1/2 — so they merge into the same contiguous run).
+      // The merge step freezes the block's single `origin` field at
+      // whichever sub-layer started the run (almost always "Residual", since
+      // CWR is consistently the LAST sub-layer before rock in this data) —
+      // so CWR's own distinct texture (rule 6) can never be reached via
+      // meta.origin alone. Instead, walk each borehole's own subLayers to
+      // find its actual CWR depth range (if any), convert to the SAME
+      // fraction-of-overburden system the main fill uses, and draw a
+      // separate polygon scoped to just that inner portion, textured with
+      // CWR's own pattern. Boreholes with no CWR sub-layer contribute
+      // nothing here (their portion of the interpolation naturally has no
+      // CWR overlay).
+      if (soilUnitMeta[u].originFamily === 'residual' && ORIGIN_HATCH_INFO['completely_weathered_rock']) {
+        const cwrTopPts = [], cwrBotPts = [];
+        let cwrHasArea = false;
+        sampleDists.forEach(d => {
+          const x = xPos(d);
+          // Find bracketing boreholes the same way the main fill does, then
+          // find each one's OWN CWR sub-layer fraction (relative to ground),
+          // and linearly interpolate between them exactly like the main
+          // cumulative boundary system does — CWR only needs a slice of the
+          // SAME unit polygon we already computed above, so we reuse zG/zR.
+          const zG = getZGround(d);
+          const zR = getZRock(d);
+          const overburdenAtD = Math.max(zG - zR, 0.1);
+
+          function cwrFracForBH(i) {
+            const layers = layersArr[i];
+            if (!layers) return null;
+            const zGi = levelsArr[i].elevation !== null ? levelsArr[i].elevation : maxElev;
+            const zRi = effectiveRockLevel[i] !== null ? effectiveRockLevel[i] : zGi - 5;
+            const overburdenI = Math.max(zGi - zRi, 0.1);
+            let cwrTopDepth = null, cwrBotDepth = null;
+            layers.forEach(block => {
+              if (block.isRockBlock || !block.subLayers) return;
+              block.subLayers.forEach(sl => {
+                if ((sl.origin || '').trim().toLowerCase() === 'completely weathered rock') {
+                  cwrTopDepth = cwrTopDepth === null ? sl.depth : Math.min(cwrTopDepth, sl.depth);
+                  cwrBotDepth = cwrBotDepth === null ? sl.bottom : Math.max(cwrBotDepth, sl.bottom);
+                }
+              });
+            });
+            if (cwrTopDepth === null) return null;
+            return { fTop: cwrTopDepth / overburdenI, fBot: cwrBotDepth / overburdenI };
+          }
+
+          let iLeft = -1, iRight = -1;
+          for (let i = 0; i < rows.length; i++) {
+            if (distances[i] <= d) iLeft = i;
+            if (distances[i] >= d && iRight === -1) iRight = i;
+          }
+          if (iLeft === -1) iLeft = 0;
+          if (iRight === -1) iRight = rows.length - 1;
+
+          const fracL = cwrFracForBH(iLeft);
+          const fracR = iLeft === iRight ? fracL : cwrFracForBH(iRight);
+
+          let zTopC = null, zBotC = null;
+          if (fracL && fracR) {
+            const t = (iLeft === iRight || distances[iRight] === distances[iLeft]) ? 0 : (d - distances[iLeft]) / (distances[iRight] - distances[iLeft]);
+            const fTop = fracL.fTop + (fracR.fTop - fracL.fTop) * t;
+            const fBot = fracL.fBot + (fracR.fBot - fracL.fBot) * t;
+            zTopC = zG - fTop * overburdenAtD;
+            zBotC = zG - fBot * overburdenAtD;
+          } else if (fracL && d <= distances[iLeft]) {
+            zTopC = zG - fracL.fTop * overburdenAtD;
+            zBotC = zG - fracL.fBot * overburdenAtD;
+          } else if (fracR && d >= distances[iRight]) {
+            zTopC = zG - fracR.fTop * overburdenAtD;
+            zBotC = zG - fracR.fBot * overburdenAtD;
+          }
+
+          if (zTopC !== null) {
+            zTopC = Math.min(Math.max(zTopC, zR), zG);
+            zBotC = Math.min(Math.max(zBotC, zR), zG);
+            if (zBotC > zTopC) zBotC = zTopC;
+            cwrTopPts.push([x, yPos(zTopC)]);
+            cwrBotPts.push([x, yPos(zBotC)]);
+            if (zTopC - zBotC > 0.01) cwrHasArea = true;
+          }
+        });
+        if (cwrHasArea && cwrTopPts.length >= 2) {
+          const cwrD = closedLayerPath(cwrTopPts, cwrBotPts);
+          const cwrHatch = ORIGIN_HATCH_INFO['completely_weathered_rock'];
+          svg += `<!-- CWR sub-range hatch overlay within ${info.label} (residual family) -->
+          <path d="${cwrD}" fill="url(#${cwrHatch.patternId})" stroke="none"/>`;
+        }
+      }
 
       // Draw top contact line only where layer has meaningful thickness (>= 2px)
       // This prevents hairline artifact lines after the layer has pinched out
@@ -2911,6 +3755,60 @@ function buildProfileSvg(rows) {
       }
     }
     }
+  });
+
+  // ---- LENS-FAMILY LAYERS (rule 3): Alluvium / Colluvium / Made Ground /
+  // Engineered Fill. Each occurrence is rendered as its OWN self-contained,
+  // symmetric lens around its borehole — capped at LENS_MAX_HALF_WIDTH_M on
+  // each side (or half the distance to the adjacent borehole if that's
+  // smaller, so lenses never overlap into a neighbour's own pillar), tapering
+  // to a point at the cap. It is NEVER extended all the way to the next
+  // borehole just because that borehole logs the same origin — that would
+  // recreate the "regional blanket" assumption that's geologically wrong for
+  // a transported, locally-bounded deposit. Drawn after the tabular units so
+  // lenses visually sit correctly relative to the surrounding stratigraphy.
+  svg += `<!-- Lens-family layers (Alluvium/Colluvium/Made Ground): fixed half-width, non-pinching -->`;
+  lensLayers.forEach(lens => {
+    const i = lens.bhIdx;
+    const xCenter = distances[i];
+    const leftNeighborDist = i > 0 ? (distances[i] - distances[i - 1]) / 2 : Infinity;
+    const rightNeighborDist = i < distances.length - 1 ? (distances[i + 1] - distances[i]) / 2 : Infinity;
+    const halfW_left = Math.min(LENS_MAX_HALF_WIDTH_M, leftNeighborDist);
+    const halfW_right = Math.min(LENS_MAX_HALF_WIDTH_M, rightNeighborDist);
+
+    // Also clamp to the plotted distance range so a lens near the first/last
+    // borehole doesn't try to draw past the section's edge.
+    const dLeftEdge = Math.max(xCenter - halfW_left, distMin);
+    const dRightEdge = Math.min(xCenter + halfW_right, distMax);
+
+    // Build a tapering lens: full thickness at the borehole, narrowing
+    // smoothly to zero thickness at each edge. Uses a simple cosine taper
+    // (not the shared cumulative-boundary system — lenses are deliberately
+    // NOT part of that tabular interpolation, per rule 3).
+    const nSteps = 14;
+    const topPts = [], botPts = [];
+    for (let s = 0; s <= nSteps; s++) {
+      const t = s / nSteps; // 0 = left edge, 1 = right edge
+      const d = dLeftEdge + (dRightEdge - dLeftEdge) * t;
+      const x = xPos(d);
+      // Taper factor: 0 at both edges, 1 at the borehole's own position
+      const distFromCenter = Math.abs(d - xCenter);
+      const halfWHere = d < xCenter ? halfW_left : halfW_right;
+      const taperT = halfWHere > 0 ? Math.min(distFromCenter / halfWHere, 1) : 1;
+      const taper = Math.cos(taperT * Math.PI / 2); // 1 at centre, 0 at edge, smooth
+      const zMid = (lens.zTop + lens.zBot) / 2;
+      const halfThickness = (lens.zTop - lens.zBot) / 2;
+      const zTopHere = zMid + halfThickness * Math.max(taper, 0.02);
+      const zBotHere = zMid - halfThickness * Math.max(taper, 0.02);
+      topPts.push([x, yPos(zTopHere)]);
+      botPts.push([x, yPos(zBotHere)]);
+    }
+    const lensD = closedLayerPath(topPts, botPts);
+    const info = getGraphicInfo(lens.graphic);
+    svg += `<!-- Lens: ${lens.originFamily} / ${info.label} at BH index ${i} -->
+    <path d="${lensD}" fill="${info.color}" stroke="${info.color}" stroke-width="0.5" opacity="0.96"/>`;
+    const hatch = ORIGIN_HATCH_INFO[originHatchKeyOf(lens.origin)];
+    if (hatch) svg += `<path d="${lensD}" fill="url(#${hatch.patternId})" stroke="none"/>`;
   });
 
   // STEP C: Paint bedrock polygon LAST (on top of soil layers) — painter's algorithm guarantees
@@ -3005,6 +3903,7 @@ function buildProfileSvg(rows) {
 
   // 6. RENDER BOREHOLE COLUMNS (HARD DATA PILLARS)
   const bhLabelInfo = [];
+  const termLabelInfo = [];
   const colW = Math.min(15, plotW / Math.max(rows.length, 1) * 0.35);
   rows.forEach((r, i) => {
     const x = xPos(distances[i]);
@@ -3069,10 +3968,12 @@ function buildProfileSvg(rows) {
     // BH labels are placed in a vertical-stagger second pass below
     bhLabelInfo.push({ x, yG, bhName, glText: `GL ${zG.toFixed(1)}m` });
 
-    const termText = `Term ${zTerm.toFixed(1)}m`;
-    const termW = termText.length * 5.2 + 10;
-    svg += `<rect x="${(x - termW / 2).toFixed(1)}" y="${(yTerm + 4).toFixed(1)}" width="${termW.toFixed(1)}" height="15" fill="rgba(255, 255, 255, 0.90)" stroke="#b8b2a2" stroke-width="1" rx="3"/>`;
-    svg += `<text x="${x.toFixed(1)}" y="${(yTerm + 14).toFixed(1)}" font-size="8.5" font-weight="600" fill="#444444" text-anchor="middle">${termText}</text>`;
+    // Termination labels ALSO use a deferred vertical-stagger pass (see
+    // below, mirrors the BH header label collision-avoidance) — previously
+    // these were drawn immediately at a fixed yTerm+4 offset with no
+    // collision checking at all, so two boreholes terminating at similar
+    // depths close together would produce overlapping "Term X.Xm" boxes.
+    termLabelInfo.push({ x, yTerm, zTerm });
   });
 
 
@@ -3129,6 +4030,48 @@ function buildProfileSvg(rows) {
     });
   }
 
+  // ── VERTICAL-STAGGER TERMINATION LABELS (mirrors BH header label pass) ──
+  // Each "Term X.Xm" label is placed directly below its borehole's
+  // termination point, at the same X. If it would collide horizontally with
+  // an already-placed termination label nearby, it is bumped DOWN by one row
+  // (away from the pillars, since these sit at the BOTTOM of the profile —
+  // the opposite stacking direction from the BH header labels, which stack
+  // upward toward the top). Previously these were drawn immediately with a
+  // fixed offset and no collision checking at all, so two boreholes
+  // terminating at similar depths close together produced overlapping boxes
+  // — this was a real, confirmed bug, not a style choice.
+  {
+    const termCW = 5.2; // px per char at font-size 8.5, matches original sizing
+    const boxH = 15;
+    const rowH = boxH + 4;
+    const maxRows = 5;
+    const placed = [];
+
+    termLabelInfo.forEach(({ x, yTerm, zTerm }) => {
+      const termText = `Term ${zTerm.toFixed(1)}m`;
+      const boxW = termText.length * termCW + 10;
+      const cx = x; // always keep same X — vertical only, same as BH labels
+
+      // Find the highest row (closest to termination point) that doesn't collide
+      let row = 0;
+      let collision = true;
+      while (collision && row < maxRows) {
+        const yTop = yTerm + 4 + row * rowH;
+        collision = placed.some(p => {
+          const minDist = (boxW + p.boxW) / 2 + 4;
+          return Math.abs(cx - p.cx) < minDist && Math.abs(yTop - p.yTop) < boxH + 2;
+        });
+        if (collision) row++;
+      }
+
+      const yTop = yTerm + 4 + row * rowH;
+      placed.push({ x, cx, yTop, boxW });
+
+      svg += `<rect x="${(cx - boxW / 2).toFixed(1)}" y="${yTop.toFixed(1)}" width="${boxW.toFixed(1)}" height="${boxH}" fill="rgba(255, 255, 255, 0.90)" stroke="#b8b2a2" stroke-width="1" rx="3"/>`;
+      svg += `<text x="${cx.toFixed(1)}" y="${(yTop + 10.5).toFixed(1)}" font-size="8.5" font-weight="600" fill="#444444" text-anchor="middle">${termText}</text>`;
+    });
+  }
+
   const legX = padLeft;
   const legTitleY = axisY + 58; // moved down to give Distance axis label room above legend
   const legBodyY  = legTitleY + 22; // gap between title and first row
@@ -3156,7 +4099,30 @@ function buildProfileSvg(rows) {
     curX += itemW;
   });
 
-  const noteY = legBodyY + (curRow + 1) * legendRowH + 16;
+  // Origin hatch key (rule 6) — separate row(s), since origin texture and
+  // BSCS colour are two independent visual channels on the same layer.
+  let originLegendEndRow = curRow;
+  if (originLegendItems.length) {
+    curRow++;
+    const hatchTitleY = legBodyY + curRow * legendRowH - 6;
+    svg += `<text x="${legX}" y="${hatchTitleY}" font-size="9.5" font-weight="700" fill="#4a453c">SOIL ORIGIN (texture overlay):</text>`;
+    curRow++;
+    curX = legX;
+    originLegendItems.forEach(item => {
+      if (curX + itemW > padLeft + plotW - 10) {
+        curRow++;
+        curX = legX;
+      }
+      const itemY = legBodyY + curRow * legendRowH;
+      svg += `<rect x="${curX}" y="${itemY - 10}" width="17" height="11" fill="#e8e4d8" stroke="#555" stroke-width="0.7" rx="1"/>`;
+      svg += `<rect x="${curX}" y="${itemY - 10}" width="17" height="11" fill="url(#${item.patternId})" stroke="none" rx="1"/>`;
+      svg += `<text x="${curX + 23}" y="${itemY}" font-size="9.5" fill="#333" font-weight="500">${item.label}</text>`;
+      curX += itemW;
+    });
+    originLegendEndRow = curRow;
+  }
+
+  const noteY = legBodyY + (originLegendEndRow + 1) * legendRowH + 16;
   svg += `<text x="${legX}" y="${noteY}" font-size="8.5" fill="#c0392b" font-weight="700">⚠️ CAUTION NOTE:</text>`;
   svg += `<text x="${legX + 85}" y="${noteY}" font-size="8.5" fill="#555555" font-style="italic">This 2D cross-section is automatically generated by spatial interpolation between borehole data. Use with caution for preliminary conceptual modeling only.</text>`;
 
