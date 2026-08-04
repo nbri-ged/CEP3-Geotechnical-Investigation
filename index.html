@@ -1514,6 +1514,38 @@ function parseCsvWithProxy(url, onComplete, onError) {
       be missing from the Soil Origin legend section even after the
       fill itself was fixed).
 
+      TWO FOLLOW-UP BUGS FOUND AND FIXED after a user report that CWR
+      was rendering incorrectly relative to Residual (reported as "CWR
+      should be below Residual but now not the case" — the geology was
+      always intended as CWR-below-Residual; the RENDERING was wrong,
+      not the intended order):
+      (a) FRACTION-BASIS MISMATCH: cwrFracForBH originally normalized
+      CWR's depth against `overburden` (ground-to-rockhead distance),
+      but the MAIN tabular fill it overlays normalizes every layer
+      against `totalSoilDepth` (max bottom depth across all non-rock
+      layers, which includes CWR itself and can exceed the nominal
+      overburden). Using two different depth references for the
+      overlay vs. its parent shape caused real misalignment once
+      interpolated between two boreholes with different overburden-
+      vs-totalSoilDepth ratios (confirmed with a worked numerical
+      example: ~0.4m discrepancy at the midpoint between two
+      boreholes with differing ratios). Fixed by normalizing
+      cwrFracForBH — and the elevation back-conversion at the call
+      site — against the SAME totalSoilDepth basis, interpolated
+      laterally the same way overburden already was.
+      (b) MISSING CLIP TO PARENT UNIT: the overlay's own iLeft/iRight
+      bracketing scans ALL boreholes in the section, independent of
+      which specific master unit (e.g. "Silty SAND (residual)" vs
+      "Sandy CLAY (residual)") it's currently being drawn for — so it
+      produced the SAME full-section CWR band on every residual-
+      family unit's pass, unclipped, regardless of whether that unit
+      actually has any footprint at a given position. Confirmed via
+      direct coordinate inspection: a CWR overlay's y-range extended
+      well beyond its supposed parent polygon's own y-range. Fixed by
+      clipping the CWR overlay path to the CURRENT unit's own layerD
+      shape before drawing, so it can only ever appear within that
+      unit's actual footprint.
+
    12. TERMINATION LABEL COLLISION AVOIDANCE (real bug fix): "Term
       X.Xm" labels were drawn immediately in the same pass as the
       borehole pillars, always at a fixed yTerm+4 offset with NO
@@ -3692,6 +3724,18 @@ function buildProfileSvg(rows) {
             const zGi = levelsArr[i].elevation !== null ? levelsArr[i].elevation : maxElev;
             const zRi = effectiveRockLevel[i] !== null ? effectiveRockLevel[i] : zGi - 5;
             const overburdenI = Math.max(zGi - zRi, 0.1);
+            // MUST normalize against the SAME reference the main tabular fill
+            // uses for this borehole (totalSoilDepth = max bottom depth of all
+            // non-rock layers, which includes the CWR reading itself) — NOT
+            // against overburdenI (ground-to-rockhead only). Those are
+            // different depth references whenever CWR's logged depth extends
+            // beyond the nominal rockhead depth, which is the normal case.
+            // Using the wrong reference here was a real, confirmed bug: it
+            // misaligned the CWR overlay against the Residual band it's
+            // supposed to sit inside, so CWR could render shifted/oversized
+            // relative to Residual instead of correctly nested below it.
+            const allNonRockI = layers.filter(l => !l.isRockBlock);
+            const totalSoilDepthI = allNonRockI.length ? Math.max(...allNonRockI.map(l => l.bottom)) : overburdenI;
             let cwrTopDepth = null, cwrBotDepth = null;
             layers.forEach(block => {
               if (block.isRockBlock || !block.subLayers) return;
@@ -3703,7 +3747,17 @@ function buildProfileSvg(rows) {
               });
             });
             if (cwrTopDepth === null) return null;
-            return { fTop: cwrTopDepth / overburdenI, fBot: cwrBotDepth / overburdenI };
+            return { fTop: cwrTopDepth / totalSoilDepthI, fBot: cwrBotDepth / totalSoilDepthI };
+          }
+
+          function totalSoilDepthForBH(i) {
+            const layers = layersArr[i];
+            const zGi = levelsArr[i].elevation !== null ? levelsArr[i].elevation : maxElev;
+            const zRi = effectiveRockLevel[i] !== null ? effectiveRockLevel[i] : zGi - 5;
+            const overburdenI = Math.max(zGi - zRi, 0.1);
+            if (!layers) return overburdenI;
+            const allNonRockI = layers.filter(l => !l.isRockBlock);
+            return allNonRockI.length ? Math.max(...allNonRockI.map(l => l.bottom)) : overburdenI;
           }
 
           let iLeft = -1, iRight = -1;
@@ -3717,19 +3771,29 @@ function buildProfileSvg(rows) {
           const fracL = cwrFracForBH(iLeft);
           const fracR = iLeft === iRight ? fracL : cwrFracForBH(iRight);
 
+          // Same lateral interpolation of the scale reference itself, so
+          // fTop/fBot (fractions of totalSoilDepth) convert back to elevation
+          // using a totalSoilDepth that's ALSO been interpolated to position
+          // d — matching how the main fill's overburdenAtD is itself an
+          // interpolated quantity, not a fixed per-borehole value reused
+          // verbatim at every sample point.
+          const tsdL = totalSoilDepthForBH(iLeft);
+          const tsdR = iLeft === iRight ? tsdL : totalSoilDepthForBH(iRight);
+
           let zTopC = null, zBotC = null;
           if (fracL && fracR) {
             const t = (iLeft === iRight || distances[iRight] === distances[iLeft]) ? 0 : (d - distances[iLeft]) / (distances[iRight] - distances[iLeft]);
             const fTop = fracL.fTop + (fracR.fTop - fracL.fTop) * t;
             const fBot = fracL.fBot + (fracR.fBot - fracL.fBot) * t;
-            zTopC = zG - fTop * overburdenAtD;
-            zBotC = zG - fBot * overburdenAtD;
+            const tsdAtD = tsdL + (tsdR - tsdL) * t;
+            zTopC = zG - fTop * tsdAtD;
+            zBotC = zG - fBot * tsdAtD;
           } else if (fracL && d <= distances[iLeft]) {
-            zTopC = zG - fracL.fTop * overburdenAtD;
-            zBotC = zG - fracL.fBot * overburdenAtD;
+            zTopC = zG - fracL.fTop * tsdL;
+            zBotC = zG - fracL.fBot * tsdL;
           } else if (fracR && d >= distances[iRight]) {
-            zTopC = zG - fracR.fTop * overburdenAtD;
-            zBotC = zG - fracR.fBot * overburdenAtD;
+            zTopC = zG - fracR.fTop * tsdR;
+            zBotC = zG - fracR.fBot * tsdR;
           }
 
           if (zTopC !== null) {
@@ -3744,8 +3808,19 @@ function buildProfileSvg(rows) {
         if (cwrHasArea && cwrTopPts.length >= 2) {
           const cwrD = closedLayerPath(cwrTopPts, cwrBotPts);
           const cwrHatch = ORIGIN_HATCH_INFO['completely_weathered_rock'];
-          svg += `<!-- CWR sub-range hatch overlay within ${info.label} (residual family) -->
-          <path d="${cwrD}" fill="url(#${cwrHatch.patternId})" stroke="none"/>`;
+          // Clip to THIS unit's own polygon (layerD) — without this, the CWR
+          // overlay is computed globally across the whole section (its own
+          // iLeft/iRight bracketing scans ALL boreholes, not just the ones
+          // contributing to this specific master unit), so it could bleed
+          // into x/z territory this particular unit doesn't occupy at all, or
+          // draw a duplicate full-section band once per residual-family unit.
+          // That's a real, confirmed bug — visually it could make CWR appear
+          // detached from, or not correctly nested below, the Residual layer
+          // it belongs to.
+          const cwrClipId = 'clip-cwr-' + uIdx + '-' + Math.random().toString(36).slice(2, 7);
+          svg += `<defs><clipPath id="${cwrClipId}"><path d="${layerD}"/></clipPath></defs>`;
+          svg += `<!-- CWR sub-range hatch overlay within ${info.label} (residual family), clipped to parent unit -->
+          <g clip-path="url(#${cwrClipId})"><path d="${cwrD}" fill="url(#${cwrHatch.patternId})" stroke="none"/></g>`;
         }
       }
 
