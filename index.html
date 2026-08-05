@@ -1597,6 +1597,60 @@ function parseCsvWithProxy(url, onComplete, onError) {
       letter pattern, not confirmed against a project key or lab
       report — flag to the user if precision here matters for a
       specific deliverable, and update this note if/when confirmed.
+
+   14. LENS ANCHORING TO LOCAL GROUND SURFACE (real bug fix — user
+      reported an Alluvium lens visually intruding INTO Completely
+      Weathered Rock / Residual territory while tapering, which is
+      geologically wrong: Alluvium is a surface-attached deposit and
+      must stay near-surface everywhere it's drawn, never punch into
+      deeper material as it narrows). The original lens taper (rule 3)
+      shrank the lens's WIDTH smoothly toward each edge but held a
+      FIXED absolute-elevation band the whole time (a constant zMid +
+      halfThickness taken from the lens's own borehole) — nothing
+      tied that elevation band to the local ground surface as the
+      lens moved away from its own borehole. At a neighbouring
+      position where the ground surface (and therefore every layer
+      beneath it) sits at a different absolute elevation, that fixed
+      band could land squarely inside completely different material.
+      Fixed by tapering the lens's DEPTH-BELOW-GROUND toward zero
+      (not its absolute elevation band) at each sampled x, computed
+      against getZGround(d) — the LOCAL ground surface at that exact
+      position — so the lens visually "rises" back toward the surface
+      as it thins, staying anchored to "near-surface" everywhere
+      rather than floating at a constant elevation. Also added a
+      safety clamp against the local rockhead (getZRock(d)), matching
+      every other soil layer in this file, so a lens can never punch
+      through into rock territory even in an extreme taper case.
+
+   15. SOIL ORIGIN TRANSITION LINES: a dark-ash DASHED line is drawn
+      at every boundary where the soil ORIGIN actually changes (e.g.
+      Alluvium -> Residual, Residual -> Completely Weathered Rock),
+      separate from the thin, low-opacity generic contact line that
+      already fires at every individual BSCS sub-layer boundary
+      regardless of origin. Since masterSoilUnits is sorted by origin-
+      family stacking priority first (rule 9), an origin transition
+      occurs at exactly the master-unit index k where
+      soilUnitMeta[masterSoilUnits[k]].originFamily first differs from
+      soilUnitMeta[masterSoilUnits[k-1]].originFamily — every such k is
+      found (a section can have more than one transition, e.g. Made
+      Ground -> Alluvium -> Residual) and rendered with
+      getCumBoundaryAtX(k, d), the SAME interpolation the fill itself
+      uses, so the line always sits exactly on the true origin
+      boundary including through pinch-outs. Legend entry: "Soil
+      Origin Boundary".
+      SECOND COVERAGE GAP FOUND AND FIXED: the masterSoilUnits-based
+      version above only covers transitions WITHIN the tabular system
+      — a lens (Alluvium/Colluvium/Made Ground, rule 3) never enters
+      that master-unit stack at all, so a section whose only origin
+      variety is an isolated lens over Residual would draw ZERO
+      transition lines even though a real, visually important origin
+      boundary exists (confirmed: a real 3-borehole test with Alluvium
+      lenses over Residual produced no transition line until this was
+      added). Fixed by ALSO drawing the same dashed line at each
+      lens's own bottom edge (only where the lens has >=2px thickness,
+      matching the generic contact-line threshold elsewhere) — this is
+      a second, independent draw site for the identical visual
+      treatment, not a variant of it.
    ============================================================ */
 
 const LENS_MAX_HALF_WIDTH_M = 15; // rule 3: fixed max lateral half-width for lens-type origins
@@ -3148,7 +3202,9 @@ function buildProfileSvg(rows) {
         originFamily: l.originFamily,
         origin: l.origin,
         zTop: zG - l.depth,
-        zBot: zG - l.bottom
+        zBot: zG - l.bottom,
+        depthTop: l.depth,
+        depthBot: l.bottom
       });
     });
   });
@@ -3514,6 +3570,7 @@ function buildProfileSvg(rows) {
   }
   legendItems.push({ label: 'Groundwater Table', color: '#1e6fd9', isLine: true, dash: '5,3' });
   legendItems.push({ label: 'Bedrock Contact', color: '#7a2f1e', isLine: true, dash: '6,4' });
+  legendItems.push({ label: 'Soil Origin Boundary', color: '#3a3a3a', isLine: true, dash: '4,3' });
   const legendRowH = 24;
   const legendRows = Math.ceil(legendItems.length / 4) + (originLegendItems.length ? Math.ceil(originLegendItems.length / 4) + 1 : 0);
   // +60 reserves room for a few stacked termination-label rows (see the
@@ -3852,6 +3909,43 @@ function buildProfileSvg(rows) {
     }
   });
 
+  // ---- SOIL ORIGIN TRANSITION LINES ----
+  // A dark-ash DASHED line marks every boundary where the soil ORIGIN
+  // actually changes (e.g. Alluvium -> Residual, Residual -> Completely
+  // Weathered Rock) — distinct from the thin, generic per-layer contact
+  // line drawn above (which fires at every BSCS sub-layer boundary
+  // regardless of origin). Since masterSoilUnits is already sorted by
+  // origin-family stacking priority (rule 9), an origin transition occurs
+  // at exactly the master-unit index k where soilUnitMeta[masterSoilUnits[k]]
+  // .originFamily first differs from soilUnitMeta[masterSoilUnits[k-1]]
+  // .originFamily — found once, then rendered using the SAME cumulative-
+  // boundary interpolation (getCumBoundaryAtX) the fill itself uses, so the
+  // line always sits exactly on the real origin boundary, including through
+  // pinch-outs. A single section can have more than one such boundary (e.g.
+  // Made Ground -> Alluvium -> Residual), so every transition index is found
+  // and drawn, not just the first.
+  {
+    const originTransitionIndices = [];
+    for (let k = 1; k < masterSoilUnits.length; k++) {
+      const famPrev = soilUnitMeta[masterSoilUnits[k - 1]].originFamily;
+      const famCur = soilUnitMeta[masterSoilUnits[k]].originFamily;
+      if (famPrev !== famCur) originTransitionIndices.push(k);
+    }
+    originTransitionIndices.forEach(k => {
+      const linePts = [];
+      sampleDists.forEach(d => {
+        const zG = getZGround(d);
+        const zR = getZRock(d);
+        const overburdenAtD = Math.max(zG - zR, 0.1);
+        const f = getCumBoundaryAtX(k, d);
+        const z = zG - f * overburdenAtD;
+        linePts.push([xPos(d), yPos(z)]);
+      });
+      svg += `<!-- Soil Origin transition line (master unit boundary index ${k}) -->
+      <path d="${ptsToCubicBezier(linePts)}" fill="none" stroke="#3a3a3a" stroke-width="1" stroke-dasharray="4,3" opacity="0.6"/>`;
+    });
+  }
+
   // ---- LENS-FAMILY LAYERS (rule 3): Alluvium / Colluvium / Made Ground /
   // Engineered Fill. Each occurrence is rendered as its OWN self-contained,
   // symmetric lens around its borehole — capped at LENS_MAX_HALF_WIDTH_M on
@@ -3880,6 +3974,19 @@ function buildProfileSvg(rows) {
     // smoothly to zero thickness at each edge. Uses a simple cosine taper
     // (not the shared cumulative-boundary system — lenses are deliberately
     // NOT part of that tabular interpolation, per rule 3).
+    //
+    // CRITICAL (real bug fix): the taper must shrink the lens's DEPTH-BELOW-
+    // GROUND toward zero at the LOCAL ground surface at each sampled x, not
+    // just shrink its width while holding a fixed absolute elevation band.
+    // Alluvium/Colluvium/Made Ground are surface-attached, near-surface
+    // deposits — as the lens narrows away from its own borehole, it must
+    // visually "rise" back toward the ground surface, never stay parked at
+    // a constant elevation that can drift into completely different, deeper
+    // material (Residual, Completely Weathered Rock) at a neighbouring
+    // position where the ground surface itself is higher or lower. The
+    // earlier version used a fixed zMid/halfThickness in absolute elevation,
+    // which is what let an Alluvium lens visually intrude into CWR/Residual
+    // territory once tapering moved it away from its own borehole.
     const nSteps = 14;
     const topPts = [], botPts = [];
     for (let s = 0; s <= nSteps; s++) {
@@ -3890,11 +3997,24 @@ function buildProfileSvg(rows) {
       const distFromCenter = Math.abs(d - xCenter);
       const halfWHere = d < xCenter ? halfW_left : halfW_right;
       const taperT = halfWHere > 0 ? Math.min(distFromCenter / halfWHere, 1) : 1;
-      const taper = Math.cos(taperT * Math.PI / 2); // 1 at centre, 0 at edge, smooth
-      const zMid = (lens.zTop + lens.zBot) / 2;
-      const halfThickness = (lens.zTop - lens.zBot) / 2;
-      const zTopHere = zMid + halfThickness * Math.max(taper, 0.02);
-      const zBotHere = zMid - halfThickness * Math.max(taper, 0.02);
+      const taper = Math.max(Math.cos(taperT * Math.PI / 2), 0.02); // 1 at centre, ~0 at edge, smooth
+
+      // Depth-below-ground at the lens's own borehole, tapered toward 0
+      // (the LOCAL ground surface) as taper shrinks — this is what keeps
+      // the lens anchored to "near the surface" everywhere it's drawn,
+      // instead of a fixed absolute elevation band.
+      const depthTopHere = lens.depthTop * taper;
+      const depthBotHere = lens.depthBot * taper;
+
+      const zGroundHere = getZGround(d);
+      const zRockHere = getZRock(d);
+      let zTopHere = zGroundHere - depthTopHere;
+      let zBotHere = zGroundHere - depthBotHere;
+      // Safety clamp: never let the lens extend below the LOCAL rockhead —
+      // same boundary every other soil layer in this file already respects.
+      zTopHere = Math.min(Math.max(zTopHere, zRockHere), zGroundHere);
+      zBotHere = Math.min(Math.max(zBotHere, zRockHere), zGroundHere);
+      if (zBotHere > zTopHere) zBotHere = zTopHere;
       topPts.push([x, yPos(zTopHere)]);
       botPts.push([x, yPos(zBotHere)]);
     }
@@ -3904,6 +4024,24 @@ function buildProfileSvg(rows) {
     <path d="${lensD}" fill="${info.color}" stroke="${info.color}" stroke-width="0.5" opacity="0.96"/>`;
     const hatch = ORIGIN_HATCH_INFO[originHatchKeyOf(lens.origin)];
     if (hatch) svg += `<path d="${lensD}" fill="url(#${hatch.patternId})" stroke="none"/>`;
+
+    // Soil origin transition line (rule 15) at the lens's OWN bottom edge —
+    // the tabular-only version of this line (drawn earlier, keyed off
+    // masterSoilUnits) has no coverage for lens-family origins at all, since
+    // a lens never enters that master-unit stack. Marks exactly where this
+    // lens's origin (e.g. Alluvium) ends and whatever sits beneath it
+    // (typically Residual) begins. Only drawn where the lens has meaningful
+    // thickness (matching the >=2px threshold used for the generic contact
+    // line elsewhere), so the pinched-out tails don't produce a visible line
+    // sitting right on the ground surface.
+    const botRunPts = [];
+    for (let s = 0; s < topPts.length; s++) {
+      if (Math.abs(topPts[s][1] - botPts[s][1]) >= 2.0) botRunPts.push(botPts[s]);
+    }
+    if (botRunPts.length >= 2) {
+      svg += `<!-- Soil Origin transition line (lens bottom edge, ${lens.originFamily}) -->
+      <path d="${ptsToCubicBezier(botRunPts)}" fill="none" stroke="#3a3a3a" stroke-width="1" stroke-dasharray="4,3" opacity="0.6"/>`;
+    }
   });
 
   // STEP C: Paint bedrock polygon LAST (on top of soil layers) — painter's algorithm guarantees
