@@ -663,8 +663,6 @@
   <div class="sub">CEP3 - GEOTECHNICAL INVESTIGATION WORK &nbsp;|&nbsp; RAMBUKKANA - GALAGEDARA SECTION</div>
   <div id="status-line">
     <button id="refresh-btn" title="Refresh data now">&#8635;</button>
-    <button id="load-csv-btn" title="Load local Borehole Details / Profile CSV" style="margin-left:6px; padding:3px 8px; font-size:11px; font-weight:700; background:#2b6cb0; color:#fff; border:none; border-radius:4px; cursor:pointer;">📂 Load CSV</button>
-    <input type="file" id="csv-file-input" accept=".csv" multiple style="display:none;">
     <span id="status-dot"></span><span id="status-text">Loading data&hellip;</span>
   </div>
 </header>
@@ -819,8 +817,8 @@ const SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS8PKkh7R
 const LOG_SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS8PKkh7RDdd1g5boTWjdryadGLVhDkvKUMEjScApNAeWA7TrPrcetA1YiccjQvhPfnZ8ewg1NQugfv/pub?output=csv";
 const BH_PROFILE_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS8PKkh7RDdd1g5boTWjdryadGLVhDkvKUMEjScApNAeWA7TrPrcetA1YiccjQvhPfnZ8ewg1NQugfv/pub?output=csv&gid=1914424732";
 const CEP4_BH_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS8PKkh7RDdd1g5boTWjdryadGLVhDkvKUMEjScApNAeWA7TrPrcetA1YiccjQvhPfnZ8ewg1NQugfv/pub?output=csv&gid=1030712797";
-const CEP4_SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS8PKkh7RDdd1g5boTWjdryadGLVhDkvKUMEjScApNAeWA7TrPrcetA1YiccjQvhPfnZ8ewg1NQugfv/pub?output=csv&gid=1030712797";
-const PROGRESS_SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS8PKkh7RDdd1g5boTWjdryadGLVhDkvKUMEjScApNAeWA7TrPrcetA1YiccjQvhPfnZ8ewg1NQugfv/pub?output=csv&gid=1476293361";
+const CEP4_SHEET_CSV_URL = "PASTE_PUBLISHED_CSV_LINK_FOR_GID_1030712797_HERE";
+const PROGRESS_SHEET_CSV_URL = "PASTE_PUBLISHED_CSV_LINK_FOR_GID_1476293361_HERE";
 const AUTO_REFRESH_MS = 5 * 60 * 1000;
 
 proj4.defs("EPSG:5235", "+proj=tmerc +lat_0=7.000480277777778 +lon_0=80.77171308333334 +k=0.9999238418 +x_0=500000 +y_0=500000 +ellps=evrst30 +towgs84=-0.293,766.95,87.713,0.195704,1.69507,3.47302,-0.039338 +units=m +no_defs");
@@ -1078,16 +1076,12 @@ const GRAPHIC_CODE_INFO = {
   'CH':  { label: 'High Plasticity CLAY', color: '#8a4530' },
   'CV':  { label: 'Very High Plasticity CLAY', color: '#6e3020' },
   'CE':  { label: 'Extremely High Plasticity CLAY', color: '#521f14' },
-  'CS':  { label: 'Sandy CLAY', color: '#a56942' },
-  'CG':  { label: 'Gravelly CLAY', color: '#965836' },
-  'CM':  { label: 'Silty CLAY', color: '#ab5d43' },
+  'CS':  { label: 'Sandy CLAY', color: '#a56942' }, // confirmed against project usage
   'CLO': { label: 'Low Plasticity CLAY (Organic)', color: '#7a5238' },
   'CIO': { label: 'Intermediate Plasticity CLAY (Organic)', color: '#6f3a60' },
   'CHO': { label: 'High Plasticity CLAY (Organic)', color: '#5c3020' },
   'CVO': { label: 'Very High Plasticity CLAY (Organic)', color: '#4a2415' },
-  'CEO': { label: 'Extremely High Plasticity CLAY (Organic)', color: '#3d1c10' },
   'CSO': { label: 'Sandy CLAY (Organic)', color: '#6f4a30' },
-  'CGO': { label: 'Gravelly CLAY (Organic)', color: '#5e3c25' },
 
   // ---- Fine soils: SILT (M) ----
   'ML':  { label: 'Low Plasticity SILT', color: '#a8b06a' },
@@ -1095,28 +1089,21 @@ const GRAPHIC_CODE_INFO = {
   'MH':  { label: 'High Plasticity SILT', color: '#9a9e5a' },
   'MV':  { label: 'Very High Plasticity SILT', color: '#7d8248' },
   'ME':  { label: 'Extremely High Plasticity SILT', color: '#636836' },
-  'MS':  { label: 'Sandy SILT', color: '#c9a84e' },
-  'MG':  { label: 'Gravelly SILT', color: '#8f8f5a' },
-  'MC':  { label: 'Clayey SILT', color: '#9e9450' },
+  'MS':  { label: 'Sandy SILT', color: '#c9a84e' }, // confirmed against project usage (matches CS pattern)
+  'MG':  { label: 'Gravelly SILT', color: '#8f8f5a' }, // confirmed against project usage
   'MLO': { label: 'Low Plasticity SILT (Organic)', color: '#6a5a40' },
-  'MIO': { label: 'Intermediate Plasticity SILT (Organic)', color: '#5c5035' },
   'MHO': { label: 'High Plasticity SILT (Organic)', color: '#5a4d2c' },
-  'MVO': { label: 'Very High Plasticity SILT (Organic)', color: '#4e4225' },
   'MEO': { label: 'Extremely High Plasticity SILT (Organic)', color: '#494024' },
-  'MSO': { label: 'Sandy SILT (Organic)', color: '#5c4a30' },
-  'MGO': { label: 'Gravelly SILT (Organic)', color: '#4f4228' },
 
   // ---- Coarse soils: SAND (S) ----
   'SW':  { label: 'Well Graded SAND', color: '#e8c85a' },
   'SP':  { label: 'Poorly Graded SAND', color: '#f0d98a' },
   'SM':  { label: 'Silty SAND', color: '#e0b23c' },
   'SC':  { label: 'Clayey SAND', color: '#9c7a3a' },
+  // Dual/borderline classifications (5-15% fines, both gradation and
+  // plasticity assessed — standard BS 5930 dual notation).
   'SPC': { label: 'Poorly Graded SAND with Clay', color: '#c9a55a' },
   'SME': { label: 'Silty SAND (Extremely High Plasticity fines)', color: '#b8963c' },
-  'SP-SM': { label: 'Poorly Graded SAND with Silt', color: '#ebd16c' },
-  'SP-SC': { label: 'Poorly Graded SAND with Clay', color: '#d4b255' },
-  'SW-SM': { label: 'Well Graded SAND with Silt', color: '#e4be4a' },
-  'SW-SC': { label: 'Well Graded SAND with Clay', color: '#caa045' },
 
   // ---- Coarse soils: GRAVEL (G) ----
   'GW':  { label: 'Well Graded GRAVEL', color: '#726352' },
@@ -1124,22 +1111,12 @@ const GRAPHIC_CODE_INFO = {
   'GM':  { label: 'Silty GRAVEL', color: '#8a7a63' },
   'GC':  { label: 'Clayey GRAVEL', color: '#5f5240' },
   'GPG': { label: 'Poorly Graded GRAVEL (Gravelly fines)', color: '#6e6250' },
-  'GP-GM': { label: 'Poorly Graded GRAVEL with Silt', color: '#85745d' },
-  'GP-GC': { label: 'Poorly Graded GRAVEL with Clay', color: '#705c47' },
-  'GW-GM': { label: 'Well Graded GRAVEL with Silt', color: '#7a6a56' },
-  'GW-GC': { label: 'Well Graded GRAVEL with Clay', color: '#675543' },
 
-  // ---- Organic, Fill & Other ----
-  'PT':   { label: 'Peat', color: '#423224' },
-  'PEAT': { label: 'Peat', color: '#423224' },
-  'OL':   { label: 'Organic SILT/CLAY (Low Plasticity)', color: '#6a5a40' },
-  'OH':   { label: 'Organic CLAY (High Plasticity)', color: '#5a4030' },
-  'FILL': { label: 'Engineered Fill', color: '#d9a05b' },
-  'MADE GROUND': { label: 'Made Ground / Engineered Fill', color: '#d9a05b' },
-  'TOPSOIL': { label: 'Topsoil', color: '#5c4a30' },
-  'WEATHERED ROCK': { label: 'Weathered Rock / Saprolite', color: '#a39c87' },
-  'CWR': { label: 'Completely Weathered Rock', color: '#a39c87' },
-  'SAPROLITE': { label: 'Saprolite / Highly Weathered Rock', color: '#9e977f' }
+  // ---- Other / project-specific ----
+  'OL':  { label: 'Organic SILT/CLAY', color: '#6a5a40' },
+  'OH':  { label: 'Organic CLAY', color: '#5a4030' },
+  'FILL':{ label: 'Engineered Fill', color: '#d9a05b' },
+  'WEATHERED ROCK': { label: 'Weathered Rock / Saprolite', color: '#a39c87' }
 };
 const ROCK_KEYWORDS = ['BEDROCK','ROCK','GNEISS','GRANITE','QUARTZITE','SCHIST','MARBLE','DOLERITE','CHARNOCKITE','GABBRO','LIMESTONE'];
 
@@ -1159,19 +1136,11 @@ function graphicHashColor(code){
 function getGraphicInfo(code){
   const clean = (code || '').trim();
   const upper = clean.toUpperCase();
-  const normKey = upper.replace(/\s+/g, ' ');
   if (isRockCode(clean)){
     return { label: clean, color: '#8f8f95', isRock: true };
   }
-  if (GRAPHIC_CODE_INFO[normKey]){
-    return { label: GRAPHIC_CODE_INFO[normKey].label, color: GRAPHIC_CODE_INFO[normKey].color, isRock: false };
-  }
-  // Try alternative key without hyphens or spaces
-  const altKey = normKey.replace(/[\s\-_]/g, '');
-  for (const k in GRAPHIC_CODE_INFO) {
-    if (k.replace(/[\s\-_]/g, '') === altKey) {
-      return { label: GRAPHIC_CODE_INFO[k].label, color: GRAPHIC_CODE_INFO[k].color, isRock: false };
-    }
+  if (GRAPHIC_CODE_INFO[upper]){
+    return { label: GRAPHIC_CODE_INFO[upper].label, color: GRAPHIC_CODE_INFO[upper].color, isRock: false };
   }
   return { label: clean || 'Unclassified Soil', color: graphicHashColor(clean), isRock: false };
 }
@@ -1301,71 +1270,34 @@ function cleanBHKey(key) {
 }
 
 function parseCsvWithProxy(url, onComplete, onError) {
-  if (!url || typeof url !== 'string' || url.startsWith('PASTE_')) {
-    if (onError) onError();
-    return;
-  }
+  Papa.parse(url, {
+    download: true, header: true, skipEmptyLines: true,
+    complete: (results) => {
+      if (results.data && results.data.length > 0) {
+        onComplete(results.data);
+      } else {
+        tryProxy();
+      }
+    },
+    error: () => tryProxy()
+  });
 
-  // Multi-tier proxies to try sequentially
-  const proxyEndpoints = [
-    url, // 1. Direct fetch
-    'https://api.codetabs.com/v1/proxy?quest=' + encodeURIComponent(url), // 2. CodeTabs CORS Proxy
-    'https://corsproxy.io/?' + encodeURIComponent(url), // 3. CorsProxy.io
-    'https://api.allorigins.win/raw?url=' + encodeURIComponent(url) // 4. AllOrigins Proxy
-  ];
-
-  let attempt = 0;
-
-  function tryNext() {
-    if (attempt >= proxyEndpoints.length) {
-      if (onError) onError();
-      return;
-    }
-
-    const currentUrl = proxyEndpoints[attempt];
-    attempt++;
-
-    fetch(currentUrl, { mode: 'cors' })
-      .then(res => {
-        if (!res.ok) throw new Error('HTTP ' + res.status);
-        return res.text();
-      })
-      .then(text => {
-        if (!text || text.length < 20 || text.trim().startsWith('<!DOCTYPE') || text.trim().startsWith('<HTML') || text.trim().startsWith('<html')) {
-          throw new Error('Invalid CSV or HTML error page received');
+  function tryProxy() {
+    const proxyUrl = 'https://api.allorigins.win/raw?url=' + encodeURIComponent(url);
+    Papa.parse(proxyUrl, {
+      download: true, header: true, skipEmptyLines: true,
+      complete: (results) => {
+        if (results.data && results.data.length > 0) {
+          onComplete(results.data);
+        } else if (onError) {
+          onError();
         }
-        Papa.parse(text, {
-          header: true,
-          skipEmptyLines: true,
-          complete: (results) => {
-            if (results.data && results.data.length > 0) {
-              onComplete(results.data);
-            } else {
-              tryNext();
-            }
-          },
-          error: () => tryNext()
-        });
-      })
-      .catch(() => {
-        // Papa.parse download fallback
-        Papa.parse(currentUrl, {
-          download: true,
-          header: true,
-          skipEmptyLines: true,
-          complete: (results) => {
-            if (results.data && results.data.length > 0) {
-              onComplete(results.data);
-            } else {
-              tryNext();
-            }
-          },
-          error: () => tryNext()
-        });
-      });
+      },
+      error: () => {
+        if (onError) onError();
+      }
+    });
   }
-
-  tryNext();
 }
 
 /* ============================================================
@@ -1804,115 +1736,100 @@ function originFamilyOf(originRaw) {
   return ORIGIN_FAMILY_MAP[clean] || ('other:' + clean); // rule 2 fallback: own family per unique label
 }
 
-function processBHProfileData(data) {
-  if (!data || !data.length) return;
-  const grouped = {};
-  const weatherGrouped = {};
-  const originGrouped = {};
-  data.forEach(raw => {
-    const row = normalizeRow(raw);
-    const pointId = (row['PointID'] || row['Point ID'] || row['BH_ID'] || row['BH ID'] || row['BH Name'] || row['Borehole ID'] || row['BH'] || '').trim();
-    const depth = toNum(row['Depth'] || row['Top Depth'] || row['From'] || row['Depth (m)']);
-    const bottom = toNum(row['Bottom'] || row['Bottom Depth'] || row['To'] || row['Bottom (m)']);
-    const graphic = (row['Graphic'] || row['Graphic Log'] || row['BSCS'] || row['Soil Type'] || row['Soil Code'] || row['Lithology'] || '').trim();
-
-    // Rock weathering: Primary Weathering, Rock Type Name
-    const weatherRaw = row['Primary Weathering'] || row['Weathering'] || row['Rock Weathering'] || row['Weathering Grade'];
-    if (pointId && depth !== null && weatherRaw !== undefined && String(weatherRaw).trim() !== '') {
-      const grade = normalizeWeatheringGrade(weatherRaw);
-      const wRawKey = pointId;
-      const wNormKey = cleanBHKey(pointId);
-      if (!weatherGrouped[wRawKey]) weatherGrouped[wRawKey] = [];
-      weatherGrouped[wRawKey].push({ depth, grade, raw: String(weatherRaw).trim() });
-      if (wNormKey && wNormKey !== wRawKey) {
-        if (!weatherGrouped[wNormKey]) weatherGrouped[wNormKey] = [];
-        weatherGrouped[wNormKey].push({ depth, grade, raw: String(weatherRaw).trim() });
-      }
-    }
-
-    // Soil Origin + Primary Consistency attributes from live sheet
-    const originRaw = row['Soil Origin'] || row['Origin'] || row['Depositional Origin'] || row['Soil_Origin'];
-    const consistencyRaw = row['Primary Consistency'] || row['Consistency'] || row['Soil Consistency'] || row['Primary_Consistency'];
-    if (pointId && depth !== null && ((originRaw !== undefined && String(originRaw).trim() !== '') || (consistencyRaw !== undefined && String(consistencyRaw).trim() !== ''))) {
-      const entry = {
-        depth,
-        bottom: bottom !== null ? bottom : depth + 1.5,
-        origin: (originRaw || '').trim(),
-        consistency: (consistencyRaw || '').trim()
-      };
-      const oRawKey = pointId;
-      const oNormKey = cleanBHKey(pointId);
-      if (!originGrouped[oRawKey]) originGrouped[oRawKey] = [];
-      originGrouped[oRawKey].push(entry);
-      if (oNormKey && oNormKey !== oRawKey) {
-        if (!originGrouped[oNormKey]) originGrouped[oNormKey] = [];
-        originGrouped[oNormKey].push(entry);
-      }
-    }
-
-    if (!pointId || depth === null || bottom === null) return;
-
-    const rawKey = pointId;
-    const normKey = cleanBHKey(pointId);
-
-    if (!grouped[rawKey]) grouped[rawKey] = [];
-    grouped[rawKey].push({ depth, bottom, graphic });
-
-    if (normKey && normKey !== rawKey) {
-      if (!grouped[normKey]) grouped[normKey] = [];
-      grouped[normKey].push({ depth, bottom, graphic });
-    }
-  });
-  Object.keys(grouped).forEach(k => grouped[k].sort((a,b) => a.depth - b.depth));
-  Object.keys(weatherGrouped).forEach(k => weatherGrouped[k].sort((a,b) => a.depth - b.depth));
-  Object.keys(originGrouped).forEach(k => originGrouped[k].sort((a,b) => a.depth - b.depth));
-
-  // Attach origin/consistency to each graphic layer by depth matching
-  Object.keys(grouped).forEach(k => {
-    const origins = originGrouped[k];
-    if (!origins || !origins.length) return;
-    grouped[k].forEach(layer => {
-      let best = null, bestDist = Infinity;
-      origins.forEach(o => {
-        const d = Math.abs(o.depth - layer.depth);
-        if (d < bestDist) { bestDist = d; best = o; }
-      });
-      if (best && bestDist <= 1.0) {
-        if (!layer.origin && best.origin) layer.origin = best.origin;
-        if (!layer.consistency && best.consistency) layer.consistency = best.consistency;
-      }
-    });
-  });
-
-  profileLayersByBH = grouped;
-  profileWeatheringByBH = weatherGrouped;
-  try {
-    localStorage.setItem('nbri_profile_layers_cache', JSON.stringify(grouped));
-    localStorage.setItem('nbri_profile_weather_cache', JSON.stringify(weatherGrouped));
-  } catch(e) {}
-  if (allRows && allRows.length) render();
-}
-
 function fetchBHProfileLog(){
   parseCsvWithProxy(BH_PROFILE_CSV_URL, (data) => {
-    processBHProfileData(data);
-  }, () => {
-    // Try relative local CSV fetch
-    fetch('CEP 3  Rambukkana-Galagedara - BH Profile.csv')
-      .then(r => { if (!r.ok) throw new Error(); return r.text(); })
-      .then(txt => Papa.parse(txt, { header: true, skipEmptyLines: true, complete: res => processBHProfileData(res.data) }))
-      .catch(() => {
-        // Fallback to cache if available
-        const cachedL = localStorage.getItem('nbri_profile_layers_cache');
-        const cachedW = localStorage.getItem('nbri_profile_weather_cache');
-        if (cachedL) {
-          try {
-            profileLayersByBH = JSON.parse(cachedL);
-            profileWeatheringByBH = cachedW ? JSON.parse(cachedW) : {};
-            if (allRows && allRows.length) render();
-          } catch(e) {}
+    const grouped = {};
+    const weatherGrouped = {};
+    // Origin/Consistency readings, keyed same as grouped/weatherGrouped, used
+    // to annotate graphic layers below by depth-match (rule: the Origin table
+    // and Graphic table are separate column groups from the same sheet fetch
+    // and may not share identical breakpoints in every borehole, so we match
+    // by nearest top-depth rather than assuming row alignment).
+    const originGrouped = {};
+    data.forEach(raw => {
+      const row = normalizeRow(raw);
+      const pointId = (row['PointID'] || row['Point ID'] || row['BH_ID'] || row['BH ID'] || row['BH Name'] || '').trim();
+      const depth = toNum(row['Depth']);
+      const bottom = toNum(row['Bottom']);
+      const graphic = (row['Graphic'] || '').trim();
+
+      // Rock weathering (cols G-K on the BH Profile tab): Primary Weathering,
+      // Rock Type Name. These are point readings (one depth, no bottom) —
+      // handled separately from the soil-layer depth/bottom intervals below.
+      const weatherRaw = row['Primary Weathering'];
+      if (pointId && depth !== null && weatherRaw !== undefined && String(weatherRaw).trim() !== '') {
+        const grade = normalizeWeatheringGrade(weatherRaw);
+        const wRawKey = pointId;
+        const wNormKey = cleanBHKey(pointId);
+        if (!weatherGrouped[wRawKey]) weatherGrouped[wRawKey] = [];
+        weatherGrouped[wRawKey].push({ depth, grade });
+        if (wNormKey && wNormKey !== wRawKey) {
+          if (!weatherGrouped[wNormKey]) weatherGrouped[wNormKey] = [];
+          weatherGrouped[wNormKey].push({ depth, grade });
+        }
+      }
+
+      // Soil Origin + Primary Consistency (cols M-Q on the BH Profile tab).
+      const originRaw = row['Soil Origin'];
+      const consistencyRaw = row['Primary Consistency'];
+      if (pointId && depth !== null && ((originRaw !== undefined && String(originRaw).trim() !== '') || (consistencyRaw !== undefined && String(consistencyRaw).trim() !== ''))) {
+        const entry = { depth, origin: (originRaw || '').trim(), consistency: (consistencyRaw || '').trim() };
+        const oRawKey = pointId;
+        const oNormKey = cleanBHKey(pointId);
+        if (!originGrouped[oRawKey]) originGrouped[oRawKey] = [];
+        originGrouped[oRawKey].push(entry);
+        if (oNormKey && oNormKey !== oRawKey) {
+          if (!originGrouped[oNormKey]) originGrouped[oNormKey] = [];
+          originGrouped[oNormKey].push(entry);
+        }
+      }
+
+      if (!pointId || depth === null || bottom === null) return;
+
+      const rawKey = pointId;
+      const normKey = cleanBHKey(pointId);
+
+      if (!grouped[rawKey]) grouped[rawKey] = [];
+      grouped[rawKey].push({ depth, bottom, graphic });
+
+      if (normKey && normKey !== rawKey) {
+        if (!grouped[normKey]) grouped[normKey] = [];
+        grouped[normKey].push({ depth, bottom, graphic });
+      }
+    });
+    Object.keys(grouped).forEach(k => grouped[k].sort((a,b) => a.depth - b.depth));
+    Object.keys(weatherGrouped).forEach(k => weatherGrouped[k].sort((a,b) => a.depth - b.depth));
+    Object.keys(originGrouped).forEach(k => originGrouped[k].sort((a,b) => a.depth - b.depth));
+
+    // Attach origin/consistency to each graphic layer by nearest top-depth
+    // match (tolerance-based, since the two tables can have slightly
+    // different breakpoints in general even though they align exactly in
+    // the sample data we've validated against).
+    Object.keys(grouped).forEach(k => {
+      const origins = originGrouped[k];
+      if (!origins || !origins.length) return;
+      grouped[k].forEach(layer => {
+        let best = null, bestDist = Infinity;
+        origins.forEach(o => {
+          const d = Math.abs(o.depth - layer.depth);
+          if (d < bestDist) { bestDist = d; best = o; }
+        });
+        // Accept the match only if it's reasonably close (within 0.51m,
+        // i.e. tighter than the typical 1.5m sampling interval) — an
+        // unmatched layer just has no origin/consistency annotation rather
+        // than a wrong guess.
+        if (best && bestDist <= 0.51) {
+          layer.origin = best.origin;
+          layer.consistency = best.consistency;
         }
       });
+    });
+
+    profileLayersByBH = grouped;
+    profileWeatheringByBH = weatherGrouped;
+    if (allRows && allRows.length) render();
+  }, () => {
+    console.error('Could not load BH Profile log from primary or proxy URL.');
   });
 }
 
@@ -2339,98 +2256,35 @@ function loadRows(rows){
 }
 
 function fetchData(){
+  if (!navigator.onLine) {
+    const localRowsData = localStorage.getItem('nbri_allrows_cache');
+    const localDatesData = localStorage.getItem('nbri_dates_cache');
+    const cacheStamp = localStorage.getItem('nbri_cache_timestamp');
+    if (localRowsData) {
+      window.loadedFromOfflineCache = true;
+      allRows = JSON.parse(localRowsData);
+      bhDatesLookup = localDatesData ? JSON.parse(localDatesData) : {};
+      loadRows(allRows);
+      setStatus(`Offline Mode — Cached: ${formatDateDMY(cacheStamp)}`, 'err');
+      document.getElementById('dash-updated').textContent = "Offline Storage Mode";
+      return;
+    }
+  }
   if (SHEET_CSV_URL){
-    setStatus('Connecting to Google Sheet…');
+    setStatus('Refreshing from Google Sheet…');
     parseCsvWithProxy(SHEET_CSV_URL, (data) => {
       loadRows(data);
       setStatus('Live — synced ' + new Date().toLocaleTimeString(), 'ok');
       document.getElementById('dash-updated').textContent = formatDateDMY(new Date()) + ', ' + new Date().toLocaleTimeString();
     }, () => {
-      // 1. Try local CSV file relative path
-      fetch('CEP 3  Rambukkana-Galagedara - BoreholesDetails (2).csv')
-        .then(r => { if (!r.ok) throw new Error(); return r.text(); })
-        .then(txt => {
-          Papa.parse(txt, {
-            header: true,
-            skipEmptyLines: true,
-            complete: res => {
-              loadRows(res.data);
-              setStatus('Loaded from Local Project CSV', 'ok');
-              document.getElementById('dash-updated').textContent = "Local CSV: " + formatDateDMY(new Date());
-            }
-          });
-        })
-        .catch(() => {
-          // 2. Try localStorage cache
-          const localRowsData = localStorage.getItem('nbri_allrows_cache');
-          const localDatesData = localStorage.getItem('nbri_dates_cache');
-          const cacheStamp = localStorage.getItem('nbri_cache_timestamp');
-          if (localRowsData) {
-            window.loadedFromOfflineCache = true;
-            allRows = JSON.parse(localRowsData);
-            bhDatesLookup = localDatesData ? JSON.parse(localDatesData) : {};
-            loadRows(allRows);
-            setStatus(`Offline Mode — Cached: ${formatDateDMY(cacheStamp)}`, 'err');
-            document.getElementById('dash-updated').textContent = "Offline Storage Mode";
-            return;
-          }
-          // 3. Sample CSV
-          setStatus('Offline / Sample mode — Click "📂 Load CSV" to load files', 'err');
-          Papa.parse(SAMPLE_CSV, { header:true, skipEmptyLines:true, complete: r => loadRows(r.data) });
-        });
+      setStatus('Could not reach sheet — showing sample data', 'err');
+      Papa.parse(SAMPLE_CSV, { header:true, skipEmptyLines:true, complete: r => loadRows(r.data) });
     });
   } else {
     Papa.parse(SAMPLE_CSV, { header:true, skipEmptyLines:true, complete: r => loadRows(r.data) });
     setStatus('Sample data (not connected to a live sheet)');
   }
 }
-
-function handleCsvFiles(files) {
-  if (!files || !files.length) return;
-  Array.from(files).forEach(file => {
-    Papa.parse(file, {
-      header: true,
-      skipEmptyLines: true,
-      complete: (results) => {
-        if (!results.data || !results.data.length) return;
-        const firstRow = results.data[0] || {};
-        const keys = Object.keys(firstRow).map(k => k.toLowerCase().trim());
-        
-        // Detect if this is BH Profile vs Boreholes Details
-        if (keys.some(k => k.includes('pointid') || k.includes('graphic') || k.includes('bottom'))) {
-          processBHProfileData(results.data);
-          setStatus(`Loaded Profile strata from ${file.name} (${results.data.length} layers)`, 'ok');
-        } else if (keys.some(k => k.includes('bh name') || k.includes('easting') || k.includes('northing'))) {
-          loadRows(results.data);
-          setStatus(`Loaded ${results.data.length} boreholes from ${file.name}`, 'ok');
-          document.getElementById('dash-updated').textContent = `Imported: ${file.name}`;
-        } else {
-          // General load fallback
-          loadRows(results.data);
-          setStatus(`Loaded ${results.data.length} records from ${file.name}`, 'ok');
-        }
-      },
-      error: (err) => alert('Error reading CSV: ' + err.message)
-    });
-  });
-}
-
-document.getElementById('load-csv-btn').addEventListener('click', () => {
-  document.getElementById('csv-file-input').click();
-});
-document.getElementById('csv-file-input').addEventListener('change', (e) => {
-  handleCsvFiles(e.target.files);
-});
-
-// Drag and drop CSV files directly onto the app
-window.addEventListener('dragover', (e) => e.preventDefault());
-window.addEventListener('drop', (e) => {
-  e.preventDefault();
-  if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length) {
-    const csvFiles = Array.from(e.dataTransfer.files).filter(f => f.name.toLowerCase().endsWith('.csv'));
-    if (csvFiles.length) handleCsvFiles(csvFiles);
-  }
-});
 
 function initTimelineSlider() {}
 function updateDashboardTimelineOverride() {}
@@ -2960,9 +2814,9 @@ function computeProfilePositions(rows){
 }
 
 /* ============================================================
-   SEGMENT-BY-SEGMENT GEOLOGICAL CROSS-SECTION ENGINE
-   (Eliminates ghost layers, adjacent borehole interpolation,
-    dark ash soil origin boundaries, metric 1:1 DXF generation)
+   REWRITTEN PROFESSIONAL GEOLOGICAL CROSS-SECTION ENGINE
+   (Fulfills 100% complete filling via cumulative boundaries,
+    separate Y-axis margins, terrain-following groundwater, zero white gaps)
    ============================================================ */
 function buildProfileSvg(rows) {
   const distances = computeProfilePositions(rows);
@@ -2970,7 +2824,17 @@ function buildProfileSvg(rows) {
   const bhNames = rows.map(r => (r['BH Name'] || '').trim());
   const rawLayersArr = rows.map(r => getBHLayers(r) || null);
 
-  // Collapse contiguous same-Origin-family runs of layers into ONE merged block per run
+  // Collapse contiguous same-Origin-family runs of layers into ONE merged
+  // block per run (rule 7 below), rather than rendering every BSCS grain-
+  // size sub-layer within a single Origin deposit as its own separate
+  // polygon. A borehole logging "Alluvium: MS/MH/SC" across 0-6m is ONE
+  // deposit with internal grain-size variation, not three stacked deposits
+  // — fragmenting it visually misrepresents how the log is actually read
+  // and also produces one master-unit slot per fragment (rule 1), which
+  // both clutters the legend and multiplies unrelated lens shapes. The
+  // merged block's representative BSCS/graphic is whichever sub-layer is
+  // THICKEST (best single visual proxy for "what this deposit mostly is");
+  // rock layers are left completely untouched (they're never collapsed).
   const layersArr = rawLayersArr.map(layers => {
     if (!layers || !layers.length) return layers;
     const merged = [];
@@ -2979,6 +2843,12 @@ function buildProfileSvg(rows) {
       const fam = info.isRock ? null : originFamilyOf(l.origin);
       const last = merged[merged.length - 1];
       if (!info.isRock && last && !last.isRockBlock && last.originFamily === fam && Math.abs(last.bottom - l.depth) < 0.01) {
+        // Extend the current merged block; representative graphic/BSCS is
+        // whichever CODE has the greatest TOTAL thickness summed across all
+        // its sub-layer occurrences (not the single thickest individual
+        // reading — three separate 1.5m CS readings collectively outweigh
+        // one 2.1m SM reading and should win, which a per-reading max would
+        // miss).
         last.bottom = l.bottom;
         last.subLayers.push(l);
         const thicknessByCode = {};
@@ -3001,6 +2871,14 @@ function buildProfileSvg(rows) {
           originFamily: fam,
           isRockBlock: info.isRock,
           subLayers: [l]
+          // NOTE: `origin` above is frozen at whichever sub-layer started
+          // this merged run — subLayers retains the full depth-ordered list
+          // so a later origin (e.g. Completely Weathered Rock appearing
+          // after Residual within one contiguous run) can still be found
+          // and hatch-textured over its own actual sub-range; see the
+          // per-origin hatch overlay pass in the fill-rendering loop, which
+          // walks subLayers rather than trusting the single frozen `origin`
+          // field for anything beyond stacking/connectivity purposes.
         });
       }
     });
@@ -3027,18 +2905,29 @@ function buildProfileSvg(rows) {
 
   const totalDist = Math.max(distances[distances.length - 1], 1);
   const padLeft = 85, padRight = 45, padTop = 70;
-  const sideExtFraction = 0.04;
+  // sideExt: small extension beyond first/last BH as a fraction of total distance
+  const sideExtFraction = 0.04; // 4% of total distance on each side
   const sideExt = totalDist * sideExtFraction;
+  // distMin / distMax define the geological extent (with side extensions)
   const distMin = 0 - sideExt;
   const distMax = totalDist + sideExt;
   const distSpan = distMax - distMin;
-  const plotMargin = 55;
+  const plotMargin = 55; // Offset plot frame from Y-axis labels
   const minInnerW = Math.max(650, totalDist * 0.18 + rows.length * 100);
   const plotW = minInnerW + plotMargin * 2;
   const plotH = 440;
   const svgW = plotW + padLeft + padRight;
 
   const numSamples = Math.max(Math.round(plotW / 2), 160);
+  // Build ONE shared sample-distance array, used for every curve (ground, rock,
+  // layer fills, GWT) AND the legend's hasArea dry-run check. Crucially it
+  // MERGES IN the exact borehole distances, so every fill polygon passes
+  // exactly through the true logged boundary at each pillar instead of only
+  // approaching it via the nearest evenly-spaced sample — this is what caused
+  // thin mismatched slivers right at the BH columns. Defined early (right
+  // after plotW/distSpan) rather than later, because the legend needs it for
+  // its dry-run "did this unit actually render" check, and the legend size
+  // must be known before the SVG header line further down.
   const sampleDists = (() => {
     const uniform = [];
     for (let s = 0; s <= numSamples; s++) uniform.push(distMin + (distSpan * s) / numSamples);
@@ -3063,11 +2952,13 @@ function buildProfileSvg(rows) {
   maxElev += elevPad; minElev -= elevPad;
   const elevRange = maxElev - minElev;
 
+  // xPos maps actual distances (including negative sideExt) to SVG X
   function xPos(dist) {
     const xLeft = padLeft + plotMargin;
     const xRight = padLeft + plotW - plotMargin;
     return xLeft + ((dist - distMin) / distSpan) * (xRight - xLeft);
   }
+  // xDistMin / xDistMax are the SVG pixel positions of the left/right plot frame edges
   const xFrameLeft = padLeft + plotMargin;
   const xFrameRight = padLeft + plotW - plotMargin;
 
@@ -3076,8 +2967,8 @@ function buildProfileSvg(rows) {
   }
 
   const GraphicHierarchy = [
-    'FILL', 'MS', 'ML', 'MH', 'CL', 'CH', 'CI', 'CV', 'CE', 'CS', 'CG', 'CM', 'OL', 'OH',
-    'SW', 'SP', 'SM', 'SC', 'SPC', 'SME', 'GW', 'GP', 'GM', 'GC', 'GPG', 'WEATHERED ROCK'
+    'FILL', 'MS', 'ML', 'MH', 'CL', 'CH', 'CI', 'OL', 'OH',
+    'SM', 'SC', 'SP', 'CS', 'GM', 'GC', 'WEATHERED ROCK'
   ];
 
   function getGraphicRank(code) {
@@ -3086,11 +2977,38 @@ function buildProfileSvg(rows) {
     return idx !== -1 ? idx : 50;
   }
 
+  // Compound "master unit" key (see GEOLOGICAL RULES rule 1/2). Always
+  // origin-family + BSCS graphic — two layers only ever share a slot (and
+  // therefore only ever interpolate) if BOTH match. This means a connected
+  // multi-origin unit (rule 7b: e.g. Alluvium judged continuous across
+  // several boreholes via sub-layer overlap) still SPLITS into one slot per
+  // distinct BSCS code it contains, exactly the same way Residual's own
+  // internal BSCS variation does — each code pinches in/out independently
+  // rather than being merged into a single "thickest code wins" block. (An
+  // earlier version special-cased connected lens-family blocks into one
+  // combined ||__connected__ slot per family; that hid real material
+  // differences between boreholes — e.g. a genuine thick clay zone at one
+  // borehole was invisible, absorbed into a neighbour's colour — and has
+  // been reverted in favour of this simpler, Residual-consistent approach.)
   function unitKey(layerLike, originFamily) {
     const graphic = typeof layerLike === 'string' ? layerLike : layerLike.graphic;
-    return (originFamily || 'unknown') + '||' + (graphic || '').trim();
+    return originFamily + '||' + (graphic || '').trim();
   }
 
+  // ---- CONNECTIVITY CHECK (corrected rule 3, refined per rule 7b below): a
+  // merged Origin block is only rendered as an isolated LENS if NO merged
+  // block at EITHER adjacent borehole shares the same origin family AND at
+  // least one overlapping sub-layer BSCS code. We deliberately do NOT
+  // require the two blocks' "thickest" representative codes to match exactly
+  // — two occurrences of what's really the same continuous deposit can each
+  // have a different DOMINANT grain size (e.g. one location happens to have
+  // slightly more silt, the other slightly more clay) while still clearly
+  // being the same sheet, evidenced by sharing at least one common BSCS
+  // reading somewhere in their logged column. Requiring an exact
+  // representative-code match was too strict and incorrectly isolated
+  // deposits that should connect (see rule 7b). The merged block still
+  // RENDERS as one shape using its own thickest sub-layer's colour — only
+  // the connectivity DECISION uses the looser any-sub-layer-overlap test.
   function hasMatchingNeighborBlock(bhIdx, family, subLayerCodes) {
     const neighbors = [bhIdx - 1, bhIdx + 1].filter(j => j >= 0 && j < rows.length);
     return neighbors.some(j => {
@@ -3104,7 +3022,9 @@ function buildProfileSvg(rows) {
     });
   }
 
-  // Tag lens vs tabular
+  // Tag every merged block as tabular or lens BEFORE building the master
+  // unit list, so both downstream passes (tabular interpolation, lens
+  // rendering) agree on the same classification for the same block.
   layersArr.forEach((layers, i) => {
     if (!layers) return;
     layers.forEach(l => {
@@ -3115,16 +3035,232 @@ function buildProfileSvg(rows) {
     });
   });
 
+  // Master soil units (tabular system) now include any lens-family block
+  // that turned out to be CONNECTED to a neighbour (rule 3 corrected) —
+  // only genuinely isolated blocks (l.isLens === true) are excluded here
+  // and handled by the separate lens pass below.
+  const soilUnitKeySet = new Set();
+  const soilUnitMeta = {}; // unitKey -> { graphic, originFamily }
+  layersArr.forEach((layers) => {
+    if (layers && layers.length) {
+      layers.forEach(l => {
+        if (l.isRockBlock) return;
+        if (l.isLens) return; // handled by lens pass, not tabular
+        const key = unitKey(l, l.originFamily);
+        soilUnitKeySet.add(key);
+        // Keep the FIRST graphic seen for this key as the representative for
+        // legend/base-colour purposes; a connected-lens key intentionally
+        // groups blocks that may have different representative graphics
+        // across boreholes, so this is necessarily just one illustrative pick.
+        if (!soilUnitMeta[key]) soilUnitMeta[key] = { graphic: (l.graphic || '').trim(), originFamily: l.originFamily, origin: l.origin };
+      });
+    } else {
+      const key = unitKey('Overburden (soil)', 'unknown');
+      soilUnitKeySet.add(key);
+      soilUnitMeta[key] = { graphic: 'Overburden (soil)', originFamily: 'unknown', origin: '' };
+    }
+  });
+
+  // ---- ORIGIN-FAMILY STACKING PRIORITY (rule 9) ----
+  // getGraphicRank alone is NOT sufficient to order master units: it ranks by
+  // BSCS/material code only, with no awareness of depositional Origin. Two
+  // units with the same or similar BSCS code can belong to totally different
+  // origins that MUST stack in a fixed natural order regardless of which
+  // BSCS code either one happens to be represented by (e.g. a connected
+  // Alluvium block might end up represented by "SC" while a Residual block
+  // at the same borehole is represented by "SM" — if SM ranks earlier than
+  // SC in GraphicHierarchy, a BSCS-only sort would incorrectly place
+  // Residual ABOVE Alluvium, which is geologically backwards: Alluvium is a
+  // surface/transported deposit and can never sit beneath in-situ Residual
+  // soil). originFamilyStackPriority fixes this by sorting on ORIGIN FAMILY
+  // PRIORITY first, and only using BSCS rank as a tiebreaker WITHIN the same
+  // family. This was a real bug, not a design choice — found via the
+  // bhCumBoundaries dump showing Alluvium's boundary slot placed below (not
+  // above) a Residual slot at two of three test boreholes.
   function originFamilyStackPriority(family) {
-    if (family === 'made_ground') return 0;
-    if (family === 'alluvium') return 1;
-    if (family === 'colluvium') return 1;
-    if (family === 'unknown') return 2;
-    if (family === 'residual') return 3;
-    return 2;
+    if (family === 'made_ground') return 0;   // human-placed fill, always at/near surface
+    if (family === 'alluvium') return 1;      // transported, surface/near-surface deposit
+    if (family === 'colluvium') return 1;     // transported, surface/near-surface deposit
+    if (family === 'unknown') return 2;       // unclassified soil — treated as ordinary overburden
+    if (family === 'residual') return 3;      // in-situ weathering profile (Residual + CWR)
+    return 2; // any other named origin (Aeolian, Estuarine, etc.) — see rule 2 fallback
   }
 
-  // Build interpolation spline for ground, rock, groundwater
+  const masterSoilUnits = Array.from(soilUnitKeySet).sort((a, b) => {
+    const famA = originFamilyStackPriority(soilUnitMeta[a].originFamily);
+    const famB = originFamilyStackPriority(soilUnitMeta[b].originFamily);
+    if (famA !== famB) return famA - famB;
+    return getGraphicRank(soilUnitMeta[a].graphic) - getGraphicRank(soilUnitMeta[b].graphic);
+  });
+  if (masterSoilUnits.length === 0) {
+    const key = unitKey('Overburden (soil)', 'unknown');
+    masterSoilUnits.push(key);
+    soilUnitMeta[key] = { graphic: 'Overburden (soil)', originFamily: 'unknown', origin: '' };
+  }
+
+  // Build cumulative boundaries C_0, C_1, ..., C_K at each borehole
+  // Also record which units are PRESENT at each borehole (for pinch-out logic)
+  const K = masterSoilUnits.length;
+  const bhUnitPresent = []; // bhUnitPresent[i][k] = true if unit k exists at borehole i
+  const bhCumBoundaries = rows.map((r, i) => {
+    const lv = levelsArr[i];
+    const layers = layersArr[i];
+    const zGround = lv.elevation !== null ? lv.elevation : maxElev;
+    const zRock = effectiveRockLevel[i] !== null ? effectiveRockLevel[i] : zGround - 5;
+    const overburden = Math.max(zGround - zRock, 0.1);
+
+    const unitMap = {};
+    if (layers && layers.length) {
+      // Tabular soil layers = everything NOT rock and NOT tagged as an
+      // isolated lens (see connectivity check above).
+      const soilLayers = layers.filter(l => !l.isRockBlock && !l.isLens);
+      // Depth-normalize against the FULL logged column (including any lens
+      // layers we're excluding here) so tabular units still sit at their
+      // true elevation — only their CONNECTIVITY across boreholes changes,
+      // not their position within this borehole's own column.
+      const allNonRockLayers = layers.filter(l => !l.isRockBlock);
+      const totalSoilDepth = allNonRockLayers.length ? Math.max(...allNonRockLayers.map(l => l.bottom)) : overburden;
+      const scaleToOverburden = totalSoilDepth > 0 ? (1.0 / totalSoilDepth) : (1.0 / overburden);
+
+      soilLayers.forEach(l => {
+        const key = unitKey(l, l.originFamily);
+        const fTop = Math.min(Math.max(l.depth * scaleToOverburden, 0), 1.0);
+        const fBot = Math.min(Math.max(l.bottom * scaleToOverburden, 0), 1.0);
+        if (!unitMap[key]) {
+          unitMap[key] = { fTop, fBot };
+        } else {
+          // Merge: extend fTop down, fBot up to cover discontiguous occurrences
+          unitMap[key].fTop = Math.min(unitMap[key].fTop, fTop);
+          unitMap[key].fBot = Math.max(unitMap[key].fBot, fBot);
+        }
+      });
+    } else {
+      unitMap[unitKey('Overburden (soil)', 'unknown')] = { fTop: 0.0, fBot: 1.0 };
+    }
+
+    // Record which units are present
+    const present = masterSoilUnits.map(u => !!unitMap[u]);
+    bhUnitPresent.push(present);
+
+    // Build cumulative boundaries in the actual LAYER ORDER from the log
+    // Strategy: walk masterSoilUnits in order, assigning their fraction slots
+    // Units NOT present at this BH get a zero-thickness slot (their C[uIdx] == C[uIdx+1])
+    const C = new Array(K + 1).fill(0);
+    C[0] = 0.0;
+    let cursor = 0.0;
+
+    masterSoilUnits.forEach((u, uIdx) => {
+      if (unitMap[u]) {
+        const fTop = Math.max(unitMap[u].fTop, cursor);
+        const fBot = Math.max(unitMap[u].fBot, fTop);
+        C[uIdx] = fTop;
+        C[uIdx + 1] = fBot;
+        cursor = fBot;
+      } else {
+        // Absent unit: zero thickness — both boundaries at current cursor
+        C[uIdx] = cursor;
+        C[uIdx + 1] = cursor;
+      }
+    });
+    // Force last boundary to 1.0 to ensure full coverage
+    C[K] = 1.0;
+    // Redistribute: if cursor < 1.0, push remaining into last present unit
+    if (cursor < 1.0) {
+      // Find the last present unit and extend its bottom
+      for (let k = K - 1; k >= 0; k--) {
+        if (bhUnitPresent[i][k]) {
+          C[k + 1] = 1.0;
+          // Push all subsequent absent units' boundaries to 1.0
+          for (let j = k + 1; j <= K; j++) C[j] = 1.0;
+          break;
+        }
+      }
+    }
+    // Monotone fix
+    for (let k = 1; k <= K; k++) {
+      if (C[k] < C[k - 1]) C[k] = C[k - 1];
+    }
+    return C;
+  });
+
+  // ---- LENS-FAMILY LAYERS (rule 3, corrected): collected here for a
+  // separate, non-tabular rendering pass. Each entry is one borehole's own
+  // logged occurrence of a lens-type origin that has NO matching neighbour
+  // (see hasMatchingNeighborBlock above) — rendered independently around ITS
+  // OWN borehole only, capped at LENS_MAX_HALF_WIDTH_M, never pinched toward
+  // a neighbour.
+  const lensLayers = []; // { bhIdx, graphic, originFamily, origin, zTop, zBot }
+  rows.forEach((r, i) => {
+    const layers = layersArr[i];
+    if (!layers || !layers.length) return;
+    const zG = levelsArr[i].elevation !== null ? levelsArr[i].elevation : maxElev;
+    layers.forEach(l => {
+      if (l.isRockBlock || !l.isLens) return;
+      lensLayers.push({
+        bhIdx: i,
+        graphic: (l.graphic || '').trim(),
+        originFamily: l.originFamily,
+        origin: l.origin,
+        zTop: zG - l.depth,
+        zBot: zG - l.bottom,
+        depthTop: l.depth,
+        depthBot: l.bottom
+      });
+    });
+  });
+
+
+
+
+  // ── ptsToCubicBezier ────────────────────────────────────────────────────────
+  // Converts an array of [x,y] points into an SVG cubic Bézier path string
+  // using the Catmull-Rom → cubic Bézier conversion.  The result is C1-smooth
+  // everywhere (continuous first derivative), so all kinks/hard bends disappear.
+  // tension: 0 = tight (less curvature), 0.5 = standard Catmull-Rom.
+  function ptsToCubicBezier(pts, tension) {
+    if (!pts || pts.length < 2) return '';
+    const t = (tension === undefined) ? 0.4 : tension;
+    let d = `M${pts[0][0].toFixed(1)},${pts[0][1].toFixed(1)}`;
+    for (let i = 0; i < pts.length - 1; i++) {
+      const p0 = pts[Math.max(i - 1, 0)];
+      const p1 = pts[i];
+      const p2 = pts[i + 1];
+      const p3 = pts[Math.min(i + 2, pts.length - 1)];
+      const cp1x = p1[0] + (p2[0] - p0[0]) * t;
+      const cp1y = p1[1] + (p2[1] - p0[1]) * t;
+      const cp2x = p2[0] - (p3[0] - p1[0]) * t;
+      const cp2y = p2[1] - (p3[1] - p1[1]) * t;
+      d += ` C${cp1x.toFixed(1)},${cp1y.toFixed(1)} ${cp2x.toFixed(1)},${cp2y.toFixed(1)} ${p2[0].toFixed(1)},${p2[1].toFixed(1)}`;
+    }
+    return d;
+  }
+
+  // Build a CLOSED Bézier polygon: top curve forward + bottom curve reversed
+  function closedLayerPath(topPts, botPts) {
+    if (!topPts || topPts.length < 2) return '';
+    const topD = ptsToCubicBezier(topPts);
+    // Bottom reversed → append as continuation then close
+    const botRev = botPts.slice().reverse();
+    // Connect top end → bot end with a straight line (collapses at pinch tips)
+    let d = topD;
+    d += ` L${botRev[0][0].toFixed(1)},${botRev[0][1].toFixed(1)}`;
+    // Smooth bottom (reversed)
+    for (let i = 0; i < botRev.length - 1; i++) {
+      const p0 = botRev[Math.max(i - 1, 0)];
+      const p1 = botRev[i];
+      const p2 = botRev[i + 1];
+      const p3 = botRev[Math.min(i + 2, botRev.length - 1)];
+      const tension = 0.4;
+      const cp1x = p1[0] + (p2[0] - p0[0]) * tension;
+      const cp1y = p1[1] + (p2[1] - p0[1]) * tension;
+      const cp2x = p2[0] - (p3[0] - p1[0]) * tension;
+      const cp2y = p2[1] - (p3[1] - p1[1]) * tension;
+      d += ` C${cp1x.toFixed(1)},${cp1y.toFixed(1)} ${cp2x.toFixed(1)},${cp2y.toFixed(1)} ${p2[0].toFixed(1)},${p2[1].toFixed(1)}`;
+    }
+    d += ' Z';
+    return d;
+  }
+
   function interpolateSpline(points, xTarget) {
     if (points.length === 1) return points[0].y;
     if (xTarget <= points[0].x) return points[0].y;
@@ -3155,6 +3291,7 @@ function buildProfileSvg(rows) {
     return null;
   }).filter(Boolean);
 
+  // Extended ground/rock for side extensions — clamp to first/last BH values
   function getZGround(d) {
     if (d <= groundPts[0].x) return groundPts[0].y;
     if (d >= groundPts[groundPts.length - 1].x) return groundPts[groundPts.length - 1].y;
@@ -3166,6 +3303,7 @@ function buildProfileSvg(rows) {
       : interpolateSpline(rockPts, d);
     return Math.min(zR, getZGround(d) - 0.05);
   }
+
   function getZWater(d) {
     if (gwDepthPts.length === 0) return null;
     const depthGw = Math.max(
@@ -3177,44 +3315,31 @@ function buildProfileSvg(rows) {
     return getZGround(d) - depthGw;
   }
 
-  function ptsToCubicBezier(pts, tension) {
-    if (!pts || pts.length < 2) return '';
-    const t = (tension === undefined) ? 0.35 : tension;
-    let d = `M${pts[0][0].toFixed(1)},${pts[0][1].toFixed(1)}`;
-    for (let i = 0; i < pts.length - 1; i++) {
-      const p0 = pts[Math.max(i - 1, 0)];
-      const p1 = pts[i];
-      const p2 = pts[i + 1];
-      const p3 = pts[Math.min(i + 2, pts.length - 1)];
-      const cp1x = p1[0] + (p2[0] - p0[0]) * t;
-      const cp1y = p1[1] + (p2[1] - p0[1]) * t;
-      const cp2x = p2[0] - (p3[0] - p1[0]) * t;
-      const cp2y = p2[1] - (p3[1] - p1[1]) * t;
-      d += ` C${cp1x.toFixed(1)},${cp1y.toFixed(1)} ${cp2x.toFixed(1)},${cp2y.toFixed(1)} ${p2[0].toFixed(1)},${p2[1].toFixed(1)}`;
-    }
-    return d;
+  // getCumBoundaryAtX with PINCH-OUT logic:
+  // For a given unit k, if it is absent at a borehole, it pinches to zero thickness
+  // at that BH. We interpolate C[k] and C[k+1] separately then guarantee monotonicity.
+  function getCumBoundaryAtX(k, d) {
+    if (k === 0) return 0.0;
+    if (k === K) return 1.0;
+    const pts = rows.map((r, i) => ({ x: distances[i], y: bhCumBoundaries[i][k] }));
+    const val = d <= pts[0].x ? pts[0].y
+      : d >= pts[pts.length - 1].x ? pts[pts.length - 1].y
+      : interpolateSpline(pts, d);
+    return Math.min(Math.max(val, 0.0), 1.0);
   }
 
-  function closedLayerPath(topPts, botPts) {
-    if (!topPts || topPts.length < 2 || !botPts || botPts.length < 2) return '';
-    const topD = ptsToCubicBezier(topPts);
-    const botRev = botPts.slice().reverse();
-    let d = topD;
-    d += ` L${botRev[0][0].toFixed(1)},${botRev[0][1].toFixed(1)}`;
-    for (let i = 0; i < botRev.length - 1; i++) {
-      const p0 = botRev[Math.max(i - 1, 0)];
-      const p1 = botRev[i];
-      const p2 = botRev[i + 1];
-      const p3 = botRev[Math.min(i + 2, botRev.length - 1)];
-      const tension = 0.35;
-      const cp1x = p1[0] + (p2[0] - p0[0]) * tension;
-      const cp1y = p1[1] + (p2[1] - p0[1]) * tension;
-      const cp2x = p2[0] - (p3[0] - p1[0]) * tension;
-      const cp2y = p2[1] - (p3[1] - p1[1]) * tension;
-      d += ` C${cp1x.toFixed(1)},${cp1y.toFixed(1)} ${cp2x.toFixed(1)},${cp2y.toFixed(1)} ${p2[0].toFixed(1)},${p2[1].toFixed(1)}`;
+  // Helper: get the range of distances over which unit k has non-zero thickness
+  // Used to determine the pinch-out extent of each layer
+  function getUnitExtentDist(k) {
+    // Find first and last BH where unit k is present
+    let firstIdx = -1, lastIdx = -1;
+    for (let i = 0; i < rows.length; i++) {
+      if (bhUnitPresent[i] && bhUnitPresent[i][k]) {
+        if (firstIdx === -1) firstIdx = i;
+        lastIdx = i;
+      }
     }
-    d += ' Z';
-    return d;
+    return { firstIdx, lastIdx };
   }
 
   let bedrockColor = '#8f8f95';
@@ -3226,6 +3351,25 @@ function buildProfileSvg(rows) {
   });
   const WEATHERING_GRADE_COLORS = buildWeatheringColorRamp(bedrockColor);
 
+  // ---- ROCK WEATHERING: CONTINUOUS FADE ----
+  // Instead of discrete flat-coloured bands, weathering renders as one smooth
+  // colour fade per borehole (highly-weathered tint at rockhead -> fresh/
+  // bedrock colour at depth), then blended LATERALLY across the section too,
+  // so there are no hard seams either vertically (zone boundaries) or
+  // horizontally (between boreholes) — matching a tomography-style gradient
+  // while the real logged zone depths still drive exactly where the fade
+  // sits at each point.
+  //
+  // Each borehole's "fade profile" is a piecewise-linear function of depth:
+  // at each reading's own depth, fade = that reading's grade anchor position
+  // (WEATHERING_GRADE_FADE_POS); between readings, fade is linearly
+  // interpolated (this IS the smooth version of the old midpoint-zone
+  // logic — the zone boundary becomes the 50%-point of the linear ramp
+  // between two anchors instead of a hard edge). Above the shallowest
+  // reading, fade holds at that reading's value; below the deepest reading,
+  // fade ramps the rest of the way to 1.0 (fresh) by termination depth, so a
+  // borehole's fresh rock always resolves to the same colour as the plain
+  // bedrock fill elsewhere.
   const bhFadeProfile = rows.map((r, i) => {
     const readings = getBHWeathering(r);
     const zGround = levelsArr[i].elevation !== null ? levelsArr[i].elevation : maxElev;
@@ -3239,6 +3383,9 @@ function buildProfileSvg(rows) {
       .filter(p => p.depthBelowRock >= -0.01)
       .sort((a, b) => a.depthBelowRock - b.depthBelowRock);
     if (!pts.length) return null;
+    // Anchor list in depth-below-rockhead terms: start at 0 (holds shallowest
+    // reading's fade value), through each reading, then ramp to 1.0 (fresh)
+    // exactly at termination.
     const anchors = [{ depth: 0, fade: pts[0].fade }];
     pts.forEach(p => {
       const last = anchors[anchors.length - 1];
@@ -3253,6 +3400,7 @@ function buildProfileSvg(rows) {
 
   const anyWeatheringData = bhFadeProfile.some(p => p !== null);
 
+  // Evaluates a borehole's own fade profile at a given depth-below-rockhead.
   function fadeAtProfileDepth(profile, depthBelowRock) {
     const a = profile.anchors;
     if (depthBelowRock <= a[0].depth) return a[0].fade;
@@ -3267,6 +3415,19 @@ function buildProfileSvg(rows) {
     return 1.0;
   }
 
+  // Continuous fade fraction (0=highly weathered tint .. 1=fresh/bedrock) at
+  // any (distance, elevation) point within the rock mass. Depth is measured
+  // relative to the LOCAL (interpolated) rockhead and termination surfaces at
+  // that exact distance — getZRock(d)/getZTerm(d) — NOT each borehole's own
+  // absolute rockhead elevation. This is what makes the fade follow the
+  // sloped/undulating bedrock contact and termination surface instead of
+  // forming flat horizontal stripes that cut across a dipping rockhead.
+  // We convert `elev` to a FRACTION of the local rock span (0=at local
+  // rockhead, 1=at local termination), then apply that fraction to each
+  // bracketing borehole's OWN rock span to look up its fade profile — so a
+  // borehole with a much deeper/shallower rockhead than its neighbour still
+  // contributes its own true weathering profile at the correspondingly
+  // rescaled depth, and the two are blended horizontally as before.
   const _termInterpPts = rows.map((r, i) => ({ x: distances[i], y: effectiveTermLevel[i] !== null ? effectiveTermLevel[i] : (effectiveRockLevel[i] !== null ? effectiveRockLevel[i] - 5 : maxElev - 10) }));
   function getZTermAtX(d) {
     const pts = _termInterpPts;
@@ -3280,8 +3441,13 @@ function buildProfileSvg(rows) {
     const zRockLocal = getZRock(d);
     const zTermLocal = getZTermAtX(d);
     const localSpan = Math.max(zRockLocal - zTermLocal, 0.1);
+    // Fraction of the LOCAL rock column (0 = at local rockhead, 1 = at local
+    // termination) — this is what stays constant along the sloped contact.
     const localFrac = Math.max(0, Math.min(1, (zRockLocal - elev) / localSpan));
 
+    // Binary search for the bracketing boreholes (distances[] is sorted
+    // ascending) instead of a full linear scan — matters once the raster
+    // grid gets fine enough to call this thousands of times per profile.
     let lo = 0, hi = rows.length - 1;
     if (d <= distances[0]) { lo = 0; hi = 0; }
     else if (d >= distances[distances.length - 1]) { lo = hi = distances.length - 1; }
@@ -3295,7 +3461,10 @@ function buildProfileSvg(rows) {
 
     function fadeForBH(i) {
       const profile = bhFadeProfile[i];
-      if (!profile) return 1.0;
+      if (!profile) return 1.0; // no data at this BH: treat as fresh/bedrock
+      // Apply the SAME local fraction to this borehole's own rock span, so
+      // e.g. "80% of the way down to termination" looks up that same
+      // relative point in BH i's actual logged profile.
       const relDepth = localFrac * profile.rockSpan;
       return fadeAtProfileDepth(profile, relDepth);
     }
@@ -3307,424 +3476,15 @@ function buildProfileSvg(rows) {
     return fA + (fB - fA) * t;
   }
 
-  // Prepare borehole layer data structures
-  const bhUnitsMap = [];
-  const bhOrderedUnits = [];
-
-  rows.forEach((r, i) => {
-    const zG = levelsArr[i].elevation !== null ? levelsArr[i].elevation : maxElev;
-    const zR = effectiveRockLevel[i] !== null ? effectiveRockLevel[i] : zG - 5;
-    const overburden = Math.max(zG - zR, 0.1);
-    const layers = layersArr[i];
-    const map = {};
-    const ordered = [];
-
-    if (layers && layers.length) {
-      const soilLayers = layers.filter(l => !l.isRockBlock && !l.isLens);
-      const allNonRock = layers.filter(l => !l.isRockBlock);
-      const totalSoilDepth = allNonRock.length ? Math.max(...allNonRock.map(l => l.bottom)) : overburden;
-      const scale = totalSoilDepth > 0 ? (1.0 / totalSoilDepth) : (1.0 / overburden);
-
-      soilLayers.forEach(l => {
-        const key = unitKey(l, l.originFamily);
-        const fTop = Math.min(Math.max(l.depth * scale, 0), 1.0);
-        const fBot = Math.min(Math.max(l.bottom * scale, 0), 1.0);
-        if (!map[key]) {
-          map[key] = { fTop, fBot, depth: l.depth, bottom: l.bottom, graphic: l.graphic, origin: l.origin, originFamily: l.originFamily, consistency: l.consistency, layer: l };
-          ordered.push(key);
-        } else {
-          map[key].fTop = Math.min(map[key].fTop, fTop);
-          map[key].fBot = Math.max(map[key].fBot, fBot);
-          map[key].depth = Math.min(map[key].depth, l.depth);
-          map[key].bottom = Math.max(map[key].bottom, l.bottom);
-        }
-      });
-    } else {
-      const key = unitKey('Overburden (soil)', 'unknown');
-      map[key] = { fTop: 0.0, fBot: 1.0, depth: 0, bottom: 5, graphic: 'Overburden (soil)', origin: '', originFamily: 'unknown', consistency: '', layer: null };
-      ordered.push(key);
-    }
-    bhUnitsMap.push(map);
-    bhOrderedUnits.push(ordered);
-  });
-
-  // Data structures for CAD DXF Export & SVG
-  const dxfStrataPolys = [];
-  const dxfOriginBoundaries = [];
-  const renderedGraphicSet = new Set();
-
-  let strataSvgMarkup = '';
-  let originLinesSvgMarkup = '';
-
-  function addStratumSegment(dStart, dEnd, getTopZ, getBotZ, info, origin, originFamily, nSteps = 12) {
-    if (dEnd <= dStart) return;
-    const topCurve = [];
-    const botCurve = [];
-    let hasArea = false;
-
-    for (let s = 0; s <= nSteps; s++) {
-      const t = s / nSteps;
-      const d = dStart + (dEnd - dStart) * t;
-      const zG = getZGround(d);
-      const zR = getZRock(d);
-      let zTop = getTopZ(t, d, zG, zR);
-      let zBot = getBotZ(t, d, zG, zR);
-
-      zTop = Math.min(Math.max(zTop, zR), zG);
-      zBot = Math.min(Math.max(zBot, zR), zG);
-      if (zBot > zTop) zBot = zTop;
-
-      topCurve.push([xPos(d), yPos(zTop)]);
-      botCurve.push([xPos(d), yPos(zBot)]);
-      if (zTop - zBot > 0.005) hasArea = true;
-    }
-
-    if (!hasArea) return;
-
-    renderedGraphicSet.add(info.label);
-
-    const pathD = closedLayerPath(topCurve, botCurve);
-    let patternUrl = '';
-    const uUp = (info.label || '').toUpperCase();
-    const gUp = (info.code || '').toUpperCase();
-    if (gUp.startsWith('S') || uUp.includes('SAND')) patternUrl = 'url(#pat-sand)';
-    else if (gUp.startsWith('C') || uUp.includes('CLAY')) patternUrl = 'url(#pat-clay)';
-    else if (gUp.startsWith('G') || uUp.includes('GRAVEL')) patternUrl = 'url(#pat-gravel)';
-
-    strataSvgMarkup += `\n    <!-- Stratum Segment: ${info.label} (${dStart.toFixed(1)}m - ${dEnd.toFixed(1)}m) -->
-    <path d="${pathD}" fill="${info.color}" stroke="${info.color}" stroke-width="0.4"/>`;
-    if (patternUrl) {
-      strataSvgMarkup += `\n    <path d="${pathD}" fill="${patternUrl}" stroke="none"/>`;
-    }
-    const originHatch = ORIGIN_HATCH_INFO[originHatchKeyOf(origin)];
-    if (originHatch) {
-      strataSvgMarkup += `\n    <path d="${pathD}" fill="url(#${originHatch.patternId})" stroke="none"/>`;
-    }
-
-    // Top contact line
-    const contactRuns = [];
-    let curRun = [];
-    topCurve.forEach((p, idx) => {
-      if (Math.abs(p[1] - botCurve[idx][1]) >= 2.0) {
-        curRun.push(p);
-      } else if (curRun.length) {
-        contactRuns.push(curRun);
-        curRun = [];
-      }
-    });
-    if (curRun.length) contactRuns.push(curRun);
-    contactRuns.forEach(run => {
-      if (run.length >= 2) {
-        strataSvgMarkup += `\n    <path d="${ptsToCubicBezier(run)}" fill="none" stroke="#554433" stroke-width="0.6" opacity="0.35"/>`;
-      }
-    });
-
-    // Real metric coordinates for DXF
-    const polyMetric = [];
-    for (let s = 0; s <= nSteps; s++) {
-      const t = s / nSteps;
-      const d = dStart + (dEnd - dStart) * t;
-      const zG = getZGround(d);
-      const zR = getZRock(d);
-      let zTop = Math.min(Math.max(getTopZ(t, d, zG, zR), zR), zG);
-      polyMetric.push([d, zTop]);
-    }
-    for (let s = nSteps; s >= 0; s--) {
-      const t = s / nSteps;
-      const d = dStart + (dEnd - dStart) * t;
-      const zG = getZGround(d);
-      const zR = getZRock(d);
-      let zBot = Math.min(Math.max(getBotZ(t, d, zG, zR), zR), zG);
-      polyMetric.push([d, zBot]);
-    }
-    dxfStrataPolys.push({
-      pts: polyMetric,
-      graphic: info.code || info.label,
-      code: info.code || info.label,
-      label: info.label,
-      origin: origin,
-      originFamily: originFamily,
-      color: info.color
-    });
-  }
-
-  // 1. LEFT EXTENSION (before first borehole: [distMin, distances[0]])
-  if (distances[0] > distMin) {
-    const map0 = bhUnitsMap[0];
-    const keys0 = bhOrderedUnits[0];
-    keys0.forEach(key => {
-      const u = map0[key];
-      if (!u) return;
-      const info = Object.assign({ code: u.graphic }, getGraphicInfo(u.graphic));
-      addStratumSegment(
-        distMin, distances[0],
-        (t, d, zG, zR) => zG - u.fTop * Math.max(zG - zR, 0.1),
-        (t, d, zG, zR) => zG - u.fBot * Math.max(zG - zR, 0.1),
-        info, u.origin, u.originFamily, 6
-      );
-    });
-  }
-
-  // 2. SEGMENT-BY-SEGMENT STRATA INTERPOLATION BETWEEN ADJACENT BOREHOLES
-  for (let i = 0; i < rows.length - 1; i++) {
-    const dA = distances[i];
-    const dB = distances[i + 1];
-    const dMid = (dA + dB) / 2;
-    const mapA = bhUnitsMap[i];
-    const mapB = bhUnitsMap[i + 1];
-
-    const segKeysSet = new Set([...Object.keys(mapA), ...Object.keys(mapB)]);
-    const segKeys = Array.from(segKeysSet).sort((a, b) => {
-      const famA = originFamilyStackPriority(mapA[a] ? mapA[a].originFamily : mapB[a].originFamily);
-      const famB = originFamilyStackPriority(mapA[b] ? mapA[b].originFamily : mapB[b].originFamily);
-      if (famA !== famB) return famA - famB;
-      const rankA = getGraphicRank(mapA[a] ? mapA[a].graphic : mapB[a].graphic);
-      const rankB = getGraphicRank(mapA[b] ? mapA[b].graphic : mapB[b].graphic);
-      return rankA - rankB;
-    });
-
-    segKeys.forEach(key => {
-      const uA = mapA[key];
-      const uB = mapB[key];
-
-      if (uA && uB) {
-        // Present in BOTH adjacent boreholes -> smooth continuous interpolation across [dA, dB]
-        const info = Object.assign({ code: uA.graphic }, getGraphicInfo(uA.graphic));
-        addStratumSegment(
-          dA, dB,
-          (t, d, zG, zR) => {
-            const ovb = Math.max(zG - zR, 0.1);
-            const fT = uA.fTop * (1 - t) + uB.fTop * t;
-            return zG - fT * ovb;
-          },
-          (t, d, zG, zR) => {
-            const ovb = Math.max(zG - zR, 0.1);
-            const fB = uA.fBot * (1 - t) + uB.fBot * t;
-            return zG - fB * ovb;
-          },
-          info, uA.origin, uA.originFamily, 14
-        );
-      } else if (uA && !uB) {
-        // Present in ONLY BH i -> Tapers smoothly to zero thickness at dMid and TERMINATES COMPLETELY at dMid
-        const info = Object.assign({ code: uA.graphic }, getGraphicInfo(uA.graphic));
-        const fMid = (uA.fTop + uA.fBot) / 2;
-        const fHalf = (uA.fBot - uA.fTop) / 2;
-        addStratumSegment(
-          dA, dMid,
-          (t, d, zG, zR) => {
-            const ovb = Math.max(zG - zR, 0.1);
-            const w = 0.5 * (1 + Math.cos(Math.PI * t));
-            const fT = fMid - fHalf * w;
-            return zG - fT * ovb;
-          },
-          (t, d, zG, zR) => {
-            const ovb = Math.max(zG - zR, 0.1);
-            const w = 0.5 * (1 + Math.cos(Math.PI * t));
-            const fB = fMid + fHalf * w;
-            return zG - fB * ovb;
-          },
-          info, uA.origin, uA.originFamily, 10
-        );
-        // Zero geometry on [dMid, dB]!
-      } else if (!uA && uB) {
-        // Present in ONLY BH i+1 -> Starts at zero thickness at dMid and tapers open smoothly to dB
-        const info = Object.assign({ code: uB.graphic }, getGraphicInfo(uB.graphic));
-        const fMid = (uB.fTop + uB.fBot) / 2;
-        const fHalf = (uB.fBot - uB.fTop) / 2;
-        addStratumSegment(
-          dMid, dB,
-          (t, d, zG, zR) => {
-            const ovb = Math.max(zG - zR, 0.1);
-            const w = 0.5 * (1 - Math.cos(Math.PI * t));
-            const fT = fMid - fHalf * w;
-            return zG - fT * ovb;
-          },
-          (t, d, zG, zR) => {
-            const ovb = Math.max(zG - zR, 0.1);
-            const w = 0.5 * (1 - Math.cos(Math.PI * t));
-            const fB = fMid + fHalf * w;
-            return zG - fB * ovb;
-          },
-          info, uB.origin, uB.originFamily, 10
-        );
-        // Zero geometry on [dA, dMid]!
-      }
-    });
-
-    // Dark Ash Dashed Lines for Soil Origin Boundaries in this segment
-    let prevFam = null;
-    let prevBotFractionA = 0, prevBotFractionB = 0;
-    for (let k = 0; k < segKeys.length; k++) {
-      const uKey = segKeys[k];
-      const uA = mapA[uKey];
-      const uB = mapB[uKey];
-      const fam = (uA ? uA.originFamily : (uB ? uB.originFamily : 'unknown'));
-      const orig = (uA ? uA.origin : (uB ? uB.origin : ''));
-
-      if (prevFam !== null && (prevFam !== fam || (orig && orig.toLowerCase() === 'completely weathered rock'))) {
-        const bPtsSvg = [];
-        const bPtsDxf = [];
-        const nBSteps = 12;
-        for (let s = 0; s <= nBSteps; s++) {
-          const t = s / nBSteps;
-          const d = dA + (dB - dA) * t;
-          const zG = getZGround(d);
-          const zR = getZRock(d);
-          const ovb = Math.max(zG - zR, 0.1);
-          const fT_A = uA ? uA.fTop : prevBotFractionA;
-          const fT_B = uB ? uB.fTop : prevBotFractionB;
-          const fTrans = fT_A * (1 - t) + fT_B * t;
-          const zTrans = Math.min(Math.max(zG - fTrans * ovb, zR), zG);
-          bPtsSvg.push([xPos(d), yPos(zTrans)]);
-          bPtsDxf.push([d, zTrans]);
-        }
-        if (bPtsSvg.length >= 2) {
-          originLinesSvgMarkup += `\n    <!-- Soil Origin Boundary: ${prevFam} ↔ ${fam} -->
-    <path d="${ptsToCubicBezier(bPtsSvg)}" fill="none" stroke="#4a4a4a" stroke-width="1.2" stroke-dasharray="5,3" opacity="0.8"/>`;
-          dxfOriginBoundaries.push(bPtsDxf);
-        }
-      }
-      prevFam = fam;
-      if (uA) prevBotFractionA = uA.fBot;
-      if (uB) prevBotFractionB = uB.fBot;
-    }
-  }
-
-  // 3. RIGHT EXTENSION (after last borehole: [distances[N-1], distMax])
-  const lastIdx = rows.length - 1;
-  if (distMax > distances[lastIdx]) {
-    const mapLast = bhUnitsMap[lastIdx];
-    const keysLast = bhOrderedUnits[lastIdx];
-    keysLast.forEach(key => {
-      const u = mapLast[key];
-      if (!u) return;
-      const info = Object.assign({ code: u.graphic }, getGraphicInfo(u.graphic));
-      addStratumSegment(
-        distances[lastIdx], distMax,
-        (t, d, zG, zR) => zG - u.fTop * Math.max(zG - zR, 0.1),
-        (t, d, zG, zR) => zG - u.fBot * Math.max(zG - zR, 0.1),
-        info, u.origin, u.originFamily, 6
-      );
-    });
-  }
-
-  // 4. LENS-FAMILY LAYERS (Alluvium / Colluvium / Made Ground with no neighbor match)
-  const lensLayers = [];
-  rows.forEach((r, i) => {
-    const layers = layersArr[i];
-    if (!layers || !layers.length) return;
-    const zG = levelsArr[i].elevation !== null ? levelsArr[i].elevation : maxElev;
-    layers.forEach(l => {
-      if (l.isRockBlock || !l.isLens) return;
-      lensLayers.push({
-        bhIdx: i,
-        graphic: (l.graphic || '').trim(),
-        originFamily: l.originFamily,
-        origin: l.origin,
-        zTop: zG - l.depth,
-        zBot: zG - l.bottom,
-        depthTop: l.depth,
-        depthBot: l.bottom
-      });
-    });
-  });
-
-  lensLayers.forEach(lens => {
-    const i = lens.bhIdx;
-    const xCenter = distances[i];
-    const leftNeighborDist = i > 0 ? (distances[i] - distances[i - 1]) / 2 : Infinity;
-    const rightNeighborDist = i < distances.length - 1 ? (distances[i + 1] - distances[i]) / 2 : Infinity;
-    const halfW_left = Math.min(LENS_MAX_HALF_WIDTH_M, leftNeighborDist);
-    const halfW_right = Math.min(LENS_MAX_HALF_WIDTH_M, rightNeighborDist);
-    const dLeftEdge = Math.max(xCenter - halfW_left, distMin);
-    const dRightEdge = Math.min(xCenter + halfW_right, distMax);
-
-    const nSteps = 14;
-    const topPts = [], botPts = [];
-    const polyMetric = [];
-
-    for (let s = 0; s <= nSteps; s++) {
-      const t = s / nSteps;
-      const d = dLeftEdge + (dRightEdge - dLeftEdge) * t;
-      const x = xPos(d);
-      const distFromCenter = Math.abs(d - xCenter);
-      const halfWHere = d < xCenter ? halfW_left : halfW_right;
-      const taperT = halfWHere > 0 ? Math.min(distFromCenter / halfWHere, 1) : 1;
-      const taper = Math.max(Math.cos(taperT * Math.PI / 2), 0.02);
-
-      const depthTopHere = lens.depthTop * taper;
-      const depthBotHere = lens.depthBot * taper;
-      const zGroundHere = getZGround(d);
-      const zRockHere = getZRock(d);
-      let zTopHere = zGroundHere - depthTopHere;
-      let zBotHere = zGroundHere - depthBotHere;
-      zTopHere = Math.min(Math.max(zTopHere, zRockHere), zGroundHere);
-      zBotHere = Math.min(Math.max(zBotHere, zRockHere), zGroundHere);
-      if (zBotHere > zTopHere) zBotHere = zTopHere;
-
-      topPts.push([x, yPos(zTopHere)]);
-      botPts.push([x, yPos(zBotHere)]);
-      polyMetric.push([d, zTopHere]);
-    }
-    for (let s = nSteps; s >= 0; s--) {
-      const t = s / nSteps;
-      const d = dLeftEdge + (dRightEdge - dLeftEdge) * t;
-      const distFromCenter = Math.abs(d - xCenter);
-      const halfWHere = d < xCenter ? halfW_left : halfW_right;
-      const taperT = halfWHere > 0 ? Math.min(distFromCenter / halfWHere, 1) : 1;
-      const taper = Math.max(Math.cos(taperT * Math.PI / 2), 0.02);
-      const depthBotHere = lens.depthBot * taper;
-      const zGroundHere = getZGround(d);
-      const zRockHere = getZRock(d);
-      let zBotHere = Math.min(Math.max(zGroundHere - depthBotHere, zRockHere), zGroundHere);
-      polyMetric.push([d, zBotHere]);
-    }
-
-    const lensD = closedLayerPath(topPts, botPts);
-    const info = Object.assign({ code: lens.graphic }, getGraphicInfo(lens.graphic));
-    renderedGraphicSet.add(info.label);
-
-    strataSvgMarkup += `\n    <!-- Lens: ${lens.originFamily} / ${info.label} at BH index ${i} -->
-    <path d="${lensD}" fill="${info.color}" stroke="${info.color}" stroke-width="0.4" opacity="0.96"/>`;
-    const hatch = ORIGIN_HATCH_INFO[originHatchKeyOf(lens.origin)];
-    if (hatch) strataSvgMarkup += `\n    <path d="${lensD}" fill="url(#${hatch.patternId})" stroke="none"/>`;
-
-    // Soil origin transition line at the lens's bottom edge
-    const botRunPts = [];
-    const botRunDxf = [];
-    for (let s = 0; s < topPts.length; s++) {
-      if (Math.abs(topPts[s][1] - botPts[s][1]) >= 2.0) {
-        botRunPts.push(botPts[s]);
-        const t = s / (topPts.length - 1);
-        const d = dLeftEdge + (dRightEdge - dLeftEdge) * t;
-        const zG = getZGround(d);
-        const zR = getZRock(d);
-        const distFromCenter = Math.abs(d - xCenter);
-        const halfWHere = d < xCenter ? halfW_left : halfW_right;
-        const taperT = halfWHere > 0 ? Math.min(distFromCenter / halfWHere, 1) : 1;
-        const taper = Math.max(Math.cos(taperT * Math.PI / 2), 0.02);
-        const zBot = Math.min(Math.max(zG - lens.depthBot * taper, zR), zG);
-        botRunDxf.push([d, zBot]);
-      }
-    }
-    if (botRunPts.length >= 2) {
-      originLinesSvgMarkup += `\n    <!-- Soil Origin transition line (lens bottom edge, ${lens.originFamily}) -->
-    <path d="${ptsToCubicBezier(botRunPts)}" fill="none" stroke="#4a4a4a" stroke-width="1.2" stroke-dasharray="5,3" opacity="0.8"/>`;
-      dxfOriginBoundaries.push(botRunDxf);
-    }
-
-    dxfStrataPolys.push({
-      pts: polyMetric,
-      graphic: lens.graphic,
-      code: lens.graphic,
-      label: info.label,
-      origin: lens.origin,
-      originFamily: lens.originFamily,
-      color: info.color
-    });
-  });
-
-  // Origin hatch legend items
+  // Origin hatch key (rule 6) — lists each texture actually used anywhere
+  // in this profile (tabular OR lens), separately from the BSCS colour key
+  // above, since origin and material are two independent visual channels.
+  // Uses originHatchKeyOf (finer-grained than originFamily) so Residual and
+  // Completely Weathered Rock — one connectivity family, two textures — both
+  // get their own legend entry. Must scan subLayers too, not just each
+  // merged block's own frozen `origin` field — a merged run can contain a
+  // LATER origin (e.g. CWR after Residual) that the top-level field never
+  // reflects (see the CWR sub-range overlay note in the fill loop above).
   const usedOriginHatchKeys = new Set();
   layersArr.forEach(layers => { if (layers) layers.forEach(l => {
     if (l.isRockBlock) return;
@@ -3741,14 +3501,65 @@ function buildProfileSvg(rows) {
     isOriginHatch: true
   }));
 
-  // Interactive Cross-Section Legend items
+  // Legend must reflect EVERYTHING actually drawn — both tabular master
+  // units AND lens-only occurrences. A unit can exist in masterSoilUnits
+  // (present at one borehole) yet still end up with zero rendered area after
+  // the shared cumulative-boundary interpolation pinches it out everywhere
+  // it's sampled — so "is this unit in masterSoilUnits" is NOT the same test
+  // as "did this unit actually get drawn", and the legend must use the
+  // SECOND test. This dry-run reuses the identical sampling loop the real
+  // fill loop uses below, so the two can never disagree. (Must run AFTER
+  // sampleDists is initialized, hence its position here rather than earlier
+  // alongside the rest of the legend-prep code.)
+  function masterUnitHasRenderedArea(uIdx) {
+    const bhLayerRanges = rows.map((r, i) => {
+      const zG = levelsArr[i].elevation !== null ? levelsArr[i].elevation : maxElev;
+      const zR = effectiveRockLevel[i] !== null ? effectiveRockLevel[i] : zG - 5;
+      const overburden = Math.max(zG - zR, 0.1);
+      const C = bhCumBoundaries[i];
+      const present = bhUnitPresent[i][uIdx];
+      return { present, zTop: zG - C[uIdx] * overburden, zBot: zG - C[uIdx + 1] * overburden };
+    });
+    for (const d of sampleDists) {
+      const zG = getZGround(d);
+      const zR = getZRock(d);
+      const overburdenAtD = Math.max(zG - zR, 0.1);
+      const fTop = getCumBoundaryAtX(uIdx, d);
+      const fBot = getCumBoundaryAtX(uIdx + 1, d);
+      let zTop = zG - fTop * overburdenAtD;
+      let zBot = zG - fBot * overburdenAtD;
+      if (d < distances[0]) {
+        const range = bhLayerRanges[0];
+        zTop = range.present ? range.zTop : zG; zBot = range.present ? range.zBot : zG;
+      } else if (d > distances[distances.length - 1]) {
+        const range = bhLayerRanges[bhLayerRanges.length - 1];
+        zTop = range.present ? range.zTop : zG; zBot = range.present ? range.zBot : zG;
+      }
+      zTop = Math.min(Math.max(zTop, zR), zG);
+      zBot = Math.min(Math.max(zBot, zR), zG);
+      if (zBot > zTop) zBot = zTop;
+      if (zTop - zBot > 0.01) return true;
+    }
+    return false;
+  }
+
   const legendSeenGraphics = new Set();
   const legendItems = [];
-  renderedGraphicSet.forEach(label => {
-    if (legendSeenGraphics.has(label)) return;
-    legendSeenGraphics.add(label);
-    const info = getGraphicInfo(label);
-    legendItems.push({ label: info.label || label, color: info.color, isRock: false });
+  masterSoilUnits.forEach((u, uIdx) => {
+    if (!masterUnitHasRenderedArea(uIdx)) return; // never actually drawn — omit from legend
+    const meta = soilUnitMeta[u];
+    const info = getGraphicInfo(meta.graphic);
+    const dedupeKey = info.label;
+    if (legendSeenGraphics.has(dedupeKey)) return;
+    legendSeenGraphics.add(dedupeKey);
+    legendItems.push({ label: info.label, color: info.color, isRock: false });
+  });
+  lensLayers.forEach(lens => {
+    const info = getGraphicInfo(lens.graphic);
+    const dedupeKey = info.label;
+    if (legendSeenGraphics.has(dedupeKey)) return;
+    legendSeenGraphics.add(dedupeKey);
+    legendItems.push({ label: info.label, color: info.color, isRock: false });
   });
   if (anyWeatheringData) {
     WEATHERING_GRADE_ORDER.forEach(grade => {
@@ -3759,33 +3570,16 @@ function buildProfileSvg(rows) {
   }
   legendItems.push({ label: 'Groundwater Table', color: '#1e6fd9', isLine: true, dash: '5,3' });
   legendItems.push({ label: 'Bedrock Contact', color: '#7a2f1e', isLine: true, dash: '6,4' });
-  legendItems.push({ label: 'Soil Origin Boundary', color: '#4a4a4a', isLine: true, dash: '5,3' });
-
+  legendItems.push({ label: 'Soil Origin Boundary', color: '#3a3a3a', isLine: true, dash: '4,3' });
   const legendRowH = 24;
   const legendRows = Math.ceil(legendItems.length / 4) + (originLegendItems.length ? Math.ceil(originLegendItems.length / 4) + 1 : 0);
+  // +60 reserves room for a few stacked termination-label rows (see the
+  // vertical-stagger termination label pass below) — mirrors how padTop is
+  // also a fixed budget rather than dynamically computed from actual label
+  // stacking, consistent with the existing BH header label approach.
   const padBottom = 80 + legendRows * legendRowH + 40 + 18 + 60;
   const svgH = plotH + padTop + padBottom;
   const axisY = padTop + plotH;
-
-  // Cache data for CAD DXF Export
-  window._lastProfileDXFData = {
-    rows: rows,
-    distances: distances,
-    levelsArr: levelsArr,
-    layersArr: layersArr,
-    effectiveRockLevel: effectiveRockLevel,
-    effectiveTermLevel: effectiveTermLevel,
-    getZGround: getZGround,
-    getZRock: getZRock,
-    getZWater: getZWater,
-    dMin: distMin,
-    dMax: distMax,
-    minElev: minElev,
-    maxElev: maxElev,
-    totalDist: totalDist,
-    strataPolys: dxfStrataPolys,
-    originBoundaries: dxfOriginBoundaries
-  };
 
   let svg = `<svg width="${svgW}" height="${svgH}" viewBox="0 0 ${svgW} ${svgH}" xmlns="http://www.w3.org/2000/svg" font-family="Inter, sans-serif">`;
 
@@ -3810,7 +3604,7 @@ function buildProfileSvg(rows) {
 
   svg += `<rect x="0" y="0" width="${svgW}" height="${svgH}" fill="#ffffff"/>`;
 
-  // Grid Lines & Y Axis
+  // Grid Lines & Y Axis — use a "nice" integer step so labels read as whole metres
   const targetElevStep = elevRange / 6;
   const elevStep = niceScaleMeters(Math.max(targetElevStep, 1));
   const gridStartElev = Math.ceil(minElev / elevStep) * elevStep;
@@ -3834,39 +3628,452 @@ function buildProfileSvg(rows) {
     svg += `<text x="${x.toFixed(1)}" y="${(axisY + 17).toFixed(1)}" font-size="9" fill="#6b6459" font-weight="500" text-anchor="middle">${Math.round(d)}</text>`;
   }
 
-  // STEP A: Overburden Base Matrix Fill
-  const soilBaseTopPts = sampleDists.map(d => [xPos(d), yPos(getZGround(d))]);
-  const soilBaseBotPts = sampleDists.map(d => [xPos(d), yPos(getZRock(d))]);
-  const soilBaseD = closedLayerPath(soilBaseTopPts, soilBaseBotPts);
-  const baseSoilColor = '#c9a876';
-  svg += `<!-- A: Overburden Base Fill -->\n  <path d="${soilBaseD}" fill="${baseSoilColor}" stroke="none"/>`;
+  // RENDERING ORDER (Geologically correct, back-to-front painter's algorithm):
+  // Step A: Overburden base fill (ground surface down to rockhead) — fills the entire soil zone
+  // Step B: Individual soil layer polygons — paint on top with correct unit colours
+  // Step C: Bedrock polygon — painted LAST, covers anything below rockhead
+  // Step D: Rockhead dashed line + GWT line + BH pillars (drawn after bedrock)
 
-  // STEP B: Render Segment-by-Segment Strata Polygons
-  svg += strataSvgMarkup;
 
-  // STEP B2: Render Dark Ash Dashed Lines for Soil Origin Boundaries
-  svg += originLinesSvgMarkup;
-
-  // STEP C: Bedrock Polygon & Continuous Weathering Fade
-  const rockPolyPts = sampleDists.map(d => [xPos(d), yPos(getZRock(d))]);
+  // Compute rockhead points array (reused for bedrock polygon and rockhead line)
+  const rockPolyPts = [];
+  sampleDists.forEach(d => {
+    rockPolyPts.push([xPos(d), yPos(getZRock(d))]);
+  });
   let bedrockD = ptsToCubicBezier(rockPolyPts)
     + ` L${xFrameRight.toFixed(1)},${axisY.toFixed(1)} L${xFrameLeft.toFixed(1)},${axisY.toFixed(1)} Z`;
 
-  svg += `<!-- C: Bedrock Polygon -->\n  <path d="${bedrockD}" fill="${bedrockColor}" stroke="none"/>`;
+  // STEP A: Paint overburden base matrix fill (entire soil zone, base colour = first soil unit)
+  const soilBaseTopPts = sampleDists.map(d => [xPos(d), yPos(getZGround(d))]);
+  const soilBaseBotPts = sampleDists.map(d => [xPos(d), yPos(getZRock(d))]);
+  const soilBaseD = closedLayerPath(soilBaseTopPts, soilBaseBotPts);
+  const baseSoilColor = (masterSoilUnits.length && getGraphicInfo(soilUnitMeta[masterSoilUnits[0]].graphic).color) ? getGraphicInfo(soilUnitMeta[masterSoilUnits[0]].graphic).color : '#c9a876';
+  svg += `<!-- A: Overburden Base Fill -->
+  <path d="${soilBaseD}" fill="${baseSoilColor}" stroke="none"/>`;
 
+  // STEP B: Individual soil layer polygons (drawn on top of base fill)
+  // 3. RENDER REAL-WORLD STRATIGRAPHIC SOIL LAYER POLYGONS (EXACT LOGGED ELEVATION ALIGNMENT)
+  // Group layers per master unit (origin family + BSCS, see rule 1/2) and
+  // draw continuous polygons matching exact borehole log depths. Lens-family
+  // origins (Alluvium/Colluvium/Made Ground) are NOT in masterSoilUnits at
+  // all — they're rendered in a separate lens pass below (rule 3).
+
+  masterSoilUnits.forEach((u) => {
+    const meta = soilUnitMeta[u];
+    const info = getGraphicInfo(meta.graphic);
+    const code = meta.graphic;
+
+    // Single continuous polygon per master unit, driven by the shared cumulative
+    // boundary array (bhCumBoundaries / getCumBoundaryAtX). Using the SAME master
+    // fraction stack that establishes stacking order guarantees every layer ties
+    // in exactly with its neighbours above/below at every borehole, and pinches
+    // out smoothly (zero-thickness) wherever the unit is absent — no separate,
+    // independently-interpolated per-occurrence polygon that can drift out of
+    // registration with the rest of the stack.
+    const uIdx = masterSoilUnits.indexOf(u);
+    {
+      const bhLayerRanges = rows.map((r, i) => {
+        const zG = levelsArr[i].elevation !== null ? levelsArr[i].elevation : maxElev;
+        const zR = effectiveRockLevel[i] !== null ? effectiveRockLevel[i] : zG - 5;
+        const overburden = Math.max(zG - zR, 0.1);
+        const C = bhCumBoundaries[i];
+        const present = bhUnitPresent[i][uIdx];
+        return {
+          present,
+          zTop: zG - C[uIdx] * overburden,
+          zBot: zG - C[uIdx + 1] * overburden
+        };
+      });
+
+    // Build continuous top/bottom curve across profile samples
+    const topCurvePts = [];
+    const botCurvePts = [];
+    let hasArea = false;
+
+    sampleDists.forEach(d => {
+      const x = xPos(d);
+      const zG = getZGround(d);
+      const zR = getZRock(d);
+      const overburdenAtD = Math.max(zG - zR, 0.1);
+
+      const fTop = getCumBoundaryAtX(uIdx, d);
+      const fBot = getCumBoundaryAtX(uIdx + 1, d);
+      let zTop = zG - fTop * overburdenAtD;
+      let zBot = zG - fBot * overburdenAtD;
+
+      // Handle side extensions (left of first BH, right of last BH) — clamp
+      // to the terminal borehole's own range rather than re-interpolating.
+      if (d < distances[0]) {
+        const range = bhLayerRanges[0];
+        zTop = range.present ? range.zTop : zG;
+        zBot = range.present ? range.zBot : zG;
+      } else if (d > distances[distances.length - 1]) {
+        const range = bhLayerRanges[bhLayerRanges.length - 1];
+        zTop = range.present ? range.zTop : zG;
+        zBot = range.present ? range.zBot : zG;
+      }
+
+      // Strictly clamp layer boundaries to overburden zone [zR, zG]
+      zTop = Math.min(Math.max(zTop, zR), zG);
+      zBot = Math.min(Math.max(zBot, zR), zG);
+      if (zBot > zTop) zBot = zTop;
+
+      topCurvePts.push([x, yPos(zTop)]);
+      botCurvePts.push([x, yPos(zBot)]);
+      if (zTop - zBot > 0.01) hasArea = true;
+    });
+
+    if (hasArea) {
+      const layerD = closedLayerPath(topCurvePts, botCurvePts);
+
+      // Every master unit — Residual, Alluvium, Colluvium, Made Ground,
+      // whatever — now renders the same simple way: one BSCS code, one fixed
+      // colour, ordinary pinch-out at its edges. (An earlier version special-
+      // cased "connected" multi-origin units with clipped per-borehole colour
+      // segments/blends; that's been reverted per direction to just treat
+      // every origin family's internal BSCS variation the same way Residual's
+      // always has — see rule 7b's final note.)
+      let patternUrl = '';
+      const uUp = (code || '').toUpperCase();
+      if (uUp === 'SM' || uUp === 'SP' || uUp === 'SC' || uUp === 'CS' || uUp.includes('SAND')) patternUrl = 'url(#pat-sand)';
+      else if (uUp === 'CL' || uUp === 'CH' || uUp === 'CI' || uUp.includes('CLAY')) patternUrl = 'url(#pat-clay)';
+      else if (uUp === 'GM' || uUp === 'GC' || uUp.includes('GRAVEL')) patternUrl = 'url(#pat-gravel)';
+
+      svg += `<!-- Stratigraphic Layer: ${info.label} (origin family: ${meta.originFamily}) -->
+      <path d="${layerD}" fill="${info.color}" stroke="${info.color}" stroke-width="0.5"/>`;
+      if (patternUrl) svg += `<path d="${layerD}" fill="${patternUrl}" stroke="none"/>`;
+      const originHatch = ORIGIN_HATCH_INFO[originHatchKeyOf(meta.origin)];
+      if (originHatch) svg += `<path d="${layerD}" fill="url(#${originHatch.patternId})" stroke="none"/>`;
+
+      // CWR SUB-RANGE HATCH OVERLAY (fixes a real bug): when this master
+      // unit belongs to the 'residual' family, the merged block feeding it
+      // at each borehole may ALSO contain a Completely Weathered Rock
+      // sub-layer merged in alongside Residual (they're one connectivity
+      // family — rule 1/2 — so they merge into the same contiguous run).
+      // The merge step freezes the block's single `origin` field at
+      // whichever sub-layer started the run (almost always "Residual", since
+      // CWR is consistently the LAST sub-layer before rock in this data) —
+      // so CWR's own distinct texture (rule 6) can never be reached via
+      // meta.origin alone. Instead, walk each borehole's own subLayers to
+      // find its actual CWR depth range (if any), convert to the SAME
+      // fraction-of-overburden system the main fill uses, and draw a
+      // separate polygon scoped to just that inner portion, textured with
+      // CWR's own pattern. Boreholes with no CWR sub-layer contribute
+      // nothing here (their portion of the interpolation naturally has no
+      // CWR overlay).
+      if (soilUnitMeta[u].originFamily === 'residual' && ORIGIN_HATCH_INFO['completely_weathered_rock']) {
+        const cwrTopPts = [], cwrBotPts = [];
+        let cwrHasArea = false;
+        sampleDists.forEach(d => {
+          const x = xPos(d);
+          // Find bracketing boreholes the same way the main fill does, then
+          // find each one's OWN CWR sub-layer fraction (relative to ground),
+          // and linearly interpolate between them exactly like the main
+          // cumulative boundary system does — CWR only needs a slice of the
+          // SAME unit polygon we already computed above, so we reuse zG/zR.
+          const zG = getZGround(d);
+          const zR = getZRock(d);
+          const overburdenAtD = Math.max(zG - zR, 0.1);
+
+          function cwrFracForBH(i) {
+            const layers = layersArr[i];
+            if (!layers) return null;
+            const zGi = levelsArr[i].elevation !== null ? levelsArr[i].elevation : maxElev;
+            const zRi = effectiveRockLevel[i] !== null ? effectiveRockLevel[i] : zGi - 5;
+            const overburdenI = Math.max(zGi - zRi, 0.1);
+            // MUST normalize against the SAME reference the main tabular fill
+            // uses for this borehole (totalSoilDepth = max bottom depth of all
+            // non-rock layers, which includes the CWR reading itself) — NOT
+            // against overburdenI (ground-to-rockhead only). Those are
+            // different depth references whenever CWR's logged depth extends
+            // beyond the nominal rockhead depth, which is the normal case.
+            // Using the wrong reference here was a real, confirmed bug: it
+            // misaligned the CWR overlay against the Residual band it's
+            // supposed to sit inside, so CWR could render shifted/oversized
+            // relative to Residual instead of correctly nested below it.
+            const allNonRockI = layers.filter(l => !l.isRockBlock);
+            const totalSoilDepthI = allNonRockI.length ? Math.max(...allNonRockI.map(l => l.bottom)) : overburdenI;
+            let cwrTopDepth = null, cwrBotDepth = null;
+            layers.forEach(block => {
+              if (block.isRockBlock || !block.subLayers) return;
+              block.subLayers.forEach(sl => {
+                if ((sl.origin || '').trim().toLowerCase() === 'completely weathered rock') {
+                  cwrTopDepth = cwrTopDepth === null ? sl.depth : Math.min(cwrTopDepth, sl.depth);
+                  cwrBotDepth = cwrBotDepth === null ? sl.bottom : Math.max(cwrBotDepth, sl.bottom);
+                }
+              });
+            });
+            if (cwrTopDepth === null) return null;
+            return { fTop: cwrTopDepth / totalSoilDepthI, fBot: cwrBotDepth / totalSoilDepthI };
+          }
+
+          function totalSoilDepthForBH(i) {
+            const layers = layersArr[i];
+            const zGi = levelsArr[i].elevation !== null ? levelsArr[i].elevation : maxElev;
+            const zRi = effectiveRockLevel[i] !== null ? effectiveRockLevel[i] : zGi - 5;
+            const overburdenI = Math.max(zGi - zRi, 0.1);
+            if (!layers) return overburdenI;
+            const allNonRockI = layers.filter(l => !l.isRockBlock);
+            return allNonRockI.length ? Math.max(...allNonRockI.map(l => l.bottom)) : overburdenI;
+          }
+
+          let iLeft = -1, iRight = -1;
+          for (let i = 0; i < rows.length; i++) {
+            if (distances[i] <= d) iLeft = i;
+            if (distances[i] >= d && iRight === -1) iRight = i;
+          }
+          if (iLeft === -1) iLeft = 0;
+          if (iRight === -1) iRight = rows.length - 1;
+
+          const fracL = cwrFracForBH(iLeft);
+          const fracR = iLeft === iRight ? fracL : cwrFracForBH(iRight);
+
+          // Same lateral interpolation of the scale reference itself, so
+          // fTop/fBot (fractions of totalSoilDepth) convert back to elevation
+          // using a totalSoilDepth that's ALSO been interpolated to position
+          // d — matching how the main fill's overburdenAtD is itself an
+          // interpolated quantity, not a fixed per-borehole value reused
+          // verbatim at every sample point.
+          const tsdL = totalSoilDepthForBH(iLeft);
+          const tsdR = iLeft === iRight ? tsdL : totalSoilDepthForBH(iRight);
+
+          let zTopC = null, zBotC = null;
+          if (fracL && fracR) {
+            const t = (iLeft === iRight || distances[iRight] === distances[iLeft]) ? 0 : (d - distances[iLeft]) / (distances[iRight] - distances[iLeft]);
+            const fTop = fracL.fTop + (fracR.fTop - fracL.fTop) * t;
+            const fBot = fracL.fBot + (fracR.fBot - fracL.fBot) * t;
+            const tsdAtD = tsdL + (tsdR - tsdL) * t;
+            zTopC = zG - fTop * tsdAtD;
+            zBotC = zG - fBot * tsdAtD;
+          } else if (fracL && d <= distances[iLeft]) {
+            zTopC = zG - fracL.fTop * tsdL;
+            zBotC = zG - fracL.fBot * tsdL;
+          } else if (fracR && d >= distances[iRight]) {
+            zTopC = zG - fracR.fTop * tsdR;
+            zBotC = zG - fracR.fBot * tsdR;
+          }
+
+          if (zTopC !== null) {
+            zTopC = Math.min(Math.max(zTopC, zR), zG);
+            zBotC = Math.min(Math.max(zBotC, zR), zG);
+            if (zBotC > zTopC) zBotC = zTopC;
+            cwrTopPts.push([x, yPos(zTopC)]);
+            cwrBotPts.push([x, yPos(zBotC)]);
+            if (zTopC - zBotC > 0.01) cwrHasArea = true;
+          }
+        });
+        if (cwrHasArea && cwrTopPts.length >= 2) {
+          const cwrD = closedLayerPath(cwrTopPts, cwrBotPts);
+          const cwrHatch = ORIGIN_HATCH_INFO['completely_weathered_rock'];
+          // Clip to THIS unit's own polygon (layerD) — without this, the CWR
+          // overlay is computed globally across the whole section (its own
+          // iLeft/iRight bracketing scans ALL boreholes, not just the ones
+          // contributing to this specific master unit), so it could bleed
+          // into x/z territory this particular unit doesn't occupy at all, or
+          // draw a duplicate full-section band once per residual-family unit.
+          // That's a real, confirmed bug — visually it could make CWR appear
+          // detached from, or not correctly nested below, the Residual layer
+          // it belongs to.
+          const cwrClipId = 'clip-cwr-' + uIdx + '-' + Math.random().toString(36).slice(2, 7);
+          svg += `<defs><clipPath id="${cwrClipId}"><path d="${layerD}"/></clipPath></defs>`;
+          svg += `<!-- CWR sub-range hatch overlay within ${info.label} (residual family), clipped to parent unit -->
+          <g clip-path="url(#${cwrClipId})"><path d="${cwrD}" fill="url(#${cwrHatch.patternId})" stroke="none"/></g>`;
+        }
+      }
+
+      // Draw top contact line only where layer has meaningful thickness (>= 2px).
+      // MUST split into separate CONTIGUOUS runs rather than one filtered
+      // array — filtering alone silently bridges a gap where the layer
+      // pinches to near-zero and reappears further along, drawing a stray
+      // diagonal line connecting two genuinely disconnected segments (a
+      // real, confirmed bug: visible as an unexplained floating diagonal
+      // line in a live render with no connection to any labelled feature).
+      const contactRuns = [];
+      let currentRun = [];
+      topCurvePts.forEach((p, j) => {
+        const thick = Math.abs(p[1] - botCurvePts[j][1]) >= 2.0;
+        if (thick) {
+          currentRun.push(p);
+        } else if (currentRun.length) {
+          contactRuns.push(currentRun);
+          currentRun = [];
+        }
+      });
+      if (currentRun.length) contactRuns.push(currentRun);
+      contactRuns.forEach(run => {
+        if (run.length >= 2) {
+          svg += `<path d="${ptsToCubicBezier(run)}" fill="none" stroke="#554433" stroke-width="0.7" opacity="0.35"/>`;
+        }
+      });
+    }
+    }
+  });
+
+  // ---- SOIL ORIGIN TRANSITION LINES ----
+  // A dark-ash DASHED line marks every boundary where the soil ORIGIN
+  // actually changes (e.g. Alluvium -> Residual, Residual -> Completely
+  // Weathered Rock) — distinct from the thin, generic per-layer contact
+  // line drawn above (which fires at every BSCS sub-layer boundary
+  // regardless of origin). Since masterSoilUnits is already sorted by
+  // origin-family stacking priority (rule 9), an origin transition occurs
+  // at exactly the master-unit index k where soilUnitMeta[masterSoilUnits[k]]
+  // .originFamily first differs from soilUnitMeta[masterSoilUnits[k-1]]
+  // .originFamily — found once, then rendered using the SAME cumulative-
+  // boundary interpolation (getCumBoundaryAtX) the fill itself uses, so the
+  // line always sits exactly on the real origin boundary, including through
+  // pinch-outs. A single section can have more than one such boundary (e.g.
+  // Made Ground -> Alluvium -> Residual), so every transition index is found
+  // and drawn, not just the first.
+  {
+    const originTransitionIndices = [];
+    for (let k = 1; k < masterSoilUnits.length; k++) {
+      const famPrev = soilUnitMeta[masterSoilUnits[k - 1]].originFamily;
+      const famCur = soilUnitMeta[masterSoilUnits[k]].originFamily;
+      if (famPrev !== famCur) originTransitionIndices.push(k);
+    }
+    originTransitionIndices.forEach(k => {
+      const linePts = [];
+      sampleDists.forEach(d => {
+        const zG = getZGround(d);
+        const zR = getZRock(d);
+        const overburdenAtD = Math.max(zG - zR, 0.1);
+        const f = getCumBoundaryAtX(k, d);
+        const z = zG - f * overburdenAtD;
+        linePts.push([xPos(d), yPos(z)]);
+      });
+      svg += `<!-- Soil Origin transition line (master unit boundary index ${k}) -->
+      <path d="${ptsToCubicBezier(linePts)}" fill="none" stroke="#3a3a3a" stroke-width="1" stroke-dasharray="4,3" opacity="0.6"/>`;
+    });
+  }
+
+  // ---- LENS-FAMILY LAYERS (rule 3): Alluvium / Colluvium / Made Ground /
+  // Engineered Fill. Each occurrence is rendered as its OWN self-contained,
+  // symmetric lens around its borehole — capped at LENS_MAX_HALF_WIDTH_M on
+  // each side (or half the distance to the adjacent borehole if that's
+  // smaller, so lenses never overlap into a neighbour's own pillar), tapering
+  // to a point at the cap. It is NEVER extended all the way to the next
+  // borehole just because that borehole logs the same origin — that would
+  // recreate the "regional blanket" assumption that's geologically wrong for
+  // a transported, locally-bounded deposit. Drawn after the tabular units so
+  // lenses visually sit correctly relative to the surrounding stratigraphy.
+  svg += `<!-- Lens-family layers (Alluvium/Colluvium/Made Ground): fixed half-width, non-pinching -->`;
+  lensLayers.forEach(lens => {
+    const i = lens.bhIdx;
+    const xCenter = distances[i];
+    const leftNeighborDist = i > 0 ? (distances[i] - distances[i - 1]) / 2 : Infinity;
+    const rightNeighborDist = i < distances.length - 1 ? (distances[i + 1] - distances[i]) / 2 : Infinity;
+    const halfW_left = Math.min(LENS_MAX_HALF_WIDTH_M, leftNeighborDist);
+    const halfW_right = Math.min(LENS_MAX_HALF_WIDTH_M, rightNeighborDist);
+
+    // Also clamp to the plotted distance range so a lens near the first/last
+    // borehole doesn't try to draw past the section's edge.
+    const dLeftEdge = Math.max(xCenter - halfW_left, distMin);
+    const dRightEdge = Math.min(xCenter + halfW_right, distMax);
+
+    // Build a tapering lens: full thickness at the borehole, narrowing
+    // smoothly to zero thickness at each edge. Uses a simple cosine taper
+    // (not the shared cumulative-boundary system — lenses are deliberately
+    // NOT part of that tabular interpolation, per rule 3).
+    //
+    // CRITICAL (real bug fix): the taper must shrink the lens's DEPTH-BELOW-
+    // GROUND toward zero at the LOCAL ground surface at each sampled x, not
+    // just shrink its width while holding a fixed absolute elevation band.
+    // Alluvium/Colluvium/Made Ground are surface-attached, near-surface
+    // deposits — as the lens narrows away from its own borehole, it must
+    // visually "rise" back toward the ground surface, never stay parked at
+    // a constant elevation that can drift into completely different, deeper
+    // material (Residual, Completely Weathered Rock) at a neighbouring
+    // position where the ground surface itself is higher or lower. The
+    // earlier version used a fixed zMid/halfThickness in absolute elevation,
+    // which is what let an Alluvium lens visually intrude into CWR/Residual
+    // territory once tapering moved it away from its own borehole.
+    const nSteps = 14;
+    const topPts = [], botPts = [];
+    for (let s = 0; s <= nSteps; s++) {
+      const t = s / nSteps; // 0 = left edge, 1 = right edge
+      const d = dLeftEdge + (dRightEdge - dLeftEdge) * t;
+      const x = xPos(d);
+      // Taper factor: 0 at both edges, 1 at the borehole's own position
+      const distFromCenter = Math.abs(d - xCenter);
+      const halfWHere = d < xCenter ? halfW_left : halfW_right;
+      const taperT = halfWHere > 0 ? Math.min(distFromCenter / halfWHere, 1) : 1;
+      const taper = Math.max(Math.cos(taperT * Math.PI / 2), 0.02); // 1 at centre, ~0 at edge, smooth
+
+      // Depth-below-ground at the lens's own borehole, tapered toward 0
+      // (the LOCAL ground surface) as taper shrinks — this is what keeps
+      // the lens anchored to "near the surface" everywhere it's drawn,
+      // instead of a fixed absolute elevation band.
+      const depthTopHere = lens.depthTop * taper;
+      const depthBotHere = lens.depthBot * taper;
+
+      const zGroundHere = getZGround(d);
+      const zRockHere = getZRock(d);
+      let zTopHere = zGroundHere - depthTopHere;
+      let zBotHere = zGroundHere - depthBotHere;
+      // Safety clamp: never let the lens extend below the LOCAL rockhead —
+      // same boundary every other soil layer in this file already respects.
+      zTopHere = Math.min(Math.max(zTopHere, zRockHere), zGroundHere);
+      zBotHere = Math.min(Math.max(zBotHere, zRockHere), zGroundHere);
+      if (zBotHere > zTopHere) zBotHere = zTopHere;
+      topPts.push([x, yPos(zTopHere)]);
+      botPts.push([x, yPos(zBotHere)]);
+    }
+    const lensD = closedLayerPath(topPts, botPts);
+    const info = getGraphicInfo(lens.graphic);
+    svg += `<!-- Lens: ${lens.originFamily} / ${info.label} at BH index ${i} -->
+    <path d="${lensD}" fill="${info.color}" stroke="${info.color}" stroke-width="0.5" opacity="0.96"/>`;
+    const hatch = ORIGIN_HATCH_INFO[originHatchKeyOf(lens.origin)];
+    if (hatch) svg += `<path d="${lensD}" fill="url(#${hatch.patternId})" stroke="none"/>`;
+
+    // Soil origin transition line (rule 15) at the lens's OWN bottom edge —
+    // the tabular-only version of this line (drawn earlier, keyed off
+    // masterSoilUnits) has no coverage for lens-family origins at all, since
+    // a lens never enters that master-unit stack. Marks exactly where this
+    // lens's origin (e.g. Alluvium) ends and whatever sits beneath it
+    // (typically Residual) begins. Only drawn where the lens has meaningful
+    // thickness (matching the >=2px threshold used for the generic contact
+    // line elsewhere), so the pinched-out tails don't produce a visible line
+    // sitting right on the ground surface.
+    const botRunPts = [];
+    for (let s = 0; s < topPts.length; s++) {
+      if (Math.abs(topPts[s][1] - botPts[s][1]) >= 2.0) botRunPts.push(botPts[s]);
+    }
+    if (botRunPts.length >= 2) {
+      svg += `<!-- Soil Origin transition line (lens bottom edge, ${lens.originFamily}) -->
+      <path d="${ptsToCubicBezier(botRunPts)}" fill="none" stroke="#3a3a3a" stroke-width="1" stroke-dasharray="4,3" opacity="0.6"/>`;
+    }
+  });
+
+  // STEP C: Paint bedrock polygon LAST (on top of soil layers) — painter's algorithm guarantees
+  // nothing soil-coloured appears below the rockhead contact line.
+  svg += `<!-- C: Bedrock Polygon (painted last, covers any soil artifact below rockhead) -->
+  <path d="${bedrockD}" fill="${bedrockColor}" stroke="none"/>`;
+
+  // STEP C2: Rock weathering as a CONTINUOUS FADE, not discrete bands. We
+  // clip a fine grid of small rectangular cells to the bedrock polygon and
+  // colour each cell from the continuous fade field (getFadeFractionAt),
+  // which already blends smoothly both with depth (per-borehole profile) and
+  // laterally (between boreholes). This is what produces the seamless
+  // tomography-style gradient instead of flat bands with hard edges.
   if (anyWeatheringData) {
     const clipId = 'clip-bedrock-' + Math.random().toString(36).slice(2, 9);
     svg += `<defs><clipPath id="${clipId}"><path d="${bedrockD}"/></clipPath></defs>`;
     svg += `<!-- C2: Rock Weathering Continuous Fade -->`;
-    const cellW = 2.2;
+    const cellW = 2.2;   // finer grid for a smoother-looking fade
     const cellH = 2.2;
     const xStart = xFrameLeft, xEnd = xFrameRight;
     const yStart = padTop, yEnd = padTop + plotH;
+    // Precompute the shallowest rockhead elevation across all boreholes once,
+    // so each raster row can fast-reject with a single comparison instead of
+    // rescanning every borehole per row.
     const shallowestRockElev = Math.max(...rows.map((r, i) => effectiveRockLevel[i] !== null ? effectiveRockLevel[i] : maxElev - 5));
     svg += `<g clip-path="url(#${clipId})">`;
     for (let py = yStart; py < yEnd; py += cellH) {
       const elevMid = maxElev - ((py + cellH / 2) - padTop) / plotH * elevRange;
       if (elevMid > shallowestRockElev + 1) continue;
+      // Merge consecutive same-colour cells along this row into one wider
+      // rect — the fade changes gradually, so most neighbouring cells round
+      // to the same hex colour, keeping the SVG small even at fine density.
       let runStartX = null, runColor = null;
       const flushRun = (endX) => {
         if (runStartX !== null) {
@@ -3887,16 +4094,20 @@ function buildProfileSvg(rows) {
       flushRun(xEnd);
     }
     svg += `</g>`;
+    // Subtle bedrock texture on top of the fade, same pattern used before, so
+    // the rock still reads as rock rather than a flat colour poster.
     svg += `<path d="${bedrockD}" fill="url(#pat-bedrock)" stroke="none" opacity="0.5"/>`;
   } else {
     svg += `<path d="${bedrockD}" fill="url(#pat-bedrock)" stroke="none"/>`;
   }
 
-  // STEP D: Rockhead Contact Line
+  // STEP D: Rockhead contact dashed line (on top of everything)
+  // 3. RENDER ROCKHEAD CONTACT LINE (full width including side extensions)
   svg += `<!-- Rockhead Contact Line -->
   <path d="${ptsToCubicBezier(rockPolyPts)}" fill="none" stroke="#7a2f1e" stroke-width="2.2" stroke-dasharray="6,4"/>`;
 
-  // STEP E: Groundwater Table Line
+
+  // 4. RENDER GROUNDWATER TABLE LINE (full width, terrain-following, strictly below ground)
   if (gwDepthPts.length >= 1) {
     const gwCurvePts = [];
     sampleDists.forEach(d => {
@@ -3918,16 +4129,15 @@ function buildProfileSvg(rows) {
     });
   }
 
-  // STEP F: Ground Surface Smooth Profile
+  // 5. RENDER GROUND SURFACE SMOOTH LINE (full width including side extensions)
   const groundPolyPts = sampleDists.map(d => [xPos(d), yPos(getZGround(d))]);
   svg += `<!-- Ground Surface Smooth Profile -->
   <path d="${ptsToCubicBezier(groundPolyPts)}" fill="none" stroke="#2f6f5e" stroke-width="2.8"/>`;
 
-  // STEP G: Borehole Pillars & Stratum Dividers
+  // 6. RENDER BOREHOLE COLUMNS (HARD DATA PILLARS)
   const bhLabelInfo = [];
   const termLabelInfo = [];
   const colW = Math.min(15, plotW / Math.max(rows.length, 1) * 0.35);
-
   rows.forEach((r, i) => {
     const x = xPos(distances[i]);
     const bhName = bhNames[i];
@@ -3944,12 +4154,17 @@ function buildProfileSvg(rows) {
         const yTop = yPos(zG - l.depth);
         const yBot = yPos(zG - l.bottom);
         const h = Math.max(yBot - yTop, 0.4);
+        // For rock layers, tint with the same continuous weathering fade used
+        // in the section fill, evaluated at this layer's own depth — so the
+        // pillar reads consistently with the surrounding fade instead of a
+        // flat, unrelated rock colour.
         let fillColor = info.color;
         if (info.isRock && anyWeatheringData) {
           const zMid = zG - (l.depth + l.bottom) / 2;
           const fade = getFadeFractionAt(distances[i], zMid);
           fillColor = colorAtFadePosition(fade, bedrockColor);
         }
+        // Lighter border: #909090 (medium ash grey) instead of near-black #333333
         svg += `<rect x="${(x - colW / 2).toFixed(1)}" y="${yTop.toFixed(1)}" width="${colW.toFixed(1)}" height="${h.toFixed(1)}" fill="${fillColor}" stroke="#909090" stroke-width="0.5"/>`;
         if (info.isRock) {
           for (let hy = yTop; hy < yBot; hy += 7) {
@@ -3963,6 +4178,8 @@ function buildProfileSvg(rows) {
       svg += `<rect x="${(x - colW / 2).toFixed(1)}" y="${yG.toFixed(1)}" width="${colW.toFixed(1)}" height="${Math.max(yR - yG, 0).toFixed(1)}" fill="#c9a876" stroke="#909090" stroke-width="0.5"/>`;
       if (yTerm > yR) {
         if (anyWeatheringData) {
+          // Draw the no-layer-data rock portion as a thin stack of tinted
+          // strips so it still reflects the fade rather than flat bedrock.
           const stripH = 6;
           for (let yy = yR; yy < yTerm; yy += stripH) {
             const zStripMid = zR - ((yy - yR) + stripH / 2) / (yTerm - yR) * (zR - zTerm);
@@ -3978,26 +4195,46 @@ function buildProfileSvg(rows) {
       }
     }
 
+    // Outer pillar outline: lighter ash grey #666666 (was near-black #111111)
     svg += `<rect x="${(x - colW / 2).toFixed(1)}" y="${yG.toFixed(1)}" width="${colW.toFixed(1)}" height="${(yTerm - yG).toFixed(1)}" fill="none" stroke="#666666" stroke-width="1.0"/>`;
+
+    // BH labels are placed in a vertical-stagger second pass below
     bhLabelInfo.push({ x, yG, bhName, glText: `GL ${zG.toFixed(1)}m` });
+
+    // Termination labels ALSO use a deferred vertical-stagger pass (see
+    // below, mirrors the BH header label collision-avoidance) — previously
+    // these were drawn immediately at a fixed yTerm+4 offset with no
+    // collision checking at all, so two boreholes terminating at similar
+    // depths close together would produce overlapping "Term X.Xm" boxes.
     termLabelInfo.push({ x, yTerm, zTerm });
   });
 
-  // Vertical-stagger BH Header Labels
+
+  // ── VERTICAL-STAGGER BH HEADER LABELS (second pass) ─────────────────────
+  // Each BH label is placed directly above its borehole at the same X.
+  // If it would vertically collide with an already-placed label nearby, it
+  // is bumped UP by one row (labelRowH pixels). We allow up to 4 vertical
+  // rows so even densely packed profiles stay readable.
+  //
+  // "Collision" is defined as: another label whose X centre is within
+  // (boxW/2 + otherBoxW/2 + 6) pixels — i.e. the boxes would touch or overlap.
   {
-    const charW = 6.3;
-    const glCW = 5.1;
-    const boxH = 28;
-    const rowH = boxH + 6;
+    const charW  = 6.3;   // px per char at font-size 10
+    const glCW   = 5.1;   // px per char at font-size 8.5
+    const boxH   = 28;    // label box height
+    const rowH   = boxH + 6; // vertical step between rows
     const maxRows = 5;
+
+    // placed = array of { x, cx, yTop, boxW }
     const placed = [];
 
     bhLabelInfo.forEach(({ x, yG, bhName, glText }) => {
       const nameW = bhName.length * charW + 14;
-      const glW = glText.length * glCW + 10;
-      const boxW = Math.max(nameW, glW);
-      const cx = x;
+      const glW   = glText.length * glCW  + 10;
+      const boxW  = Math.max(nameW, glW);
+      const cx    = x; // always keep same X — vertical only
 
+      // Find the lowest row (closest to ground) that doesn't collide
       let row = 0;
       let collision = true;
       while (collision && row < maxRows) {
@@ -4012,16 +4249,32 @@ function buildProfileSvg(rows) {
       const yTop = yG - (row + 1) * rowH - 8;
       placed.push({ x, cx, yTop, boxW });
 
+      // Leader: vertical dashed line from bottom of box to BH top
       svg += `<line x1="${cx.toFixed(1)}" y1="${(yTop + boxH).toFixed(1)}" x2="${x.toFixed(1)}" y2="${yG.toFixed(1)}" stroke="#8a8478" stroke-width="0.8" stroke-dasharray="2,2"/>`;
+
+      // Box
       svg += `<rect x="${(cx - boxW/2).toFixed(1)}" y="${yTop.toFixed(1)}" width="${boxW.toFixed(1)}" height="${boxH}" fill="rgba(255,255,255,0.93)" stroke="#b8b2a2" stroke-width="1" rx="4"/>`;
+
+      // BH Name
       svg += `<text x="${cx.toFixed(1)}" y="${(yTop + 12).toFixed(1)}" font-size="10" font-weight="800" fill="#1c2b2a" text-anchor="middle">${bhName}</text>`;
+
+      // GL elevation
       svg += `<text x="${cx.toFixed(1)}" y="${(yTop + 23).toFixed(1)}" font-size="8.5" fill="#6b6459" font-weight="600" text-anchor="middle">${glText}</text>`;
     });
   }
 
-  // Vertical-stagger Termination Labels
+  // ── VERTICAL-STAGGER TERMINATION LABELS (mirrors BH header label pass) ──
+  // Each "Term X.Xm" label is placed directly below its borehole's
+  // termination point, at the same X. If it would collide horizontally with
+  // an already-placed termination label nearby, it is bumped DOWN by one row
+  // (away from the pillars, since these sit at the BOTTOM of the profile —
+  // the opposite stacking direction from the BH header labels, which stack
+  // upward toward the top). Previously these were drawn immediately with a
+  // fixed offset and no collision checking at all, so two boreholes
+  // terminating at similar depths close together produced overlapping boxes
+  // — this was a real, confirmed bug, not a style choice.
   {
-    const termCW = 5.2;
+    const termCW = 5.2; // px per char at font-size 8.5, matches original sizing
     const boxH = 15;
     const rowH = boxH + 4;
     const maxRows = 5;
@@ -4030,8 +4283,9 @@ function buildProfileSvg(rows) {
     termLabelInfo.forEach(({ x, yTerm, zTerm }) => {
       const termText = `Term ${zTerm.toFixed(1)}m`;
       const boxW = termText.length * termCW + 10;
-      const cx = x;
+      const cx = x; // always keep same X — vertical only, same as BH labels
 
+      // Find the highest row (closest to termination point) that doesn't collide
       let row = 0;
       let collision = true;
       while (collision && row < maxRows) {
@@ -4051,16 +4305,15 @@ function buildProfileSvg(rows) {
     });
   }
 
-  // Interactive Stratigraphic Legend
   const legX = padLeft;
-  const legTitleY = axisY + 58;
-  const legBodyY = legTitleY + 22;
+  const legTitleY = axisY + 58; // moved down to give Distance axis label room above legend
+  const legBodyY  = legTitleY + 22; // gap between title and first row
   svg += `<g id="legend-group">`;
   svg += `<text x="${legX}" y="${legTitleY}" font-size="11.5" font-weight="700" fill="#1c2b2a" letter-spacing="0.04em">ENGINEERING GEOLOGY STRATIGRAPHIC LEGEND</text>`;
 
   let curX = legX;
   let curRow = 0;
-  const itemW = 155;
+  const itemW = 155; // wider columns so text has room to breathe
   legendItems.forEach(item => {
     if (curX + itemW > padLeft + plotW - 10) {
       curRow++;
@@ -4079,6 +4332,8 @@ function buildProfileSvg(rows) {
     curX += itemW;
   });
 
+  // Origin hatch key (rule 6) — separate row(s), since origin texture and
+  // BSCS colour are two independent visual channels on the same layer.
   let originLegendEndRow = curRow;
   if (originLegendItems.length) {
     curRow++;
@@ -4247,184 +4502,75 @@ function exportProfileToDXF(customRows) {
     return;
   }
 
-  // Ensure latest profile data is calculated
-  if (!window._lastProfileDXFData || window._lastProfileDXFData.rows !== rows) {
-    buildProfileSvg(rows);
+  const sorted = sortBoreholesByMapPosition(rows);
+  const levelsArr = sorted.map(computeBHLevels);
+  const layersArr = sorted.map(r => getBHLayers(r) || null);
+  
+  const distances = [0];
+  for (let i = 1; i < sorted.length; i++) {
+    const e1 = toNum(sorted[i-1]['Easting']), n1 = toNum(sorted[i-1]['Northing']);
+    const e2 = toNum(sorted[i]['Easting']), n2 = toNum(sorted[i]['Northing']);
+    const d = (e1 !== null && n1 !== null && e2 !== null && n2 !== null)
+      ? Math.sqrt((e2-e1)**2 + (n2-n1)**2) : 50;
+    distances.push(distances[i-1] + Math.max(d, 1));
   }
 
-  const pData = window._lastProfileDXFData;
-  const sorted = rows;
-  const distances = pData.distances;
-  const levelsArr = pData.levelsArr;
-  const layersArr = pData.layersArr;
-  const getZGround = pData.getZGround;
-  const getZRock = pData.getZRock;
-  const getZWater = pData.getZWater;
-  const strataPolys = pData.strataPolys || [];
-  const originBoundaries = pData.originBoundaries || [];
-  const minElev = pData.minElev;
-  const maxElev = pData.maxElev;
-  const totalDist = pData.totalDist;
+  let dxf = `0\nSECTION\n2\nENTITIES\n`;
 
-  function getBSCSDxfColor(code) {
-    const c = (code || '').toUpperCase().trim();
-    if (c.startsWith('C') || c.includes('CLAY')) return 14; // Terracotta / Brown
-    if (c.startsWith('M') || c.includes('SILT')) return 40; // Orange / Amber
-    if (c.startsWith('S') || c.includes('SAND')) return 50; // Yellow
-    if (c.startsWith('G') || c.includes('GRAVEL')) return 90; // Greenish
-    if (c === 'FILL' || c.includes('MADE')) return 30; // Ochre
-    if (c.includes('ROCK') || c.includes('CWR')) return 8; // Grey
-    return 7;
+  function addLine(layer, x1, y1, x2, y2) {
+    dxf += `0\nLINE\n8\n${layer}\n10\n${x1.toFixed(3)}\n20\n${y1.toFixed(3)}\n30\n0.0\n11\n${x2.toFixed(3)}\n21\n${y2.toFixed(3)}\n31\n0.0\n`;
   }
 
-  let dxf = '';
-  // HEADER
-  dxf += '0\nSECTION\n2\nHEADER\n9\n$ACADVER\n1\nAC1015\n9\n$INSUNITS\n70\n6\n0\nENDSEC\n';
-
-  // TABLES (Layers)
-  dxf += '0\nSECTION\n2\nTABLES\n0\nTABLE\n2\nLAYER\n70\n8\n';
-  const layersDef = [
-    { name: 'GEOL_STRATIGRAPHY', color: 30 },
-    { name: 'GEOL_GROUND_SURFACE', color: 3 },
-    { name: 'GEOL_BEDROCK_CONTACT', color: 1 },
-    { name: 'GEOL_GROUNDWATER', color: 5 },
-    { name: 'GEOL_ORIGIN_BOUNDARY', color: 8 },
-    { name: 'GEOL_BOREHOLES', color: 7 },
-    { name: 'GEOL_LABELS', color: 7 },
-    { name: 'GEOL_GRID', color: 9 }
-  ];
-  layersDef.forEach(l => {
-    dxf += `0\nLAYER\n2\n${l.name}\n70\n0\n62\n${l.color}\n6\nCONTINUOUS\n`;
-  });
-  dxf += '0\nENDTAB\n0\nENDSEC\n';
-
-  // ENTITIES
-  dxf += '0\nSECTION\n2\nENTITIES\n';
-
-  function addLine(layer, x1, y1, x2, y2, color) {
-    dxf += `0\nLINE\n8\n${layer}\n`;
-    if (color !== undefined) dxf += `62\n${color}\n`;
-    dxf += `10\n${x1.toFixed(3)}\n20\n${y1.toFixed(3)}\n30\n0.0\n11\n${x2.toFixed(3)}\n21\n${y2.toFixed(3)}\n31\n0.0\n`;
+  function addText(layer, x, y, height, text) {
+    const cleanStr = String(text).replace(/[\r\n]+/g, ' ');
+    dxf += `0\nTEXT\n8\n${layer}\n10\n${x.toFixed(3)}\n20\n${y.toFixed(3)}\n30\n0.0\n40\n${height.toFixed(3)}\n1\n${cleanStr}\n`;
   }
 
-  function addText(layer, x, y, height, text, align = 0, color) {
-    const cleanStr = String(text || '').replace(/[\r\n]+/g, ' ');
-    dxf += `0\nTEXT\n8\n${layer}\n`;
-    if (color !== undefined) dxf += `62\n${color}\n`;
-    dxf += `10\n${x.toFixed(3)}\n20\n${y.toFixed(3)}\n30\n0.0\n40\n${height.toFixed(3)}\n1\n${cleanStr}\n`;
-    if (align === 1) {
-      dxf += `72\n1\n11\n${x.toFixed(3)}\n21\n${y.toFixed(3)}\n31\n0.0\n`;
-    }
-  }
-
-  function addLwPolyline(layer, pts, isClosed = false, color) {
-    if (!pts || pts.length < 2) return;
-    dxf += `0\nLWPOLYLINE\n8\n${layer}\n`;
-    if (color !== undefined) dxf += `62\n${color}\n`;
-    dxf += `90\n${pts.length}\n70\n${isClosed ? 1 : 0}\n`;
-    pts.forEach(p => {
-      dxf += `10\n${p[0].toFixed(3)}\n20\n${p[1].toFixed(3)}\n`;
-    });
-  }
-
-  // 1. GEOL_STRATIGRAPHY: Closed layer polygons
-  strataPolys.forEach(sp => {
-    const col = getBSCSDxfColor(sp.code);
-    addLwPolyline('GEOL_STRATIGRAPHY', sp.pts, true, col);
-  });
-
-  // 2. GEOL_GROUND_SURFACE: Continuous Ground Surface Polyline
-  const nSamp = 120;
-  const groundDxfPts = [];
-  const rockDxfPts = [];
-  const gwDxfPts = [];
-  const dStart = distances[0];
-  const dEnd = distances[distances.length - 1];
-  for (let s = 0; s <= nSamp; s++) {
-    const d = dStart + (dEnd - dStart) * (s / nSamp);
-    groundDxfPts.push([d, getZGround(d)]);
-    rockDxfPts.push([d, getZRock(d)]);
-    const zw = getZWater(d);
-    if (zw !== null) gwDxfPts.push([d, zw]);
-  }
-  addLwPolyline('GEOL_GROUND_SURFACE', groundDxfPts, false, 3);
-
-  // 3. GEOL_BEDROCK_CONTACT: Bedrock Contact Line
-  addLwPolyline('GEOL_BEDROCK_CONTACT', rockDxfPts, false, 1);
-
-  // 4. GEOL_GROUNDWATER: Groundwater Table Line
-  if (gwDxfPts.length >= 2) {
-    addLwPolyline('GEOL_GROUNDWATER', gwDxfPts, false, 5);
-  }
-
-  // 5. GEOL_ORIGIN_BOUNDARY: Soil Origin Boundary Lines
-  originBoundaries.forEach(bPts => {
-    addLwPolyline('GEOL_ORIGIN_BOUNDARY', bPts, false, 8);
-  });
-
-  // 6. GEOL_BOREHOLES & GEOL_LABELS: Pillars, Dividers, and Text Annotations
-  const pillarHalfW = 0.6;
+  // Draw in 1:1 real world meters (Dist vs Elevation)
   sorted.forEach((r, i) => {
     const x = distances[i];
     const lv = levelsArr[i];
     const zG = lv.elevation !== null ? lv.elevation : 100;
-    const zTerm = pData.effectiveTermLevel[i] !== null ? pData.effectiveTermLevel[i] : zG - 15;
     const bhName = (r['BH Name'] || '').trim();
     const lys = layersArr[i];
+    const zTerm = lv.termDepth !== null ? zG - lv.termDepth : zG - 15;
 
     // Pillar rectangle
-    const pillarPts = [
-      [x - pillarHalfW, zG],
-      [x + pillarHalfW, zG],
-      [x + pillarHalfW, zTerm],
-      [x - pillarHalfW, zTerm]
-    ];
-    addLwPolyline('GEOL_BOREHOLES', pillarPts, true, 7);
+    addLine('GEOL_BOREHOLES', x - 1, zG, x + 1, zG);
+    addLine('GEOL_BOREHOLES', x - 1, zTerm, x + 1, zTerm);
+    addLine('GEOL_BOREHOLES', x - 1, zG, x - 1, zTerm);
+    addLine('GEOL_BOREHOLES', x + 1, zG, x + 1, zTerm);
 
-    // Internal stratum dividers
+    // Text Annotations
+    addText('GEOL_LABELS', x, zG + 1.5, 1.2, bhName);
+    addText('GEOL_LABELS', x, zG + 0.3, 0.9, `GL ${zG.toFixed(2)}m`);
+    addText('GEOL_LABELS', x, zTerm - 1.2, 0.9, `Term ${zTerm.toFixed(2)}m`);
+
     if (lys && lys.length) {
       lys.forEach(l => {
         const topZ = zG - l.depth;
         const botZ = zG - l.bottom;
-        addLine('GEOL_BOREHOLES', x - pillarHalfW, topZ, x + pillarHalfW, topZ, 8);
-        addLine('GEOL_BOREHOLES', x - pillarHalfW, botZ, x + pillarHalfW, botZ, 8);
         const code = (l.graphic || '').trim();
-        const midZ = (topZ + botZ) / 2;
-        if (topZ - botZ > 0.4) {
-          addText('GEOL_LABELS', x + pillarHalfW + 0.3, midZ - 0.2, 0.5, code, 0, 7);
-        }
+        addLine('GEOL_STRATIGRAPHY', x - 1, topZ, x + 1, topZ);
+        addLine('GEOL_STRATIGRAPHY', x - 1, botZ, x + 1, botZ);
+        addText('GEOL_STRATIGRAPHY', x + 1.5, (topZ + botZ)/2, 0.7, code);
       });
     }
-
-    // Text Annotations
-    addText('GEOL_LABELS', x, zG + 1.2, 0.9, bhName, 1, 7);
-    addText('GEOL_LABELS', x, zG + 0.3, 0.6, `GL ${zG.toFixed(2)}m`, 1, 7);
-    addText('GEOL_LABELS', x, zTerm - 0.8, 0.6, `Term ${zTerm.toFixed(2)}m`, 1, 7);
   });
 
-  // 7. GEOL_GRID: Grid lines and Datum Text
-  const elevStep = niceScaleMeters(Math.max((maxElev - minElev) / 6, 1));
-  const gridStartElev = Math.ceil(minElev / elevStep) * elevStep;
-  for (let elev = gridStartElev; elev <= maxElev + 0.001; elev += elevStep) {
-    addLine('GEOL_GRID', dStart - 5, elev, dEnd + 5, elev, 9);
-    addText('GEOL_GRID', dStart - 6, elev - 0.2, 0.6, `${Math.round(elev)}m`, 0, 9);
+  // Ground surface line connect
+  for (let i = 0; i < sorted.length - 1; i++) {
+    const zG1 = levelsArr[i].elevation !== null ? levelsArr[i].elevation : 100;
+    const zG2 = levelsArr[i+1].elevation !== null ? levelsArr[i+1].elevation : 100;
+    addLine('GEOL_GROUND_SURFACE', distances[i], zG1, distances[i+1], zG2);
   }
 
-  // Distance axis
-  const tickStep = niceScaleMeters(Math.max(totalDist / 6, 1));
-  for (let d = 0; d <= totalDist + 0.001; d += tickStep) {
-    addLine('GEOL_GRID', d, minElev - 1, d, minElev - 3, 9);
-    addText('GEOL_GRID', d, minElev - 4.5, 0.6, `${Math.round(d)}m`, 1, 9);
-  }
-  addLine('GEOL_GRID', 0, minElev - 1, totalDist, minElev - 1, 7);
-  addText('GEOL_GRID', totalDist / 2, minElev - 6.5, 0.8, 'DISTANCE ALONG SECTION (m)', 1, 7);
-
-  dxf += '0\nENDSEC\n0\nEOF\n';
+  dxf += `0\nENDSEC\n0\nEOF\n`;
 
   const blob = new Blob([dxf], { type: 'application/dxf' });
   const a = document.body.appendChild(document.createElement('a'));
   a.href = URL.createObjectURL(blob);
-  a.download = 'CEP3_Geology_Profile_' + new Date().toISOString().slice(0, 10) + '.dxf';
+  a.download = 'CEP3_Geology_Profile_' + new Date().toISOString().slice(0,10) + '.dxf';
   a.click();
   document.body.removeChild(a);
 }
