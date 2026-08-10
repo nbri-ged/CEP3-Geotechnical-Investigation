@@ -663,6 +663,8 @@
   <div class="sub">CEP3 - GEOTECHNICAL INVESTIGATION WORK &nbsp;|&nbsp; RAMBUKKANA - GALAGEDARA SECTION</div>
   <div id="status-line">
     <button id="refresh-btn" title="Refresh data now">&#8635;</button>
+    <button id="load-csv-btn" title="Load local Borehole Details / Profile CSV" style="margin-left:6px; padding:3px 8px; font-size:11px; font-weight:700; background:#2b6cb0; color:#fff; border:none; border-radius:4px; cursor:pointer;">📂 Load CSV</button>
+    <input type="file" id="csv-file-input" accept=".csv" multiple style="display:none;">
     <span id="status-dot"></span><span id="status-text">Loading data&hellip;</span>
   </div>
 </header>
@@ -817,8 +819,8 @@ const SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS8PKkh7R
 const LOG_SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS8PKkh7RDdd1g5boTWjdryadGLVhDkvKUMEjScApNAeWA7TrPrcetA1YiccjQvhPfnZ8ewg1NQugfv/pub?output=csv";
 const BH_PROFILE_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS8PKkh7RDdd1g5boTWjdryadGLVhDkvKUMEjScApNAeWA7TrPrcetA1YiccjQvhPfnZ8ewg1NQugfv/pub?output=csv&gid=1914424732";
 const CEP4_BH_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS8PKkh7RDdd1g5boTWjdryadGLVhDkvKUMEjScApNAeWA7TrPrcetA1YiccjQvhPfnZ8ewg1NQugfv/pub?output=csv&gid=1030712797";
-const CEP4_SHEET_CSV_URL = "PASTE_PUBLISHED_CSV_LINK_FOR_GID_1030712797_HERE";
-const PROGRESS_SHEET_CSV_URL = "PASTE_PUBLISHED_CSV_LINK_FOR_GID_1476293361_HERE";
+const CEP4_SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS8PKkh7RDdd1g5boTWjdryadGLVhDkvKUMEjScApNAeWA7TrPrcetA1YiccjQvhPfnZ8ewg1NQugfv/pub?output=csv&gid=1030712797";
+const PROGRESS_SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS8PKkh7RDdd1g5boTWjdryadGLVhDkvKUMEjScApNAeWA7TrPrcetA1YiccjQvhPfnZ8ewg1NQugfv/pub?output=csv&gid=1476293361";
 const AUTO_REFRESH_MS = 5 * 60 * 1000;
 
 proj4.defs("EPSG:5235", "+proj=tmerc +lat_0=7.000480277777778 +lon_0=80.77171308333334 +k=0.9999238418 +x_0=500000 +y_0=500000 +ellps=evrst30 +towgs84=-0.293,766.95,87.713,0.195704,1.69507,3.47302,-0.039338 +units=m +no_defs");
@@ -1299,34 +1301,71 @@ function cleanBHKey(key) {
 }
 
 function parseCsvWithProxy(url, onComplete, onError) {
-  Papa.parse(url, {
-    download: true, header: true, skipEmptyLines: true,
-    complete: (results) => {
-      if (results.data && results.data.length > 0) {
-        onComplete(results.data);
-      } else {
-        tryProxy();
-      }
-    },
-    error: () => tryProxy()
-  });
-
-  function tryProxy() {
-    const proxyUrl = 'https://api.allorigins.win/raw?url=' + encodeURIComponent(url);
-    Papa.parse(proxyUrl, {
-      download: true, header: true, skipEmptyLines: true,
-      complete: (results) => {
-        if (results.data && results.data.length > 0) {
-          onComplete(results.data);
-        } else if (onError) {
-          onError();
-        }
-      },
-      error: () => {
-        if (onError) onError();
-      }
-    });
+  if (!url || typeof url !== 'string' || url.startsWith('PASTE_')) {
+    if (onError) onError();
+    return;
   }
+
+  // Multi-tier proxies to try sequentially
+  const proxyEndpoints = [
+    url, // 1. Direct fetch
+    'https://api.codetabs.com/v1/proxy?quest=' + encodeURIComponent(url), // 2. CodeTabs CORS Proxy
+    'https://corsproxy.io/?' + encodeURIComponent(url), // 3. CorsProxy.io
+    'https://api.allorigins.win/raw?url=' + encodeURIComponent(url) // 4. AllOrigins Proxy
+  ];
+
+  let attempt = 0;
+
+  function tryNext() {
+    if (attempt >= proxyEndpoints.length) {
+      if (onError) onError();
+      return;
+    }
+
+    const currentUrl = proxyEndpoints[attempt];
+    attempt++;
+
+    fetch(currentUrl, { mode: 'cors' })
+      .then(res => {
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        return res.text();
+      })
+      .then(text => {
+        if (!text || text.length < 20 || text.trim().startsWith('<!DOCTYPE') || text.trim().startsWith('<HTML') || text.trim().startsWith('<html')) {
+          throw new Error('Invalid CSV or HTML error page received');
+        }
+        Papa.parse(text, {
+          header: true,
+          skipEmptyLines: true,
+          complete: (results) => {
+            if (results.data && results.data.length > 0) {
+              onComplete(results.data);
+            } else {
+              tryNext();
+            }
+          },
+          error: () => tryNext()
+        });
+      })
+      .catch(() => {
+        // Papa.parse download fallback
+        Papa.parse(currentUrl, {
+          download: true,
+          header: true,
+          skipEmptyLines: true,
+          complete: (results) => {
+            if (results.data && results.data.length > 0) {
+              onComplete(results.data);
+            } else {
+              tryNext();
+            }
+          },
+          error: () => tryNext()
+        });
+      });
+  }
+
+  tryNext();
 }
 
 /* ============================================================
@@ -1765,91 +1804,115 @@ function originFamilyOf(originRaw) {
   return ORIGIN_FAMILY_MAP[clean] || ('other:' + clean); // rule 2 fallback: own family per unique label
 }
 
+function processBHProfileData(data) {
+  if (!data || !data.length) return;
+  const grouped = {};
+  const weatherGrouped = {};
+  const originGrouped = {};
+  data.forEach(raw => {
+    const row = normalizeRow(raw);
+    const pointId = (row['PointID'] || row['Point ID'] || row['BH_ID'] || row['BH ID'] || row['BH Name'] || row['Borehole ID'] || row['BH'] || '').trim();
+    const depth = toNum(row['Depth'] || row['Top Depth'] || row['From'] || row['Depth (m)']);
+    const bottom = toNum(row['Bottom'] || row['Bottom Depth'] || row['To'] || row['Bottom (m)']);
+    const graphic = (row['Graphic'] || row['Graphic Log'] || row['BSCS'] || row['Soil Type'] || row['Soil Code'] || row['Lithology'] || '').trim();
+
+    // Rock weathering: Primary Weathering, Rock Type Name
+    const weatherRaw = row['Primary Weathering'] || row['Weathering'] || row['Rock Weathering'] || row['Weathering Grade'];
+    if (pointId && depth !== null && weatherRaw !== undefined && String(weatherRaw).trim() !== '') {
+      const grade = normalizeWeatheringGrade(weatherRaw);
+      const wRawKey = pointId;
+      const wNormKey = cleanBHKey(pointId);
+      if (!weatherGrouped[wRawKey]) weatherGrouped[wRawKey] = [];
+      weatherGrouped[wRawKey].push({ depth, grade, raw: String(weatherRaw).trim() });
+      if (wNormKey && wNormKey !== wRawKey) {
+        if (!weatherGrouped[wNormKey]) weatherGrouped[wNormKey] = [];
+        weatherGrouped[wNormKey].push({ depth, grade, raw: String(weatherRaw).trim() });
+      }
+    }
+
+    // Soil Origin + Primary Consistency attributes from live sheet
+    const originRaw = row['Soil Origin'] || row['Origin'] || row['Depositional Origin'] || row['Soil_Origin'];
+    const consistencyRaw = row['Primary Consistency'] || row['Consistency'] || row['Soil Consistency'] || row['Primary_Consistency'];
+    if (pointId && depth !== null && ((originRaw !== undefined && String(originRaw).trim() !== '') || (consistencyRaw !== undefined && String(consistencyRaw).trim() !== ''))) {
+      const entry = {
+        depth,
+        bottom: bottom !== null ? bottom : depth + 1.5,
+        origin: (originRaw || '').trim(),
+        consistency: (consistencyRaw || '').trim()
+      };
+      const oRawKey = pointId;
+      const oNormKey = cleanBHKey(pointId);
+      if (!originGrouped[oRawKey]) originGrouped[oRawKey] = [];
+      originGrouped[oRawKey].push(entry);
+      if (oNormKey && oNormKey !== oRawKey) {
+        if (!originGrouped[oNormKey]) originGrouped[oNormKey] = [];
+        originGrouped[oNormKey].push(entry);
+      }
+    }
+
+    if (!pointId || depth === null || bottom === null) return;
+
+    const rawKey = pointId;
+    const normKey = cleanBHKey(pointId);
+
+    if (!grouped[rawKey]) grouped[rawKey] = [];
+    grouped[rawKey].push({ depth, bottom, graphic });
+
+    if (normKey && normKey !== rawKey) {
+      if (!grouped[normKey]) grouped[normKey] = [];
+      grouped[normKey].push({ depth, bottom, graphic });
+    }
+  });
+  Object.keys(grouped).forEach(k => grouped[k].sort((a,b) => a.depth - b.depth));
+  Object.keys(weatherGrouped).forEach(k => weatherGrouped[k].sort((a,b) => a.depth - b.depth));
+  Object.keys(originGrouped).forEach(k => originGrouped[k].sort((a,b) => a.depth - b.depth));
+
+  // Attach origin/consistency to each graphic layer by depth matching
+  Object.keys(grouped).forEach(k => {
+    const origins = originGrouped[k];
+    if (!origins || !origins.length) return;
+    grouped[k].forEach(layer => {
+      let best = null, bestDist = Infinity;
+      origins.forEach(o => {
+        const d = Math.abs(o.depth - layer.depth);
+        if (d < bestDist) { bestDist = d; best = o; }
+      });
+      if (best && bestDist <= 1.0) {
+        if (!layer.origin && best.origin) layer.origin = best.origin;
+        if (!layer.consistency && best.consistency) layer.consistency = best.consistency;
+      }
+    });
+  });
+
+  profileLayersByBH = grouped;
+  profileWeatheringByBH = weatherGrouped;
+  try {
+    localStorage.setItem('nbri_profile_layers_cache', JSON.stringify(grouped));
+    localStorage.setItem('nbri_profile_weather_cache', JSON.stringify(weatherGrouped));
+  } catch(e) {}
+  if (allRows && allRows.length) render();
+}
+
 function fetchBHProfileLog(){
   parseCsvWithProxy(BH_PROFILE_CSV_URL, (data) => {
-    const grouped = {};
-    const weatherGrouped = {};
-    const originGrouped = {};
-    data.forEach(raw => {
-      const row = normalizeRow(raw);
-      const pointId = (row['PointID'] || row['Point ID'] || row['BH_ID'] || row['BH ID'] || row['BH Name'] || row['Borehole ID'] || row['BH'] || '').trim();
-      const depth = toNum(row['Depth'] || row['Top Depth'] || row['From'] || row['Depth (m)']);
-      const bottom = toNum(row['Bottom'] || row['Bottom Depth'] || row['To'] || row['Bottom (m)']);
-      const graphic = (row['Graphic'] || row['Graphic Log'] || row['BSCS'] || row['Soil Type'] || row['Soil Code'] || row['Lithology'] || '').trim();
-
-      // Rock weathering: Primary Weathering, Rock Type Name
-      const weatherRaw = row['Primary Weathering'] || row['Weathering'] || row['Rock Weathering'] || row['Weathering Grade'];
-      if (pointId && depth !== null && weatherRaw !== undefined && String(weatherRaw).trim() !== '') {
-        const grade = normalizeWeatheringGrade(weatherRaw);
-        const wRawKey = pointId;
-        const wNormKey = cleanBHKey(pointId);
-        if (!weatherGrouped[wRawKey]) weatherGrouped[wRawKey] = [];
-        weatherGrouped[wRawKey].push({ depth, grade, raw: String(weatherRaw).trim() });
-        if (wNormKey && wNormKey !== wRawKey) {
-          if (!weatherGrouped[wNormKey]) weatherGrouped[wNormKey] = [];
-          weatherGrouped[wNormKey].push({ depth, grade, raw: String(weatherRaw).trim() });
-        }
-      }
-
-      // Soil Origin + Primary Consistency attributes from live sheet
-      const originRaw = row['Soil Origin'] || row['Origin'] || row['Depositional Origin'] || row['Soil_Origin'];
-      const consistencyRaw = row['Primary Consistency'] || row['Consistency'] || row['Soil Consistency'] || row['Primary_Consistency'];
-      if (pointId && depth !== null && ((originRaw !== undefined && String(originRaw).trim() !== '') || (consistencyRaw !== undefined && String(consistencyRaw).trim() !== ''))) {
-        const entry = {
-          depth,
-          bottom: bottom !== null ? bottom : depth + 1.5,
-          origin: (originRaw || '').trim(),
-          consistency: (consistencyRaw || '').trim()
-        };
-        const oRawKey = pointId;
-        const oNormKey = cleanBHKey(pointId);
-        if (!originGrouped[oRawKey]) originGrouped[oRawKey] = [];
-        originGrouped[oRawKey].push(entry);
-        if (oNormKey && oNormKey !== oRawKey) {
-          if (!originGrouped[oNormKey]) originGrouped[oNormKey] = [];
-          originGrouped[oNormKey].push(entry);
-        }
-      }
-
-      if (!pointId || depth === null || bottom === null) return;
-
-      const rawKey = pointId;
-      const normKey = cleanBHKey(pointId);
-
-      if (!grouped[rawKey]) grouped[rawKey] = [];
-      grouped[rawKey].push({ depth, bottom, graphic });
-
-      if (normKey && normKey !== rawKey) {
-        if (!grouped[normKey]) grouped[normKey] = [];
-        grouped[normKey].push({ depth, bottom, graphic });
-      }
-    });
-    Object.keys(grouped).forEach(k => grouped[k].sort((a,b) => a.depth - b.depth));
-    Object.keys(weatherGrouped).forEach(k => weatherGrouped[k].sort((a,b) => a.depth - b.depth));
-    Object.keys(originGrouped).forEach(k => originGrouped[k].sort((a,b) => a.depth - b.depth));
-
-    // Attach origin/consistency to each graphic layer by depth matching
-    Object.keys(grouped).forEach(k => {
-      const origins = originGrouped[k];
-      if (!origins || !origins.length) return;
-      grouped[k].forEach(layer => {
-        let best = null, bestDist = Infinity;
-        origins.forEach(o => {
-          const d = Math.abs(o.depth - layer.depth);
-          if (d < bestDist) { bestDist = d; best = o; }
-        });
-        if (best && bestDist <= 1.0) {
-          if (!layer.origin && best.origin) layer.origin = best.origin;
-          if (!layer.consistency && best.consistency) layer.consistency = best.consistency;
+    processBHProfileData(data);
+  }, () => {
+    // Try relative local CSV fetch
+    fetch('CEP 3  Rambukkana-Galagedara - BH Profile.csv')
+      .then(r => { if (!r.ok) throw new Error(); return r.text(); })
+      .then(txt => Papa.parse(txt, { header: true, skipEmptyLines: true, complete: res => processBHProfileData(res.data) }))
+      .catch(() => {
+        // Fallback to cache if available
+        const cachedL = localStorage.getItem('nbri_profile_layers_cache');
+        const cachedW = localStorage.getItem('nbri_profile_weather_cache');
+        if (cachedL) {
+          try {
+            profileLayersByBH = JSON.parse(cachedL);
+            profileWeatheringByBH = cachedW ? JSON.parse(cachedW) : {};
+            if (allRows && allRows.length) render();
+          } catch(e) {}
         }
       });
-    });
-
-    profileLayersByBH = grouped;
-    profileWeatheringByBH = weatherGrouped;
-    if (allRows && allRows.length) render();
-  }, () => {
-    console.error('Could not load BH Profile log from primary or proxy URL.');
   });
 }
 
@@ -2276,35 +2339,98 @@ function loadRows(rows){
 }
 
 function fetchData(){
-  if (!navigator.onLine) {
-    const localRowsData = localStorage.getItem('nbri_allrows_cache');
-    const localDatesData = localStorage.getItem('nbri_dates_cache');
-    const cacheStamp = localStorage.getItem('nbri_cache_timestamp');
-    if (localRowsData) {
-      window.loadedFromOfflineCache = true;
-      allRows = JSON.parse(localRowsData);
-      bhDatesLookup = localDatesData ? JSON.parse(localDatesData) : {};
-      loadRows(allRows);
-      setStatus(`Offline Mode — Cached: ${formatDateDMY(cacheStamp)}`, 'err');
-      document.getElementById('dash-updated').textContent = "Offline Storage Mode";
-      return;
-    }
-  }
   if (SHEET_CSV_URL){
-    setStatus('Refreshing from Google Sheet…');
+    setStatus('Connecting to Google Sheet…');
     parseCsvWithProxy(SHEET_CSV_URL, (data) => {
       loadRows(data);
       setStatus('Live — synced ' + new Date().toLocaleTimeString(), 'ok');
       document.getElementById('dash-updated').textContent = formatDateDMY(new Date()) + ', ' + new Date().toLocaleTimeString();
     }, () => {
-      setStatus('Could not reach sheet — showing sample data', 'err');
-      Papa.parse(SAMPLE_CSV, { header:true, skipEmptyLines:true, complete: r => loadRows(r.data) });
+      // 1. Try local CSV file relative path
+      fetch('CEP 3  Rambukkana-Galagedara - BoreholesDetails (2).csv')
+        .then(r => { if (!r.ok) throw new Error(); return r.text(); })
+        .then(txt => {
+          Papa.parse(txt, {
+            header: true,
+            skipEmptyLines: true,
+            complete: res => {
+              loadRows(res.data);
+              setStatus('Loaded from Local Project CSV', 'ok');
+              document.getElementById('dash-updated').textContent = "Local CSV: " + formatDateDMY(new Date());
+            }
+          });
+        })
+        .catch(() => {
+          // 2. Try localStorage cache
+          const localRowsData = localStorage.getItem('nbri_allrows_cache');
+          const localDatesData = localStorage.getItem('nbri_dates_cache');
+          const cacheStamp = localStorage.getItem('nbri_cache_timestamp');
+          if (localRowsData) {
+            window.loadedFromOfflineCache = true;
+            allRows = JSON.parse(localRowsData);
+            bhDatesLookup = localDatesData ? JSON.parse(localDatesData) : {};
+            loadRows(allRows);
+            setStatus(`Offline Mode — Cached: ${formatDateDMY(cacheStamp)}`, 'err');
+            document.getElementById('dash-updated').textContent = "Offline Storage Mode";
+            return;
+          }
+          // 3. Sample CSV
+          setStatus('Offline / Sample mode — Click "📂 Load CSV" to load files', 'err');
+          Papa.parse(SAMPLE_CSV, { header:true, skipEmptyLines:true, complete: r => loadRows(r.data) });
+        });
     });
   } else {
     Papa.parse(SAMPLE_CSV, { header:true, skipEmptyLines:true, complete: r => loadRows(r.data) });
     setStatus('Sample data (not connected to a live sheet)');
   }
 }
+
+function handleCsvFiles(files) {
+  if (!files || !files.length) return;
+  Array.from(files).forEach(file => {
+    Papa.parse(file, {
+      header: true,
+      skipEmptyLines: true,
+      complete: (results) => {
+        if (!results.data || !results.data.length) return;
+        const firstRow = results.data[0] || {};
+        const keys = Object.keys(firstRow).map(k => k.toLowerCase().trim());
+        
+        // Detect if this is BH Profile vs Boreholes Details
+        if (keys.some(k => k.includes('pointid') || k.includes('graphic') || k.includes('bottom'))) {
+          processBHProfileData(results.data);
+          setStatus(`Loaded Profile strata from ${file.name} (${results.data.length} layers)`, 'ok');
+        } else if (keys.some(k => k.includes('bh name') || k.includes('easting') || k.includes('northing'))) {
+          loadRows(results.data);
+          setStatus(`Loaded ${results.data.length} boreholes from ${file.name}`, 'ok');
+          document.getElementById('dash-updated').textContent = `Imported: ${file.name}`;
+        } else {
+          // General load fallback
+          loadRows(results.data);
+          setStatus(`Loaded ${results.data.length} records from ${file.name}`, 'ok');
+        }
+      },
+      error: (err) => alert('Error reading CSV: ' + err.message)
+    });
+  });
+}
+
+document.getElementById('load-csv-btn').addEventListener('click', () => {
+  document.getElementById('csv-file-input').click();
+});
+document.getElementById('csv-file-input').addEventListener('change', (e) => {
+  handleCsvFiles(e.target.files);
+});
+
+// Drag and drop CSV files directly onto the app
+window.addEventListener('dragover', (e) => e.preventDefault());
+window.addEventListener('drop', (e) => {
+  e.preventDefault();
+  if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length) {
+    const csvFiles = Array.from(e.dataTransfer.files).filter(f => f.name.toLowerCase().endsWith('.csv'));
+    if (csvFiles.length) handleCsvFiles(csvFiles);
+  }
+});
 
 function initTimelineSlider() {}
 function updateDashboardTimelineOverride() {}
