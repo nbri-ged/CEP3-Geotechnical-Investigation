@@ -648,6 +648,42 @@
     line-height:1;
     padding:2px 10px !important;
   }
+  /* Section method panel */
+  #section-method-panel {
+    display:flex; gap:10px; align-items:center; flex-wrap:wrap;
+    background:#eef2f7; border-bottom:1px solid #c9d6e3;
+    padding:6px 16px; font-size:11px;
+  }
+  #section-method-panel label { display:flex; align-items:center; gap:5px; cursor:pointer; }
+  #section-method-panel .method-radio {
+    accent-color:#1565c0;
+  }
+  #az-panel {
+    display:none; align-items:center; gap:6px; margin-left:4px;
+  }
+  #az-panel.visible { display:flex; }
+  #az-input {
+    width:60px; padding:2px 6px; border:1px solid #7090b0; border-radius:4px;
+    font-size:11px; text-align:center;
+  }
+  #az-auto-btn {
+    padding:2px 8px; font-size:10px; background:#3a6186; color:#fff;
+    border:none; border-radius:4px; cursor:pointer; white-space:nowrap;
+  }
+  #az-offset-info {
+    font-size:10px; color:#5a6a7a; font-style:italic;
+  }
+  #recreate-profile-btn {
+    margin-left:auto;
+    padding:4px 12px; font-size:11px; font-weight:700;
+    background: linear-gradient(135deg,#1a6e3c,#27ae60);
+    color:#fff; border:none; border-radius:5px;
+    cursor:pointer; display:flex; align-items:center; gap:5px;
+    box-shadow:0 2px 6px rgba(0,0,0,0.18);
+    transition:background 0.2s;
+  }
+  #recreate-profile-btn:hover { background:linear-gradient(135deg,#155a30,#1e8449); }
+
   #profile-modal-body{
     padding:16px;
     overflow:auto;
@@ -734,6 +770,10 @@
         <div style="margin: 8px 0 6px 0; padding: 6px 8px; background: rgba(255,255,255,0.8); border-radius: 6px; border: 1px solid var(--line); font-size: 11px;">
           <div style="font-weight:700; color:#2c3e50; margin-bottom:4px;">Include Data Overlays:</div>
           <label style="display:flex; align-items:center; gap:5px; margin-bottom:3px; cursor:pointer;">
+            <input type="checkbox" id="sidebar-opt-rocklithology" checked onchange="syncProfileOption('showRockLithology', this.checked)">
+            <span>🪨 Rock Formations (Lithology)</span>
+          </label>
+          <label style="display:flex; align-items:center; gap:5px; margin-bottom:3px; cursor:pointer;">
             <input type="checkbox" id="sidebar-opt-spt" checked onchange="syncProfileOption('showSPT', this.checked)">
             <span>📊 SPT N-Values</span>
           </label>
@@ -811,8 +851,46 @@
         <button id="profile-close-btn" title="Close" style="width:23px; height:23px; border-radius:4px; border:none; background:#c0392b; color:#fff; font-size:15px; line-height:1; cursor:pointer; margin-left:2px;">&times;</button>
       </div>
     </div>
+
+    <!-- ── SECTION METHOD SELECTOR ── -->
+    <div id="section-method-panel">
+      <span style="font-weight:700; color:#1c3a5e; white-space:nowrap;">📏 Section Method:</span>
+
+      <label title="Auto-sort BHs by best-fit axis; X distance = straight-line between adjacent BHs">
+        <input type="radio" class="method-radio" name="section-method" value="sequential" checked
+               onchange="onSectionMethodChange(this.value)">
+        <span style="font-weight:600; color:#1c2b2a;">Sequential (Auto-Sort)</span>
+      </label>
+
+      <label title="Project each BH perpendicularly onto a defined section line — true geological chainage">
+        <input type="radio" class="method-radio" name="section-method" value="projection"
+               onchange="onSectionMethodChange(this.value)">
+        <span style="font-weight:600; color:#1565c0;">Section Line Projection</span>
+      </label>
+
+      <!-- Azimuth controls — shown only for projection mode -->
+      <div id="az-panel">
+        <span style="color:#3a5a7a; font-weight:600;">Azimuth:</span>
+        <input id="az-input" type="number" min="0" max="360" step="0.5" value="0"
+               title="Section line bearing (degrees from North, clockwise)">
+        <span style="color:#556; font-size:10px;">° N</span>
+        <button id="az-auto-btn" onclick="autoDetectAzimuth()"
+                title="Auto-detect azimuth from the selected boreholes">⟳ Auto-detect</button>
+        <span id="az-offset-info"></span>
+      </div>
+
+      <button id="recreate-profile-btn" onclick="recreateProfile()" title="Regenerate profile with current settings">
+        🔄 Recreate Profile
+      </button>
+    </div>
+
+    <!-- ── OVERLAY TOGGLES ── -->
     <div id="profile-modal-toolbar" style="display:flex; gap:14px; align-items:center; background:#f4f6f8; padding:7px 16px; border-bottom:1px solid #d5dbdb; font-size:11.5px; flex-wrap:wrap;">
       <span style="font-weight:700; color:#1c2b2a;">Profile Overlays:</span>
+      <label style="display:flex; align-items:center; gap:5px; cursor:pointer; user-select:none;">
+        <input type="checkbox" id="modal-opt-rocklithology" checked onchange="toggleProfileOption('showRockLithology', this.checked)">
+        <span style="color:#455a64; font-weight:600;">🪨 Rock Formations</span>
+      </label>
       <label style="display:flex; align-items:center; gap:5px; cursor:pointer; user-select:none;">
         <input type="checkbox" id="modal-opt-spt" checked onchange="toggleProfileOption('showSPT', this.checked)">
         <span style="color:#2e7d32; font-weight:600;">📊 SPT N-Values</span>
@@ -827,12 +905,13 @@
       </label>
       <label style="display:flex; align-items:center; gap:5px; cursor:pointer; user-select:none;">
         <input type="checkbox" id="modal-opt-weathering" checked onchange="toggleProfileOption('showWeathering', this.checked)">
-        <span style="color:#5d4037; font-weight:600;">🪨 Weathering Fade</span>
+        <span style="color:#5d4037; font-weight:600;">🌫️ Weathering Fade</span>
       </label>
     </div>
     <div id="profile-modal-body"></div>
   </div>
 </div>
+
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
@@ -1718,6 +1797,74 @@ const ORIGIN_HATCH_INFO = {
   completely_weathered_rock: { patternId: 'pat-origin-cwr', label: 'Completely Weathered Rock' },
 };
 
+// ── ROCK LITHOLOGY CONFIG & GEOLOGICAL MAPPING ──
+function normalizeRockType(raw) {
+  if (!raw) return 'Biotite Gneiss';
+  const clean = raw.trim().toLowerCase();
+  if (clean.includes('quartzite')) return 'Quartzite';
+  if (clean.includes('garnet')) return 'Garnet Biotite Gneiss';
+  if (clean.includes('quartzofeldspathic') || clean.includes('quartzo')) return 'Quartzofeldspathic Gneiss';
+  if (clean.includes('granitic') || clean.includes('granite')) return 'Granitic Gneiss';
+  if (clean.includes('granulitic') || clean.includes('granulite')) return 'Granulitic Gneiss';
+  if (clean.includes('hornblende')) return 'Hornblende Biotite Gneiss';
+  if (clean.includes('charnockitic') || clean.includes('charnockite')) return 'Charnockitic Gneiss';
+  if (clean.includes('biotite')) return 'Biotite Gneiss';
+  return 'Biotite Gneiss';
+}
+
+const ROCK_LITHOLOGY_CONFIG = {
+  'Biotite Gneiss': { label: 'Biotite Gneiss', patternId: 'pat-rock-bg' },
+  'Garnet Biotite Gneiss': { label: 'Garnet Biotite Gneiss', patternId: 'pat-rock-gbg' },
+  'Quartzofeldspathic Gneiss': { label: 'Quartzofeldspathic Gneiss', patternId: 'pat-rock-qfg' },
+  'Quartzite': { label: 'Quartzite', patternId: 'pat-rock-quartzite' },
+  'Granitic Gneiss': { label: 'Granitic Gneiss', patternId: 'pat-rock-granite' },
+  'Granulitic Gneiss': { label: 'Granulitic Gneiss', patternId: 'pat-rock-granulite' },
+  'Hornblende Biotite Gneiss': { label: 'Hornblende Biotite Gneiss', patternId: 'pat-rock-hbg' },
+  'Charnockitic Gneiss': { label: 'Charnockitic Gneiss', patternId: 'pat-rock-charnockite' }
+};
+
+function buildRockLithologyDefs() {
+  return `
+    <pattern id="pat-rock-bg" width="16" height="16" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <!-- Standard Gneissic Foliation: Angled parallel wavy/solid lines -->
+      <line x1="0" y1="0" x2="16" y2="0" stroke="#252a2d" stroke-width="0.8" opacity="0.45"/>
+      <line x1="0" y1="8" x2="16" y2="8" stroke="#252a2d" stroke-width="0.6" stroke-dasharray="4,2" opacity="0.35"/>
+    </pattern>
+    <pattern id="pat-rock-gbg" width="18" height="18" patternUnits="userSpaceOnUse" patternTransform="rotate(35)">
+      <!-- Garnet Biotite Gneiss: Foliation lines + porphyroblast dots -->
+      <line x1="0" y1="0" x2="18" y2="0" stroke="#252a2d" stroke-width="0.8" opacity="0.45"/>
+      <circle cx="9" cy="9" r="1.5" fill="#1e2326" opacity="0.6"/>
+    </pattern>
+    <pattern id="pat-rock-qfg" width="16" height="16" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <!-- Quartzofeldspathic Gneiss: Double-line gneissic bands -->
+      <line x1="0" y1="0" x2="16" y2="0" stroke="#252a2d" stroke-width="1.0" opacity="0.5"/>
+      <line x1="0" y1="4" x2="16" y2="4" stroke="#252a2d" stroke-width="0.5" opacity="0.35"/>
+    </pattern>
+    <pattern id="pat-rock-quartzite" width="14" height="14" patternUnits="userSpaceOnUse">
+      <!-- Quartzite: Standard rectangular/brick cross grid -->
+      <rect x="0" y="0" width="14" height="14" fill="none" stroke="#252a2d" stroke-width="0.7" opacity="0.4"/>
+      <line x1="7" y1="0" x2="7" y2="14" stroke="#252a2d" stroke-width="0.6" stroke-dasharray="2,2" opacity="0.35"/>
+    </pattern>
+    <pattern id="pat-rock-granite" width="16" height="16" patternUnits="userSpaceOnUse">
+      <!-- Granitic Gneiss: Plus / cross igneous structure -->
+      <path d="M4,2 L4,6 M2,4 L6,4 M12,10 L12,14 M10,12 L14,12" stroke="#252a2d" stroke-width="0.8" opacity="0.5"/>
+    </pattern>
+    <pattern id="pat-rock-granulite" width="12" height="12" patternUnits="userSpaceOnUse">
+      <!-- Granulitic Gneiss: Granular stippling dots -->
+      <circle cx="3" cy="3" r="0.9" fill="#252a2d" opacity="0.5"/>
+      <circle cx="9" cy="9" r="0.9" fill="#252a2d" opacity="0.5"/>
+    </pattern>
+    <pattern id="pat-rock-hbg" width="14" height="14" patternUnits="userSpaceOnUse" patternTransform="rotate(35)">
+      <!-- Hornblende Biotite Gneiss: Dense angled needles -->
+      <line x1="0" y1="0" x2="14" y2="0" stroke="#252a2d" stroke-width="1.2" opacity="0.5"/>
+    </pattern>
+    <pattern id="pat-rock-charnockite" width="16" height="16" patternUnits="userSpaceOnUse">
+      <!-- Charnockitic Gneiss: Diamond hypersthene pattern -->
+      <polygon points="4,1 7,4 4,7 1,4" fill="none" stroke="#252a2d" stroke-width="0.8" opacity="0.45"/>
+      <polygon points="12,9 15,12 12,15 9,12" fill="none" stroke="#252a2d" stroke-width="0.8" opacity="0.45"/>
+    </pattern>`;
+}
+
 // Returns the <pattern> element markup for every origin hatch, to be
 // concatenated into the SVG's single <defs> block.
 function buildOriginHatchDefs() {
@@ -1806,15 +1953,17 @@ function processBHProfileData(data) {
       const p2 = (row[6] || '').trim();
       const d2 = toNum(row[7]);
       const w2 = (row[8] || '').trim();
-      if (p2 && d2 !== null && w2) {
+      const r2 = (row[9] || '').trim();
+      if (p2 && d2 !== null && (w2 || r2)) {
         const grade = normalizeWeatheringGrade(w2);
+        const rockType = normalizeRockType(r2);
         const wRawKey = p2;
         const wNormKey = cleanBHKey(p2);
         if (!weatherGrouped[wRawKey]) weatherGrouped[wRawKey] = [];
-        weatherGrouped[wRawKey].push({ depth: d2, grade });
+        weatherGrouped[wRawKey].push({ depth: d2, grade, rockType });
         if (wNormKey && wNormKey !== wRawKey) {
           if (!weatherGrouped[wNormKey]) weatherGrouped[wNormKey] = [];
-          weatherGrouped[wNormKey].push({ depth: d2, grade });
+          weatherGrouped[wNormKey].push({ depth: d2, grade, rockType });
         }
       }
 
@@ -2976,15 +3125,22 @@ function computeProfilePositions(rows){
     separate Y-axis margins, terrain-following groundwater, zero white gaps)
    ============================================================ */
 let profileOptions = {
+  showRockLithology: true,
   showSPT: true,
   showRQD: true,
   showGWT: true,
   showWeathering: true
 };
 
-function buildProfileSvg(rows, options = {}) {
-  const opts = Object.assign({ showSPT: true, showRQD: true, showGWT: true, showWeathering: true }, profileOptions, options);
-  const distances = computeProfilePositions(rows);
+function buildProfileSvg(rows, options = {}, distancesOverride = null) {
+  const opts = Object.assign({
+    showRockLithology: true,
+    showSPT: true,
+    showRQD: true,
+    showGWT: true,
+    showWeathering: true
+  }, profileOptions, options);
+  const distances = distancesOverride || computeProfilePositions(rows);
   const levelsArr = rows.map(computeBHLevels);
   const bhNames = rows.map(r => (r['BH Name'] || '').trim());
   const rawLayersArr = rows.map(r => getBHLayers(r) || null);
@@ -3725,6 +3881,43 @@ function buildProfileSvg(rows, options = {}) {
     return false;
   }
 
+  // ── EXTRACT ROCK LITHOLOGY LAYERS PER BOREHOLE ──
+  const rockLayersPerBH = rows.map((r, i) => {
+    const raw = getBHWeathering(r);
+    const zG = levelsArr[i].elevation !== null ? levelsArr[i].elevation : maxElev;
+    const zR = effectiveRockLevel[i] !== null ? effectiveRockLevel[i] : zG - 5;
+    const dRock = Math.max(zG - zR, 0);
+    const dTerm = levelsArr[i].term !== null ? Math.max(zG - levelsArr[i].term, dRock + 1) : dRock + 10;
+    if (!raw || !raw.length) {
+      return [{ zTop: zR, zBot: zG - dTerm, rockType: 'Biotite Gneiss', grade: 'fresh' }];
+    }
+    const sorted = raw.slice().sort((a, b) => a.depth - b.depth);
+    const layers = [];
+    for (let k = 0; k < sorted.length; k++) {
+      const cur = sorted[k];
+      const nextDepth = k < sorted.length - 1 ? sorted[k+1].depth : dTerm;
+      const topD = Math.max(cur.depth, dRock);
+      const botD = Math.max(nextDepth, topD);
+      const zTop = zG - topD;
+      const zBot = zG - botD;
+      if (zTop > zBot + 0.05) {
+        layers.push({
+          zTop,
+          zBot,
+          rockType: normalizeRockType(cur.rockType),
+          grade: cur.grade || 'fresh'
+        });
+      }
+    }
+    if (!layers.length) {
+      layers.push({ zTop: zR, zBot: zG - dTerm, rockType: normalizeRockType(sorted[0].rockType), grade: sorted[0].grade || 'fresh' });
+    }
+    return layers;
+  });
+
+  const sectionRockTypes = new Set();
+  rockLayersPerBH.forEach(layers => layers.forEach(l => sectionRockTypes.add(l.rockType)));
+
   // ── CATEGORIZE LEGEND DATA INTO STRUCTURED SEMANTIC GROUPS ──
   // Group 1: Soil Stratigraphy (BS 5930)
   const soilItems = [];
@@ -3743,31 +3936,40 @@ function buildProfileSvg(rows, options = {}) {
     }
   });
 
-  // Group 2: Bedrock & Weathering Grades
-  const rockItems = [];
-  if (anyWeatheringData) {
-    WEATHERING_GRADE_ORDER.forEach(grade => {
-      rockItems.push({ label: WEATHERING_GRADE_LABELS[grade], color: WEATHERING_GRADE_COLORS[grade] });
-    });
-  } else {
-    rockItems.push({ label: 'Bedrock (Unweathered)', color: bedrockColor });
+  // Group 2: Bedrock Lithology & Formations (Standard Monochrome Hatches)
+  const rockLithoItems = [];
+  Array.from(sectionRockTypes).forEach(rType => {
+    const conf = ROCK_LITHOLOGY_CONFIG[rType] || ROCK_LITHOLOGY_CONFIG['Biotite Gneiss'];
+    rockLithoItems.push({ label: conf.label, patternId: conf.patternId });
+  });
+  if (!rockLithoItems.length) {
+    rockLithoItems.push({ label: 'Biotite Gneiss', patternId: 'pat-rock-bg' });
   }
 
-  // Group 3: Geological Boundaries & Hydrogeology
+  // Group 3: Bedrock Weathering Grades
+  const weatherGradeItems = [];
+  if (anyWeatheringData) {
+    WEATHERING_GRADE_ORDER.forEach(grade => {
+      weatherGradeItems.push({ label: WEATHERING_GRADE_LABELS[grade], color: WEATHERING_GRADE_COLORS[grade] });
+    });
+  }
+
+  // Group 4: Geological Boundaries & Hydrogeology
   const lineItems = [];
   lineItems.push({ label: 'Bedrock Contact (Rockhead)', color: '#7a2f1e', dash: '6,4', isLine: true });
+  lineItems.push({ label: 'Geological Formation Contact', color: '#1f2937', dash: '6,3', isLine: true });
   if (opts.showGWT !== false && gwDepthPts.length >= 1) {
     lineItems.push({ label: 'Groundwater Table (GWT)', color: '#1e6fd9', dash: '5,3', isLine: true, isGwt: true });
   }
   lineItems.push({ label: 'Soil Origin Boundary', color: '#3a3a3a', dash: '4,3', isLine: true });
 
-  // Group 4: Depositional Origin (Texture Overlays)
+  // Group 5: Depositional Origin (Texture Overlays)
   const originItems = originLegendItems.map(item => ({
     label: item.label,
     patternId: item.patternId
   }));
 
-  // Group 5: In-Situ Testing & Rock Mass Quality (when enabled)
+  // Group 6: In-Situ Testing & Rock Mass Quality (when enabled)
   const inSituItems = [];
   if (opts.showSPT) {
     inSituItems.push({ label: 'SPT N-Value (0 - 50+ / Refusal)', color: '#3f804f', isSpt: true });
@@ -3780,16 +3982,19 @@ function buildProfileSvg(rows, options = {}) {
   // Calculate exact modular dimensions
   const legW = plotW;
   const colGap = 12;
-  const col1W = Math.round(legW * 0.40);
-  const col2W = Math.round(legW * 0.30);
+  const col1W = Math.round(legW * 0.38);
+  const col2W = Math.round(legW * 0.33);
   const col3W = legW - col1W - col2W - (colGap * 2);
 
-  const soilCols = col1W > 270 ? 2 : 1;
+  const soilCols = col1W > 260 ? 2 : 1;
   const soilRows = Math.ceil(soilItems.length / soilCols);
-  const rockRows = rockItems.length;
+  // Rock items use 28px row spacing, soil/line use 26px — card height must fit the tallest column
+  const rockRows = rockLithoItems.length + (weatherGradeItems.length ? Math.ceil(weatherGradeItems.length / 2) + 2 : 0);
   const lineRows = lineItems.length;
-  const maxTopRows = Math.max(soilRows, rockRows, lineRows, 2);
-  const topCardH = 34 + maxTopRows * 22;
+  const soilColH = 38 + soilRows * 26;
+  const rockColH = 38 + rockLithoItems.length * 28 + (weatherGradeItems.length ? Math.ceil(weatherGradeItems.length / 2) * 22 + 24 : 0);
+  const lineColH = 38 + lineRows * 26;
+  const topCardH = Math.max(soilColH, rockColH, lineColH, 80);
 
   const originCardH = originItems.length ? 50 : 0;
   const testCardH = inSituItems.length ? 50 : 0;
@@ -3817,6 +4022,7 @@ function buildProfileSvg(rows, options = {}) {
       <circle cx="6" cy="6" r="1.6" fill="none" stroke="#333333" stroke-width="0.5" opacity="0.28"/>
       <circle cx="13" cy="13" r="1.3" fill="none" stroke="#333333" stroke-width="0.5" opacity="0.28"/>
     </pattern>
+    ${buildRockLithologyDefs()}
     ${buildOriginHatchDefs()}
   </defs>`;
 
@@ -4262,36 +4468,23 @@ function buildProfileSvg(rows, options = {}) {
     }
   });
 
-  // STEP C: Paint bedrock polygon LAST (on top of soil layers) — painter's algorithm guarantees
-  // nothing soil-coloured appears below the rockhead contact line.
-  svg += `<!-- C: Bedrock Polygon (painted last, covers any soil artifact below rockhead) -->
+  // STEP C: Paint Bedrock Base & Weathering
+  svg += `<!-- C: Bedrock Base Polygon -->
   <path d="${bedrockD}" fill="${bedrockColor}" stroke="none"/>`;
 
-  // STEP C2: Rock weathering as a CONTINUOUS FADE, not discrete bands. We
-  // clip a fine grid of small rectangular cells to the bedrock polygon and
-  // colour each cell from the continuous fade field (getFadeFractionAt),
-  // which already blends smoothly both with depth (per-borehole profile) and
-  // laterally (between boreholes). This is what produces the seamless
-  // tomography-style gradient instead of flat bands with hard edges.
-  if (anyWeatheringData) {
+  // STEP C2: Rock weathering as a CONTINUOUS TOMOGRAPHY FADE
+  if (opts.showWeathering && anyWeatheringData) {
     const clipId = 'clip-bedrock-' + Math.random().toString(36).slice(2, 9);
     svg += `<defs><clipPath id="${clipId}"><path d="${bedrockD}"/></clipPath></defs>`;
-    svg += `<!-- C2: Rock Weathering Continuous Fade -->`;
-    const cellW = 2.2;   // finer grid for a smoother-looking fade
-    const cellH = 2.2;
+    svg += `<!-- C2: Rock Weathering Continuous Fade Overlay -->`;
+    const cellW = 2.2, cellH = 2.2;
     const xStart = xFrameLeft, xEnd = xFrameRight;
     const yStart = padTop, yEnd = padTop + plotH;
-    // Precompute the shallowest rockhead elevation across all boreholes once,
-    // so each raster row can fast-reject with a single comparison instead of
-    // rescanning every borehole per row.
     const shallowestRockElev = Math.max(...rows.map((r, i) => effectiveRockLevel[i] !== null ? effectiveRockLevel[i] : maxElev - 5));
     svg += `<g clip-path="url(#${clipId})">`;
     for (let py = yStart; py < yEnd; py += cellH) {
       const elevMid = maxElev - ((py + cellH / 2) - padTop) / plotH * elevRange;
       if (elevMid > shallowestRockElev + 1) continue;
-      // Merge consecutive same-colour cells along this row into one wider
-      // rect — the fade changes gradually, so most neighbouring cells round
-      // to the same hex colour, keeping the SVG small even at fine density.
       let runStartX = null, runColor = null;
       const flushRun = (endX) => {
         if (runStartX !== null) {
@@ -4312,17 +4505,125 @@ function buildProfileSvg(rows, options = {}) {
       flushRun(xEnd);
     }
     svg += `</g>`;
-    // Subtle bedrock texture on top of the fade, same pattern used before, so
-    // the rock still reads as rock rather than a flat colour poster.
-    svg += `<path d="${bedrockD}" fill="url(#pat-bedrock)" stroke="none" opacity="0.5"/>`;
+  }
+
+  // STEP C3: Rock Lithology Standard Monochrome Hatches & Formation Boundaries
+  if (opts.showRockLithology !== false && sectionRockTypes.size > 0) {
+    const masterRockList = Array.from(sectionRockTypes);
+    const formationContactLines = [];
+
+    // ── PASS 1: compute raw zTop/zBot for every (rockType × sampleDist) ────────
+    // rawZBotMap[rType][si] = { zTop, zBot } or null
+    const rawZBotMap = {};
+    masterRockList.forEach(rType => {
+      rawZBotMap[rType] = sampleDists.map(d => {
+        const zRockHead = getZRock(d);
+        let zTop = null, zBot = null;
+        for (let j = 0; j < rows.length - 1; j++) {
+          if (d >= distances[j] && d <= distances[j + 1]) {
+            const frac = distances[j + 1] > distances[j]
+              ? (d - distances[j]) / (distances[j + 1] - distances[j]) : 0;
+            const lA = rockLayersPerBH[j].find(l => l.rockType === rType);
+            const lB = rockLayersPerBH[j + 1].find(l => l.rockType === rType);
+            if (lA && lB) {
+              zTop = lA.zTop * (1 - frac) + lB.zTop * frac;
+              zBot = lA.zBot * (1 - frac) + lB.zBot * frac;
+            } else if (lA) {
+              const taper = Math.max(0, 1 - frac * 1.8);
+              zTop = lA.zTop * (1 - frac) + zRockHead * frac;
+              zBot = lA.zTop - (lA.zTop - lA.zBot) * taper;
+            } else if (lB) {
+              const taper = Math.max(0, 1 - (1 - frac) * 1.8);
+              zTop = zRockHead * (1 - frac) + lB.zTop * frac;
+              zBot = lB.zTop - (lB.zTop - lB.zBot) * taper;
+            }
+            break;
+          }
+        }
+        if (zTop !== null && zBot !== null && zTop > zBot + 0.05) {
+          return { zTop: Math.min(zTop, zRockHead), zBot };
+        }
+        return null;
+      });
+    });
+
+    // ── PASS 2: for each sample dist, find the single deepest rock type ─────────
+    // "Deepest" = lowest zBot elevation (smallest RL value = furthest underground)
+    // Only that one rock type may extend to minElev; all others stop at logged depth.
+    const deepestRockPerDist = sampleDists.map((d, si) => {
+      let minZBot = Infinity, deepestType = null;
+      masterRockList.forEach(rType => {
+        const v = rawZBotMap[rType][si];
+        if (v && v.zBot < minZBot) { minZBot = v.zBot; deepestType = rType; }
+      });
+      return deepestType;
+    });
+
+    // ── PASS 3: build polygons and draw ─────────────────────────────────────────
+    masterRockList.forEach(rType => {
+      const conf = ROCK_LITHOLOGY_CONFIG[rType] || ROCK_LITHOLOGY_CONFIG['Biotite Gneiss'];
+      const topPts = [];
+      const botPts = [];
+
+      sampleDists.forEach((d, si) => {
+        const v = rawZBotMap[rType][si];
+        if (!v) return;
+        const x = xPos(d);
+        // Only the globally-deepest rock type at this sample dist gets extended to minElev
+        const isDeepestHere = deepestRockPerDist[si] === rType;
+        const zBotFinal = isDeepestHere ? minElev : v.zBot;
+        topPts.push([x, yPos(v.zTop)]);
+        botPts.push([x, yPos(zBotFinal)]);
+      });
+
+      if (topPts.length >= 2) {
+        let polyD = `M ${topPts[0][0].toFixed(1)},${topPts[0][1].toFixed(1)}`;
+        for (let k = 1; k < topPts.length; k++) polyD += ` L ${topPts[k][0].toFixed(1)},${topPts[k][1].toFixed(1)}`;
+        for (let k = botPts.length - 1; k >= 0; k--) polyD += ` L ${botPts[k][0].toFixed(1)},${botPts[k][1].toFixed(1)}`;
+        polyD += ' Z';
+
+        svg += `<!-- Rock Stratum Hatch: ${conf.label} -->
+        <path d="${polyD}" fill="url(#${conf.patternId})" stroke="none"/>`;
+
+        // Formation contact line: bot edge, only where it's below rockhead AND
+        // above minElev (points AT minElev are the extended bottom — no contact line there)
+        if (masterRockList.length > 1) {
+          const contactRun = [];
+          for (let s = 0; s < botPts.length; s++) {
+            const xPt = botPts[s][0];
+            const yBot = botPts[s][1];
+            const yTerm = yPos(minElev);
+            let closestD = sampleDists[0];
+            let minDX = Math.abs(xPos(sampleDists[0]) - xPt);
+            for (let si = 1; si < sampleDists.length; si++) {
+              const dx = Math.abs(xPos(sampleDists[si]) - xPt);
+              if (dx < minDX) { minDX = dx; closestD = sampleDists[si]; }
+            }
+            const yRockHead = yPos(getZRock(closestD));
+            // Only draw contact where: below rockhead, strictly above minElev (not extended bottom)
+            if (yBot > yRockHead + 2 && yBot < yTerm - 4) contactRun.push(botPts[s]);
+          }
+          if (contactRun.length >= 2) formationContactLines.push(contactRun);
+        }
+      }
+    });
+
+    // Draw geological formation contact boundaries between different rock types
+    formationContactLines.forEach(cRun => {
+      svg += `<!-- Geological Formation Contact Boundary -->
+      <path d="${ptsToCubicBezier(cRun, 0.55)}" fill="none" stroke="#78828c" stroke-width="1.1" stroke-dasharray="7,5" opacity="0.85"/>`;
+    });
   } else {
-    svg += `<path d="${bedrockD}" fill="url(#pat-bedrock)" stroke="none"/>`;
+
+    // Default subtle bedrock texture overlay
+    svg += `<path d="${bedrockD}" fill="url(#pat-bedrock)" stroke="none" opacity="0.4"/>`;
   }
 
   // STEP D: Rockhead contact dashed line (on top of everything)
   // 3. RENDER ROCKHEAD CONTACT LINE (full width including side extensions)
+  // Rockhead contact: slightly softer brown, medium dash, tension 0.5 for gentle undulation
   svg += `<!-- Rockhead Contact Line -->
-  <path d="${ptsToCubicBezier(rockPolyPts)}" fill="none" stroke="#7a2f1e" stroke-width="2.2" stroke-dasharray="6,4"/>`;
+  <path d="${ptsToCubicBezier(rockPolyPts, 0.5)}" fill="none" stroke="#8c3a26" stroke-width="1.9" stroke-dasharray="7,5"/>`;
 
 
   // 4. RENDER GROUNDWATER TABLE LINE & STANDARD INTERNATIONAL SYMBOLS
@@ -4623,38 +4924,68 @@ function buildProfileSvg(rows, options = {}) {
     const c = idx % soilCols;
     const r = Math.floor(idx / soilCols);
     const itX = card1X + 10 + c * (col1W / soilCols);
-    const itY = legStartY + 35 + r * 22;
-    svg += `<rect x="${itX}" y="${itY - 9}" width="14" height="10" fill="${it.color}" stroke="#666" stroke-width="0.6" rx="1.5"/>`;
-    svg += `<text x="${itX + 19}" y="${itY}" font-size="9" fill="#333333" font-weight="500">${it.label}</text>`;
+    const itY = legStartY + 38 + r * 26;
+    const swW = 22, swH = 14;
+    const clipId = `clip-soil-${idx}`;
+    svg += `<defs><clipPath id="${clipId}"><rect x="${itX}" y="${itY - 11}" width="${swW}" height="${swH}" rx="2"/></clipPath></defs>`;
+    svg += `<rect x="${itX}" y="${itY - 11}" width="${swW}" height="${swH}" fill="${it.color}" stroke="#666" stroke-width="0.7" rx="2"/>`;
+    if (it.patternId) svg += `<rect x="${itX}" y="${itY - 11}" width="${swW}" height="${swH}" fill="url(#${it.patternId})" clip-path="url(#${clipId})" stroke="none" rx="2"/>`;
+    svg += `<text x="${itX + swW + 5}" y="${itY}" font-size="9" fill="#333333" font-weight="500">${it.label}</text>`;
   });
 
-  // Top Card 2: Bedrock & Weathering
+  // Top Card 2: Bedrock Lithology & Weathering
   svg += `<rect x="${card2X}" y="${legStartY}" width="${col2W}" height="${topCardH}" fill="#faf9f6" stroke="#e0dbce" stroke-width="1" rx="5"/>`;
   svg += `<rect x="${card2X}" y="${legStartY}" width="${col2W}" height="24" fill="#eeebe2" stroke="#e0dbce" stroke-width="1" rx="5"/>`;
   svg += `<rect x="${card2X}" y="${legStartY + 18}" width="${col2W}" height="6" fill="#eeebe2" stroke="none"/>`;
-  svg += `<text x="${card2X + 10}" y="${legStartY + 16}" font-size="9.5" font-weight="700" fill="#2c3e50" letter-spacing="0.02em">BEDROCK & WEATHERING</text>`;
+  svg += `<text x="${card2X + 10}" y="${legStartY + 16}" font-size="9.5" font-weight="700" fill="#2c3e50" letter-spacing="0.02em">BEDROCK LITHOLOGY &amp; WEATHERING</text>`;
   
-  rockItems.forEach((it, idx) => {
-    const itX = card2X + 10;
-    const itY = legStartY + 35 + idx * 22;
-    svg += `<rect x="${itX}" y="${itY - 9}" width="14" height="10" fill="${it.color}" stroke="#666" stroke-width="0.6" rx="1.5"/>`;
-    svg += `<text x="${itX + 19}" y="${itY}" font-size="9" fill="#333333" font-weight="500">${it.label}</text>`;
+  let curRockY = legStartY + 40;
+  const rSwW = 36, rSwH = 22;
+  rockLithoItems.forEach((it, idx) => {
+    const rx = card2X + 10, ry = curRockY - 16;
+    const clipId = `clip-rock-${idx}`;
+    // Define clip so hatch pattern is fully contained within swatch bounds
+    svg += `<defs><clipPath id="${clipId}"><rect x="${rx}" y="${ry}" width="${rSwW}" height="${rSwH}" rx="2"/></clipPath></defs>`;
+    // White base so hatches are visible against clean background
+    svg += `<rect x="${rx}" y="${ry}" width="${rSwW}" height="${rSwH}" fill="#f0eeea" stroke="#555" stroke-width="0.8" rx="2"/>`;
+    if (it.patternId) svg += `<rect x="${rx}" y="${ry}" width="${rSwW}" height="${rSwH}" fill="url(#${it.patternId})" clip-path="url(#${clipId})" stroke="none"/>`;
+    // Thin border on top of hatch to keep it crisp
+    svg += `<rect x="${rx}" y="${ry}" width="${rSwW}" height="${rSwH}" fill="none" stroke="#555" stroke-width="0.8" rx="2"/>`;
+    svg += `<text x="${rx + rSwW + 6}" y="${curRockY - 4}" font-size="9" fill="#333333" font-weight="600">${it.label}</text>`;
+    curRockY += 28;
   });
+
+  if (weatherGradeItems.length) {
+    curRockY += 4;
+    svg += `<text x="${card2X + 10}" y="${curRockY - 2}" font-size="8" font-weight="700" fill="#6d5d4d">WEATHERING (OVERLAY):</text>`;
+    curRockY += 16;
+    const wCols = 2;
+    const wColW = (col2W - 20) / wCols;
+    weatherGradeItems.forEach((it, idx) => {
+      const c = idx % wCols;
+      const r = Math.floor(idx / wCols);
+      const itX = card2X + 10 + c * wColW;
+      const itY = curRockY + r * 22;
+      svg += `<rect x="${itX}" y="${itY - 10}" width="18" height="12" fill="${it.color}" stroke="#777" stroke-width="0.6" rx="2"/>`;
+      svg += `<text x="${itX + 22}" y="${itY}" font-size="8.5" fill="#444444" font-weight="500">${it.label.replace(' Weathered Rock', '').replace(' Rock', '')}</text>`;
+    });
+  }
 
   // Top Card 3: Contacts & Hydrology
   svg += `<rect x="${card3X}" y="${legStartY}" width="${col3W}" height="${topCardH}" fill="#faf9f6" stroke="#e0dbce" stroke-width="1" rx="5"/>`;
   svg += `<rect x="${card3X}" y="${legStartY}" width="${col3W}" height="24" fill="#eeebe2" stroke="#e0dbce" stroke-width="1" rx="5"/>`;
   svg += `<rect x="${card3X}" y="${legStartY + 18}" width="${col3W}" height="6" fill="#eeebe2" stroke="none"/>`;
-  svg += `<text x="${card3X + 10}" y="${legStartY + 16}" font-size="9.5" font-weight="700" fill="#2c3e50" letter-spacing="0.02em">CONTACTS & HYDROLOGY</text>`;
+  svg += `<text x="${card3X + 10}" y="${legStartY + 16}" font-size="9.5" font-weight="700" fill="#2c3e50" letter-spacing="0.02em">CONTACTS &amp; HYDROLOGY</text>`;
   
   lineItems.forEach((it, idx) => {
     const itX = card3X + 10;
-    const itY = legStartY + 35 + idx * 22;
-    svg += `<line x1="${itX}" y1="${itY - 4}" x2="${itX + 22}" y2="${itY - 4}" stroke="${it.color}" stroke-width="2" stroke-dasharray="${it.dash}"/>`;
+    const itY = legStartY + 40 + idx * 26;
+    // Draw a wider dash sample so the dash pattern is clearly readable
+    svg += `<line x1="${itX}" y1="${itY - 5}" x2="${itX + 30}" y2="${itY - 5}" stroke="${it.color}" stroke-width="2" stroke-dasharray="${it.dash}"/>`;
     if (it.isGwt) {
-      svg += renderGwtSymbol(itX + 11, itY - 4, 0.75);
+      svg += renderGwtSymbol(itX + 15, itY - 5, 0.85);
     }
-    svg += `<text x="${itX + 28}" y="${itY}" font-size="9" fill="#333333" font-weight="500">${it.label}</text>`;
+    svg += `<text x="${itX + 36}" y="${itY}" font-size="9" fill="#333333" font-weight="500">${it.label}</text>`;
   });
 
   // Section 2 Card: Depositional Origin (Texture Overlays)
@@ -4679,7 +5010,7 @@ function buildProfileSvg(rows, options = {}) {
   if (inSituItems.length) {
     const testCardH = 48;
     svg += `<rect x="${padLeft}" y="${curBottomY}" width="${legW}" height="${testCardH}" fill="#faf9f6" stroke="#e0dbce" stroke-width="1" rx="5"/>`;
-    svg += `<text x="${padLeft + 10}" y="${curBottomY + 16}" font-size="9" font-weight="700" fill="#4a453c" letter-spacing="0.02em">IN-SITU TESTING & ROCK MASS QUALITY:</text>`;
+    svg += `<text x="${padLeft + 10}" y="${curBottomY + 16}" font-size="9" font-weight="700" fill="#4a453c" letter-spacing="0.02em">IN-SITU TESTING &amp; ROCK MASS QUALITY:</text>`;
     
     const testSpacing = Math.min(legW / inSituItems.length, 290);
     inSituItems.forEach((it, idx) => {
@@ -4710,17 +5041,120 @@ function buildProfileSvg(rows, options = {}) {
 
 let currentProfileRows = null;
 
+// ── SECTION METHOD STATE ────────────────────────────────────────────────────
+let sectionMethod = 'sequential'; // 'sequential' | 'projection'
+let sectionAzimuth = 0;           // degrees from North, clockwise
+
+function onSectionMethodChange(val) {
+  sectionMethod = val;
+  const azPanel = document.getElementById('az-panel');
+  if (azPanel) azPanel.classList.toggle('visible', val === 'projection');
+}
+
+// Auto-detect azimuth from selected BHs (first→last after PCA sort)
+function autoDetectAzimuth() {
+  if (!currentProfileRows || currentProfileRows.length < 2) return;
+  const sorted = sortBoreholesByMapPosition(currentProfileRows);
+  const e1 = toNum(sorted[0]['Easting']), n1 = toNum(sorted[0]['Northing']);
+  const e2 = toNum(sorted[sorted.length-1]['Easting']), n2 = toNum(sorted[sorted.length-1]['Northing']);
+  if (e1===null||n1===null||e2===null||n2===null) return;
+  const dE = e2 - e1, dN = n2 - n1;
+  let az = Math.atan2(dE, dN) * 180 / Math.PI;
+  if (az < 0) az += 360;
+  az = Math.round(az * 10) / 10;
+  document.getElementById('az-input').value = az;
+  sectionAzimuth = az;
+  document.getElementById('az-offset-info').textContent =
+    `(${az.toFixed(1)}° — detected from ${sorted[0]['BH Name'] || sorted[0]['PointID'] || 'first'} → last BH)`;
+}
+
+// ── PROJECT BHs ONTO SECTION LINE ──────────────────────────────────────────
+// Returns rows sorted by chainage along the section line.
+// Chainage = dot product of (BH - origin) with unit vector of azimuth.
+// Perpendicular offset is computed for display info only.
+function projectBoreholes(rows, azDeg) {
+  const azRad = (azDeg * Math.PI) / 180;
+  // Unit vector along the section line in (Easting, Northing) space
+  const ux = Math.sin(azRad);   // Easting component
+  const uy = Math.cos(azRad);   // Northing component
+
+  // Reference origin = centroid of all BHs
+  let sumE = 0, sumN = 0, cnt = 0;
+  rows.forEach(r => {
+    const e = toNum(r['Easting']), n = toNum(r['Northing']);
+    if (e !== null && n !== null) { sumE += e; sumN += n; cnt++; }
+  });
+  const oE = sumE / (cnt || 1);
+  const oN = sumN / (cnt || 1);
+
+  const tagged = rows.map(r => {
+    const e = toNum(r['Easting']), n = toNum(r['Northing']);
+    let chainage = 0, offset = 0;
+    if (e !== null && n !== null) {
+      const dE = e - oE, dN = n - oN;
+      chainage = dE * ux + dN * uy;          // along section line (m)
+      offset   = dE * uy - dN * ux;          // perpendicular (m, + = right side)
+    }
+    return { row: r, chainage, offset };
+  });
+
+  // Sort by chainage (lowest = left of section)
+  tagged.sort((a, b) => a.chainage - b.chainage);
+
+  // Shift chainages so leftmost = 0
+  const minC = tagged[0].chainage;
+  tagged.forEach(t => t.chainage -= minC);
+
+  return tagged; // [ { row, chainage, offset }, ... ]
+}
+
+// ── computeProfilePositions adapted for projection mode ───────────────────
+function computeProjectedDistances(projectedBHs) {
+  // projectedBHs = array of { row, chainage, offset }
+  return projectedBHs.map(t => t.chainage);
+}
+
+// ── RECREATE BUTTON ────────────────────────────────────────────────────────
+function recreateProfile() {
+  if (!currentProfileRows) return;
+  sectionAzimuth = parseFloat(document.getElementById('az-input')?.value) || 0;
+
+  let orderedRows, distances;
+  if (sectionMethod === 'projection') {
+    const projected = projectBoreholes(currentProfileRows, sectionAzimuth);
+    orderedRows = projected.map(t => t.row);
+    distances   = computeProjectedDistances(projected);
+    // Show max perpendicular offset as info
+    const maxOff = Math.max(...projected.map(t => Math.abs(t.offset)));
+    const infoEl = document.getElementById('az-offset-info');
+    if (infoEl) infoEl.textContent =
+      `Max offset from line: ${maxOff.toFixed(1)} m`;
+  } else {
+    orderedRows = sortBoreholesByMapPosition(currentProfileRows);
+    distances   = null; // buildProfileSvg will use computeProfilePositions
+  }
+
+  const svg = buildProfileSvg(orderedRows, profileOptions, distances);
+  document.getElementById('profile-modal-body').innerHTML = svg;
+}
+
 function showProfileModal(rows){
   currentProfileRows = rows;
   // Sync modal checkbox states from profileOptions
-  const sptEl = document.getElementById('modal-opt-spt');
-  const rqdEl = document.getElementById('modal-opt-rqd');
-  const gwtEl = document.getElementById('modal-opt-gwt');
-  const weaEl = document.getElementById('modal-opt-weathering');
-  if (sptEl) sptEl.checked = profileOptions.showSPT;
-  if (rqdEl) rqdEl.checked = profileOptions.showRQD;
-  if (gwtEl) gwtEl.checked = profileOptions.showGWT;
-  if (weaEl) weaEl.checked = profileOptions.showWeathering;
+  const rockEl = document.getElementById('modal-opt-rocklithology');
+  const sptEl  = document.getElementById('modal-opt-spt');
+  const rqdEl  = document.getElementById('modal-opt-rqd');
+  const gwtEl  = document.getElementById('modal-opt-gwt');
+  const weaEl  = document.getElementById('modal-opt-weathering');
+  if (rockEl) rockEl.checked = profileOptions.showRockLithology;
+  if (sptEl)  sptEl.checked  = profileOptions.showSPT;
+  if (rqdEl)  rqdEl.checked  = profileOptions.showRQD;
+  if (gwtEl)  gwtEl.checked  = profileOptions.showGWT;
+  if (weaEl)  weaEl.checked  = profileOptions.showWeathering;
+
+  // Reset method UI to sequential on fresh open
+  const seqRadio = document.querySelector('input[name="section-method"][value="sequential"]');
+  if (seqRadio) { seqRadio.checked = true; onSectionMethodChange('sequential'); }
 
   const svg = buildProfileSvg(rows, profileOptions);
   document.getElementById('profile-modal-body').innerHTML = svg;
@@ -4730,14 +5164,15 @@ function showProfileModal(rows){
 function syncProfileOption(key, val) {
   profileOptions[key] = val;
   const modalEl = document.getElementById('modal-opt-' + key.replace('show', '').toLowerCase());
-  const sideEl = document.getElementById('sidebar-opt-' + key.replace('show', '').toLowerCase());
+  const sideEl  = document.getElementById('sidebar-opt-' + key.replace('show', '').toLowerCase());
   if (modalEl) modalEl.checked = val;
-  if (sideEl) sideEl.checked = val;
+  if (sideEl)  sideEl.checked  = val;
   if (currentProfileRows && document.getElementById('profile-modal-backdrop').classList.contains('open')) {
-    const svg = buildProfileSvg(currentProfileRows, profileOptions);
-    document.getElementById('profile-modal-body').innerHTML = svg;
+    // Re-use current method + distances when toggling overlays
+    recreateProfile();
   }
 }
+
 
 function toggleProfileOption(key, val) {
   syncProfileOption(key, val);
@@ -4869,18 +5304,24 @@ function exportProfileToDXF(customRows) {
     return;
   }
 
-  const sorted = sortBoreholesByMapPosition(rows);
+  let sorted, distances;
+  if (sectionMethod === 'projection') {
+    const projected = projectBoreholes(rows, sectionAzimuth);
+    sorted = projected.map(t => t.row);
+    distances = computeProjectedDistances(projected);
+  } else {
+    sorted = sortBoreholesByMapPosition(rows);
+    distances = [0];
+    for (let i = 1; i < sorted.length; i++) {
+      const e1 = toNum(sorted[i-1]['Easting']), n1 = toNum(sorted[i-1]['Northing']);
+      const e2 = toNum(sorted[i]['Easting']), n2 = toNum(sorted[i]['Northing']);
+      const d = (e1 !== null && n1 !== null && e2 !== null && n2 !== null)
+        ? Math.sqrt((e2-e1)**2 + (n2-n1)**2) : 50;
+      distances.push(distances[i-1] + Math.max(d, 1));
+    }
+  }
   const levelsArr = sorted.map(computeBHLevels);
   const layersArr = sorted.map(r => getBHLayers(r) || null);
-  
-  const distances = [0];
-  for (let i = 1; i < sorted.length; i++) {
-    const e1 = toNum(sorted[i-1]['Easting']), n1 = toNum(sorted[i-1]['Northing']);
-    const e2 = toNum(sorted[i]['Easting']), n2 = toNum(sorted[i]['Northing']);
-    const d = (e1 !== null && n1 !== null && e2 !== null && n2 !== null)
-      ? Math.sqrt((e2-e1)**2 + (n2-n1)**2) : 50;
-    distances.push(distances[i-1] + Math.max(d, 1));
-  }
 
   let dxf = `0\nSECTION\n2\nENTITIES\n`;
 
