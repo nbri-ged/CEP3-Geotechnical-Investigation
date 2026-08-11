@@ -731,6 +731,21 @@
       <div id="profile-selected-list" style="margin-top:8px; display:none;">
         <div style="font-size:11.5px; color:var(--muted); margin-bottom:4px;">Selected (in order) &mdash; click a chip to remove:</div>
         <div id="profile-chips" style="display:flex; flex-wrap:wrap; gap:4px; margin-bottom:8px;"></div>
+        <div style="margin: 8px 0 6px 0; padding: 6px 8px; background: rgba(255,255,255,0.8); border-radius: 6px; border: 1px solid var(--line); font-size: 11px;">
+          <div style="font-weight:700; color:#2c3e50; margin-bottom:4px;">Include Data Overlays:</div>
+          <label style="display:flex; align-items:center; gap:5px; margin-bottom:3px; cursor:pointer;">
+            <input type="checkbox" id="sidebar-opt-spt" checked onchange="syncProfileOption('showSPT', this.checked)">
+            <span>📊 SPT N-Values</span>
+          </label>
+          <label style="display:flex; align-items:center; gap:5px; margin-bottom:3px; cursor:pointer;">
+            <input type="checkbox" id="sidebar-opt-rqd" checked onchange="syncProfileOption('showRQD', this.checked)">
+            <span>💎 RQD / Core Recovery</span>
+          </label>
+          <label style="display:flex; align-items:center; gap:5px; cursor:pointer;">
+            <input type="checkbox" id="sidebar-opt-gwt" checked onchange="syncProfileOption('showGWT', this.checked)">
+            <span>💧 Groundwater Table</span>
+          </label>
+        </div>
         <button id="profile-clear-btn" class="kml-btn" style="padding:4px 8px; text-align:center;">Clear Selection</button>
         <button id="profile-generate-btn" class="kml-btn" style="margin-top:6px; padding:6px 8px; text-align:center; background:var(--accent); color:#fff; font-weight:700;">
           📐 Generate 2D Profile (min. 2 BHs)
@@ -795,6 +810,25 @@
         </div>
         <button id="profile-close-btn" title="Close" style="width:23px; height:23px; border-radius:4px; border:none; background:#c0392b; color:#fff; font-size:15px; line-height:1; cursor:pointer; margin-left:2px;">&times;</button>
       </div>
+    </div>
+    <div id="profile-modal-toolbar" style="display:flex; gap:14px; align-items:center; background:#f4f6f8; padding:7px 16px; border-bottom:1px solid #d5dbdb; font-size:11.5px; flex-wrap:wrap;">
+      <span style="font-weight:700; color:#1c2b2a;">Profile Overlays:</span>
+      <label style="display:flex; align-items:center; gap:5px; cursor:pointer; user-select:none;">
+        <input type="checkbox" id="modal-opt-spt" checked onchange="toggleProfileOption('showSPT', this.checked)">
+        <span style="color:#2e7d32; font-weight:600;">📊 SPT N-Values</span>
+      </label>
+      <label style="display:flex; align-items:center; gap:5px; cursor:pointer; user-select:none;">
+        <input type="checkbox" id="modal-opt-rqd" checked onchange="toggleProfileOption('showRQD', this.checked)">
+        <span style="color:#1b5e20; font-weight:600;">💎 RQD / Core Recovery</span>
+      </label>
+      <label style="display:flex; align-items:center; gap:5px; cursor:pointer; user-select:none;">
+        <input type="checkbox" id="modal-opt-gwt" checked onchange="toggleProfileOption('showGWT', this.checked)">
+        <span style="color:#1565c0; font-weight:600;">💧 Water Table (GWT)</span>
+      </label>
+      <label style="display:flex; align-items:center; gap:5px; cursor:pointer; user-select:none;">
+        <input type="checkbox" id="modal-opt-weathering" checked onchange="toggleProfileOption('showWeathering', this.checked)">
+        <span style="color:#5d4037; font-weight:600;">🪨 Weathering Fade</span>
+      </label>
     </div>
     <div id="profile-modal-body"></div>
   </div>
@@ -1736,27 +1770,98 @@ function originFamilyOf(originRaw) {
   return ORIGIN_FAMILY_MAP[clean] || ('other:' + clean); // rule 2 fallback: own family per unique label
 }
 
-function fetchBHProfileLog(){
-  parseCsvWithProxy(BH_PROFILE_CSV_URL, (data) => {
-    const grouped = {};
-    const weatherGrouped = {};
-    // Origin/Consistency readings, keyed same as grouped/weatherGrouped, used
-    // to annotate graphic layers below by depth-match (rule: the Origin table
-    // and Graphic table are separate column groups from the same sheet fetch
-    // and may not share identical breakpoints in every borehole, so we match
-    // by nearest top-depth rather than assuming row alignment).
-    const originGrouped = {};
-    data.forEach(raw => {
-      const row = normalizeRow(raw);
-      const pointId = (row['PointID'] || row['Point ID'] || row['BH_ID'] || row['BH ID'] || row['BH Name'] || '').trim();
-      const depth = toNum(row['Depth']);
-      const bottom = toNum(row['Bottom']);
-      const graphic = (row['Graphic'] || '').trim();
+let profileTestsByBH = {};
 
-      // Rock weathering (cols G-K on the BH Profile tab): Primary Weathering,
-      // Rock Type Name. These are point readings (one depth, no bottom) —
-      // handled separately from the soil-layer depth/bottom intervals below.
-      const weatherRaw = row['Primary Weathering'];
+function processBHProfileData(data) {
+  const grouped = {};
+  const weatherGrouped = {};
+  const originGrouped = {};
+  const testsGrouped = {};
+
+  if (!data || !data.length) return;
+
+  const is2D = Array.isArray(data[0]);
+
+  data.forEach((row, rowIdx) => {
+    if (is2D) {
+      if (rowIdx === 0 && ((row[0]||'').toLowerCase().includes('pointid') || (row[0]||'').toLowerCase().includes('point id'))) return;
+
+      // Table 1 (Cols 0-3): PointID, Depth, Bottom, Graphic
+      const p1 = (row[0] || '').trim();
+      const d1 = toNum(row[1]);
+      const b1 = toNum(row[2]);
+      const g1 = (row[3] || '').trim();
+      if (p1 && d1 !== null && b1 !== null) {
+        const rawKey = p1;
+        const normKey = cleanBHKey(p1);
+        if (!grouped[rawKey]) grouped[rawKey] = [];
+        grouped[rawKey].push({ depth: d1, bottom: b1, graphic: g1 });
+        if (normKey && normKey !== rawKey) {
+          if (!grouped[normKey]) grouped[normKey] = [];
+          grouped[normKey].push({ depth: d1, bottom: b1, graphic: g1 });
+        }
+      }
+
+      // Table 2 (Cols 6-9): PointID, Depth, Primary Weathering, Rock Type Name
+      const p2 = (row[6] || '').trim();
+      const d2 = toNum(row[7]);
+      const w2 = (row[8] || '').trim();
+      if (p2 && d2 !== null && w2) {
+        const grade = normalizeWeatheringGrade(w2);
+        const wRawKey = p2;
+        const wNormKey = cleanBHKey(p2);
+        if (!weatherGrouped[wRawKey]) weatherGrouped[wRawKey] = [];
+        weatherGrouped[wRawKey].push({ depth: d2, grade });
+        if (wNormKey && wNormKey !== wRawKey) {
+          if (!weatherGrouped[wNormKey]) weatherGrouped[wNormKey] = [];
+          weatherGrouped[wNormKey].push({ depth: d2, grade });
+        }
+      }
+
+      // Table 3 (Cols 12-16): PointID, Depth, Primary Consistency, Soil Origin, BSCS
+      const p3 = (row[12] || '').trim();
+      const d3 = toNum(row[13]);
+      const c3 = (row[14] || '').trim();
+      const o3 = (row[15] || '').trim();
+      if (p3 && d3 !== null && (o3 || c3)) {
+        const entry = { depth: d3, origin: o3, consistency: c3 };
+        const oRawKey = p3;
+        const oNormKey = cleanBHKey(p3);
+        if (!originGrouped[oRawKey]) originGrouped[oRawKey] = [];
+        originGrouped[oRawKey].push(entry);
+        if (oNormKey && oNormKey !== oRawKey) {
+          if (!originGrouped[oNormKey]) originGrouped[oNormKey] = [];
+          originGrouped[oNormKey].push(entry);
+        }
+      }
+
+      // Table 4 (Cols 18-28): PointID, Depth, Length, Type, Recovery Length (CR%), RQD Length (RQD%), Return Of Water, Blows 1st, Blows 2nd, Blows 3rd, N Value
+      const p4 = (row[18] || '').trim();
+      const d4 = toNum(row[19]);
+      const len4 = toNum(row[20]) || 0.45;
+      const type4 = (row[21] || '').trim().toUpperCase();
+      const cr4 = toNum(row[22]);
+      const rqd4 = toNum(row[23]);
+      const nVal4 = toNum(row[28]);
+      if (p4 && d4 !== null && (nVal4 !== null || cr4 !== null || rqd4 !== null || type4)) {
+        const entry = { depth: d4, length: len4, type: type4, cr: cr4, rqd: rqd4, nVal: nVal4 };
+        const tRawKey = p4;
+        const tNormKey = cleanBHKey(p4);
+        if (!testsGrouped[tRawKey]) testsGrouped[tRawKey] = [];
+        testsGrouped[tRawKey].push(entry);
+        if (tNormKey && tNormKey !== tRawKey) {
+          if (!testsGrouped[tNormKey]) testsGrouped[tNormKey] = [];
+          testsGrouped[tNormKey].push(entry);
+        }
+      }
+    } else {
+      const rowNorm = normalizeRow(row);
+      const pointId = (rowNorm['PointID'] || rowNorm['Point ID'] || rowNorm['BH_ID'] || rowNorm['BH ID'] || rowNorm['BH Name'] || '').trim();
+      const depth = toNum(rowNorm['Depth']);
+      const bottom = toNum(rowNorm['Bottom']);
+      const graphic = (rowNorm['Graphic'] || '').trim();
+
+      const weatherRaw = rowNorm['Primary Weathering'];
       if (pointId && depth !== null && weatherRaw !== undefined && String(weatherRaw).trim() !== '') {
         const grade = normalizeWeatheringGrade(weatherRaw);
         const wRawKey = pointId;
@@ -1769,9 +1874,8 @@ function fetchBHProfileLog(){
         }
       }
 
-      // Soil Origin + Primary Consistency (cols M-Q on the BH Profile tab).
-      const originRaw = row['Soil Origin'];
-      const consistencyRaw = row['Primary Consistency'];
+      const originRaw = rowNorm['Soil Origin'];
+      const consistencyRaw = rowNorm['Primary Consistency'];
       if (pointId && depth !== null && ((originRaw !== undefined && String(originRaw).trim() !== '') || (consistencyRaw !== undefined && String(consistencyRaw).trim() !== ''))) {
         const entry = { depth, origin: (originRaw || '').trim(), consistency: (consistencyRaw || '').trim() };
         const oRawKey = pointId;
@@ -1781,6 +1885,23 @@ function fetchBHProfileLog(){
         if (oNormKey && oNormKey !== oRawKey) {
           if (!originGrouped[oNormKey]) originGrouped[oNormKey] = [];
           originGrouped[oNormKey].push(entry);
+        }
+      }
+
+      const nRaw = rowNorm['N Value'] !== undefined ? toNum(rowNorm['N Value']) : null;
+      const crRaw = rowNorm['Recovery Length'] !== undefined ? toNum(rowNorm['Recovery Length']) : null;
+      const rqdRaw = rowNorm['RQD Length'] !== undefined ? toNum(rowNorm['RQD Length']) : null;
+      const typeRaw = (rowNorm['Type'] || '').trim().toUpperCase();
+      const lenRaw = toNum(rowNorm['Length']) || 0.45;
+      if (pointId && depth !== null && (nRaw !== null || crRaw !== null || rqdRaw !== null || typeRaw)) {
+        const entry = { depth, length: lenRaw, type: typeRaw, cr: crRaw, rqd: rqdRaw, nVal: nRaw };
+        const tRawKey = pointId;
+        const tNormKey = cleanBHKey(pointId);
+        if (!testsGrouped[tRawKey]) testsGrouped[tRawKey] = [];
+        testsGrouped[tRawKey].push(entry);
+        if (tNormKey && tNormKey !== tRawKey) {
+          if (!testsGrouped[tNormKey]) testsGrouped[tNormKey] = [];
+          testsGrouped[tNormKey].push(entry);
         }
       }
 
@@ -1796,41 +1917,77 @@ function fetchBHProfileLog(){
         if (!grouped[normKey]) grouped[normKey] = [];
         grouped[normKey].push({ depth, bottom, graphic });
       }
-    });
-    Object.keys(grouped).forEach(k => grouped[k].sort((a,b) => a.depth - b.depth));
-    Object.keys(weatherGrouped).forEach(k => weatherGrouped[k].sort((a,b) => a.depth - b.depth));
-    Object.keys(originGrouped).forEach(k => originGrouped[k].sort((a,b) => a.depth - b.depth));
-
-    // Attach origin/consistency to each graphic layer by nearest top-depth
-    // match (tolerance-based, since the two tables can have slightly
-    // different breakpoints in general even though they align exactly in
-    // the sample data we've validated against).
-    Object.keys(grouped).forEach(k => {
-      const origins = originGrouped[k];
-      if (!origins || !origins.length) return;
-      grouped[k].forEach(layer => {
-        let best = null, bestDist = Infinity;
-        origins.forEach(o => {
-          const d = Math.abs(o.depth - layer.depth);
-          if (d < bestDist) { bestDist = d; best = o; }
-        });
-        // Accept the match only if it's reasonably close (within 0.51m,
-        // i.e. tighter than the typical 1.5m sampling interval) — an
-        // unmatched layer just has no origin/consistency annotation rather
-        // than a wrong guess.
-        if (best && bestDist <= 0.51) {
-          layer.origin = best.origin;
-          layer.consistency = best.consistency;
-        }
-      });
-    });
-
-    profileLayersByBH = grouped;
-    profileWeatheringByBH = weatherGrouped;
-    if (allRows && allRows.length) render();
-  }, () => {
-    console.error('Could not load BH Profile log from primary or proxy URL.');
+    }
   });
+
+  Object.keys(grouped).forEach(k => grouped[k].sort((a,b) => a.depth - b.depth));
+  Object.keys(weatherGrouped).forEach(k => weatherGrouped[k].sort((a,b) => a.depth - b.depth));
+  Object.keys(originGrouped).forEach(k => originGrouped[k].sort((a,b) => a.depth - b.depth));
+  Object.keys(testsGrouped).forEach(k => testsGrouped[k].sort((a,b) => a.depth - b.depth));
+
+  // Attach origin/consistency to each graphic layer by nearest top-depth match
+  Object.keys(grouped).forEach(k => {
+    const origins = originGrouped[k];
+    if (!origins || !origins.length) return;
+    grouped[k].forEach(layer => {
+      let best = null, bestDist = Infinity;
+      origins.forEach(o => {
+        const d = Math.abs(o.depth - layer.depth);
+        if (d < bestDist) { bestDist = d; best = o; }
+      });
+      if (best && bestDist <= 0.51) {
+        layer.origin = best.origin;
+        layer.consistency = best.consistency;
+      }
+    });
+  });
+
+  profileLayersByBH = grouped;
+  profileWeatheringByBH = weatherGrouped;
+  profileTestsByBH = testsGrouped;
+  if (allRows && allRows.length) render();
+}
+
+function fetchBHProfileLog(){
+  const localProfUrl = 'CEP 3  Rambukkana-Galagedara - BH Profile.csv';
+  Papa.parse(BH_PROFILE_CSV_URL, {
+    download: true,
+    header: false,
+    skipEmptyLines: true,
+    complete: (results) => {
+      if (results && results.data && results.data.length) {
+        processBHProfileData(results.data);
+      } else {
+        fetchLocalProfile();
+      }
+    },
+    error: () => {
+      fetchLocalProfile();
+    }
+  });
+
+  function fetchLocalProfile() {
+    Papa.parse(localProfUrl, {
+      download: true,
+      header: false,
+      skipEmptyLines: true,
+      complete: (results) => {
+        if (results && results.data && results.data.length) {
+          processBHProfileData(results.data);
+        }
+      },
+      error: (err) => {
+        console.error('Could not load local BH Profile log:', err);
+      }
+    });
+  }
+}
+
+function getBHTests(rOrName) {
+  if (!rOrName) return [];
+  const rawKey = typeof rOrName === 'string' ? rOrName.trim() : (rOrName['BH Name'] || rOrName['BH_ID'] || '').trim();
+  const normKey = cleanBHKey(rawKey);
+  return (profileTestsByBH && (profileTestsByBH[rawKey] || (normKey && profileTestsByBH[normKey]))) || [];
 }
 
 function getBHLayers(rOrName) {
@@ -2818,7 +2975,15 @@ function computeProfilePositions(rows){
    (Fulfills 100% complete filling via cumulative boundaries,
     separate Y-axis margins, terrain-following groundwater, zero white gaps)
    ============================================================ */
-function buildProfileSvg(rows) {
+let profileOptions = {
+  showSPT: true,
+  showRQD: true,
+  showGWT: true,
+  showWeathering: true
+};
+
+function buildProfileSvg(rows, options = {}) {
+  const opts = Object.assign({ showSPT: true, showRQD: true, showGWT: true, showWeathering: true }, profileOptions, options);
   const distances = computeProfilePositions(rows);
   const levelsArr = rows.map(computeBHLevels);
   const bhNames = rows.map(r => (r['BH Name'] || '').trim());
@@ -3155,6 +3320,13 @@ function buildProfileSvg(rows) {
         const fBot = Math.max(unitMap[u].fBot, fTop);
         C[uIdx] = fTop;
         C[uIdx + 1] = fBot;
+        // Ensure all preceding absent units stay collapsed at fTop so they have strictly 0 thickness
+        for (let k = 0; k < uIdx; k++) {
+          if (!bhUnitPresent[i][k]) {
+            C[k] = Math.min(C[k], fTop);
+            C[k + 1] = Math.min(C[k + 1], fTop);
+          }
+        }
         cursor = fBot;
       } else {
         // Absent unit: zero thickness — both boundaries at current cursor
@@ -3162,6 +3334,16 @@ function buildProfileSvg(rows) {
         C[uIdx + 1] = cursor;
       }
     });
+    // Extend top-most present unit up to 0.0 so no gap exists at surface
+    for (let k = 0; k < K; k++) {
+      if (bhUnitPresent[i][k]) {
+        C[k] = 0.0;
+        for (let j = 0; j <= k; j++) {
+          if (!bhUnitPresent[i][j]) { C[j] = 0.0; C[j + 1] = 0.0; }
+        }
+        break;
+      }
+    }
     // Force last boundary to 1.0 to ensure full coverage
     C[K] = 1.0;
     // Redistribute: if cursor < 1.0, push remaining into last present unit
@@ -3398,7 +3580,7 @@ function buildProfileSvg(rows) {
     return { anchors, zRock, zTerm, rockSpan };
   });
 
-  const anyWeatheringData = bhFadeProfile.some(p => p !== null);
+  const anyWeatheringData = (opts.showWeathering !== false) && bhFadeProfile.some(p => p !== null);
 
   // Evaluates a borehole's own fade profile at a given depth-below-rockhead.
   function fadeAtProfileDepth(profile, depthBelowRock) {
@@ -3543,41 +3725,77 @@ function buildProfileSvg(rows) {
     return false;
   }
 
-  const legendSeenGraphics = new Set();
-  const legendItems = [];
+  // ── CATEGORIZE LEGEND DATA INTO STRUCTURED SEMANTIC GROUPS ──
+  // Group 1: Soil Stratigraphy (BS 5930)
+  const soilItems = [];
   masterSoilUnits.forEach((u, uIdx) => {
-    if (!masterUnitHasRenderedArea(uIdx)) return; // never actually drawn — omit from legend
+    if (!masterUnitHasRenderedArea(uIdx)) return;
     const meta = soilUnitMeta[u];
     const info = getGraphicInfo(meta.graphic);
-    const dedupeKey = info.label;
-    if (legendSeenGraphics.has(dedupeKey)) return;
-    legendSeenGraphics.add(dedupeKey);
-    legendItems.push({ label: info.label, color: info.color, isRock: false });
+    if (!soilItems.some(it => it.label === info.label)) {
+      soilItems.push({ label: info.label, color: info.color });
+    }
   });
   lensLayers.forEach(lens => {
     const info = getGraphicInfo(lens.graphic);
-    const dedupeKey = info.label;
-    if (legendSeenGraphics.has(dedupeKey)) return;
-    legendSeenGraphics.add(dedupeKey);
-    legendItems.push({ label: info.label, color: info.color, isRock: false });
+    if (!soilItems.some(it => it.label === info.label)) {
+      soilItems.push({ label: info.label, color: info.color });
+    }
   });
+
+  // Group 2: Bedrock & Weathering Grades
+  const rockItems = [];
   if (anyWeatheringData) {
     WEATHERING_GRADE_ORDER.forEach(grade => {
-      legendItems.push({ label: WEATHERING_GRADE_LABELS[grade], color: WEATHERING_GRADE_COLORS[grade], isRock: true });
+      rockItems.push({ label: WEATHERING_GRADE_LABELS[grade], color: WEATHERING_GRADE_COLORS[grade] });
     });
   } else {
-    legendItems.push({ label: 'Bedrock', color: bedrockColor, isRock: true });
+    rockItems.push({ label: 'Bedrock (Unweathered)', color: bedrockColor });
   }
-  legendItems.push({ label: 'Groundwater Table', color: '#1e6fd9', isLine: true, dash: '5,3' });
-  legendItems.push({ label: 'Bedrock Contact', color: '#7a2f1e', isLine: true, dash: '6,4' });
-  legendItems.push({ label: 'Soil Origin Boundary', color: '#3a3a3a', isLine: true, dash: '4,3' });
-  const legendRowH = 24;
-  const legendRows = Math.ceil(legendItems.length / 4) + (originLegendItems.length ? Math.ceil(originLegendItems.length / 4) + 1 : 0);
-  // +60 reserves room for a few stacked termination-label rows (see the
-  // vertical-stagger termination label pass below) — mirrors how padTop is
-  // also a fixed budget rather than dynamically computed from actual label
-  // stacking, consistent with the existing BH header label approach.
-  const padBottom = 80 + legendRows * legendRowH + 40 + 18 + 60;
+
+  // Group 3: Geological Boundaries & Hydrogeology
+  const lineItems = [];
+  lineItems.push({ label: 'Bedrock Contact (Rockhead)', color: '#7a2f1e', dash: '6,4', isLine: true });
+  if (opts.showGWT !== false && gwDepthPts.length >= 1) {
+    lineItems.push({ label: 'Groundwater Table (GWT)', color: '#1e6fd9', dash: '5,3', isLine: true, isGwt: true });
+  }
+  lineItems.push({ label: 'Soil Origin Boundary', color: '#3a3a3a', dash: '4,3', isLine: true });
+
+  // Group 4: Depositional Origin (Texture Overlays)
+  const originItems = originLegendItems.map(item => ({
+    label: item.label,
+    patternId: item.patternId
+  }));
+
+  // Group 5: In-Situ Testing & Rock Mass Quality (when enabled)
+  const inSituItems = [];
+  if (opts.showSPT) {
+    inSituItems.push({ label: 'SPT N-Value (0 - 50+ / Refusal)', color: '#3f804f', isSpt: true });
+  }
+  if (opts.showRQD) {
+    inSituItems.push({ label: 'RQD % (Rock Quality Designation)', color: '#28a745', isRqd: true });
+    inSituItems.push({ label: 'Core Recovery (CR %)', color: '#c2cbd0', isCr: true });
+  }
+
+  // Calculate exact modular dimensions
+  const legW = plotW;
+  const colGap = 12;
+  const col1W = Math.round(legW * 0.40);
+  const col2W = Math.round(legW * 0.30);
+  const col3W = legW - col1W - col2W - (colGap * 2);
+
+  const soilCols = col1W > 270 ? 2 : 1;
+  const soilRows = Math.ceil(soilItems.length / soilCols);
+  const rockRows = rockItems.length;
+  const lineRows = lineItems.length;
+  const maxTopRows = Math.max(soilRows, rockRows, lineRows, 2);
+  const topCardH = 34 + maxTopRows * 22;
+
+  const originCardH = originItems.length ? 50 : 0;
+  const testCardH = inSituItems.length ? 50 : 0;
+
+  const totalLegendH = 36 + topCardH + (originCardH ? originCardH + 12 : 0) + (testCardH ? testCardH + 12 : 0) + 52;
+  const padBottom = 85 + totalLegendH + 60;
   const svgH = plotH + padTop + padBottom;
   const axisY = padTop + plotH;
 
@@ -4107,8 +4325,8 @@ function buildProfileSvg(rows) {
   <path d="${ptsToCubicBezier(rockPolyPts)}" fill="none" stroke="#7a2f1e" stroke-width="2.2" stroke-dasharray="6,4"/>`;
 
 
-  // 4. RENDER GROUNDWATER TABLE LINE (full width, terrain-following, strictly below ground)
-  if (gwDepthPts.length >= 1) {
+  // 4. RENDER GROUNDWATER TABLE LINE & STANDARD INTERNATIONAL SYMBOLS
+  if (opts.showGWT !== false && gwDepthPts.length >= 1) {
     const gwCurvePts = [];
     sampleDists.forEach(d => {
       const x = xPos(d);
@@ -4117,16 +4335,40 @@ function buildProfileSvg(rows) {
     });
     if (gwCurvePts.length >= 2) {
       svg += `<!-- Groundwater Table Line -->
-      <path d="${ptsToCubicBezier(gwCurvePts)}" fill="none" stroke="#1e6fd9" stroke-width="2.0" stroke-dasharray="5,3"/>`;
+      <path d="${ptsToCubicBezier(gwCurvePts)}" fill="none" stroke="#1e6fd9" stroke-width="2.0" stroke-dasharray="6,3"/>`;
     }
-    gwDepthPts.forEach(pt => {
-      const x = xPos(pt.x);
-      const zG = getZGround(pt.x);
-      const zGw = zG - pt.y;
-      const y = yPos(zGw);
-      svg += `<polygon points="${x - 4},${y} ${x + 4},${y} ${x},${y + 6}" fill="#1e6fd9"/>`;
-      svg += `<line x1="${x - 6}" y1="${y}" x2="${x + 6}" y2="${y}" stroke="#1e6fd9" stroke-width="1.5"/>`;
-    });
+
+    // Helper: Standard International Groundwater Level Symbol (Inverted triangle + graduated horizontal bars)
+    function renderGwtSymbol(x, y, scale = 1.0) {
+      const w1 = 5.5 * scale, w2 = 3.5 * scale, w3 = 1.8 * scale;
+      const hTri = 6.0 * scale;
+      return `<g class="gwt-symbol">
+        <polygon points="${(x - w1).toFixed(1)},${(y - hTri).toFixed(1)} ${(x + w1).toFixed(1)},${(y - hTri).toFixed(1)} ${x.toFixed(1)},${y.toFixed(1)}" fill="#1e6fd9" stroke="#ffffff" stroke-width="0.5"/>
+        <line x1="${(x - w1 - 2.5).toFixed(1)}" y1="${y.toFixed(1)}" x2="${(x + w1 + 2.5).toFixed(1)}" y2="${y.toFixed(1)}" stroke="#1e6fd9" stroke-width="1.4"/>
+        <line x1="${(x - w2).toFixed(1)}" y1="${(y + 2.2 * scale).toFixed(1)}" x2="${(x + w2).toFixed(1)}" y2="${(y + 2.2 * scale).toFixed(1)}" stroke="#1e6fd9" stroke-width="1.1"/>
+        <line x1="${(x - w3).toFixed(1)}" y1="${(y + 4.2 * scale).toFixed(1)}" x2="${(x + w3).toFixed(1)}" y2="${(y + 4.2 * scale).toFixed(1)}" stroke="#1e6fd9" stroke-width="0.9"/>
+      </g>`;
+    }
+
+    // Render symbols along the groundwater table line in each inter-borehole span
+    if (rows.length >= 2) {
+      for (let j = 0; j < rows.length - 1; j++) {
+        const dMid = (distances[j] + distances[j + 1]) / 2;
+        const zGw = getZWater(dMid);
+        if (zGw !== null) {
+          const x = xPos(dMid);
+          const y = yPos(zGw);
+          svg += renderGwtSymbol(x, y, 1.0);
+        }
+      }
+    } else {
+      gwDepthPts.forEach(pt => {
+        const x = xPos(pt.x) + 16;
+        const zG = getZGround(pt.x);
+        const y = yPos(zG - pt.y);
+        svg += renderGwtSymbol(x, y, 1.0);
+      });
+    }
   }
 
   // 5. RENDER GROUND SURFACE SMOOTH LINE (full width including side extensions)
@@ -4197,6 +4439,61 @@ function buildProfileSvg(rows) {
 
     // Outer pillar outline: lighter ash grey #666666 (was near-black #111111)
     svg += `<rect x="${(x - colW / 2).toFixed(1)}" y="${yG.toFixed(1)}" width="${colW.toFixed(1)}" height="${(yTerm - yG).toFixed(1)}" fill="none" stroke="#666666" stroke-width="1.0"/>`;
+
+    // ── IN-SITU TESTING & ROCK QUALITY DATA (SPT N-VALUES & RQD BARS) ──
+    const tests = getBHTests(r);
+    if (tests && tests.length) {
+      tests.forEach(t => {
+        const yTop = yPos(zG - t.depth);
+        const yBot = yPos(zG - (t.depth + (t.length || 0.45)));
+        const h = Math.max(Math.abs(yBot - yTop), 3.5);
+
+        // 1. SPT N-VALUE CALLOUT (Left side of borehole pillar)
+        if (opts.showSPT && t.nVal !== null && (t.type === 'SPT' || t.nVal > 0)) {
+          const nVal = t.nVal;
+          const isRefusal = nVal >= 50;
+          const nTxt = isRefusal ? '50+' : String(Math.round(nVal));
+          const barW = Math.min(Math.max((nVal / 50) * 16, 4), 20);
+          const barX = x - colW / 2 - 2 - barW;
+          const barY = yTop;
+          // Standard soil density/consistency color-coding
+          const barColor = isRefusal ? '#a82c2c' : (nVal >= 30 ? '#c97a2b' : (nVal >= 10 ? '#3f804f' : '#4a789c'));
+
+          svg += `<rect x="${barX.toFixed(1)}" y="${barY.toFixed(1)}" width="${barW.toFixed(1)}" height="${Math.max(h, 4).toFixed(1)}" fill="${barColor}" opacity="0.85" rx="1"/>`;
+          svg += `<text x="${(barX - 2).toFixed(1)}" y="${(barY + Math.max(h, 4) / 2 + 2.8).toFixed(1)}" font-size="7.5" fill="${barColor}" font-weight="700" text-anchor="end">N=${nTxt}</text>`;
+        }
+
+        // 2. RQD & CORE RECOVERY (CR) BARS (Right side of borehole pillar in rock zone)
+        if (opts.showRQD && (t.rqd !== null || t.cr !== null) && t.type !== 'SPT') {
+          const rqdVal = t.rqd !== null ? t.rqd : 0;
+          const crVal = t.cr !== null ? t.cr : 0;
+          const maxTrackW = 20; // 0 to 20px
+          const rqdW = Math.min(Math.max((rqdVal / 100) * maxTrackW, 0), maxTrackW);
+          const crW = Math.min(Math.max((crVal / 100) * maxTrackW, 0), maxTrackW);
+          const trackX = x + colW / 2 + 2;
+          const barY = yTop;
+
+          // RQD Color classification (ISRM / ASTM D6032)
+          let rqdColor = '#d9534f'; // <25% Very Poor (Red)
+          if (rqdVal >= 90) rqdColor = '#1e7e34'; // 90-100% Excellent (Dark Green)
+          else if (rqdVal >= 75) rqdColor = '#28a745'; // 75-90% Good (Green)
+          else if (rqdVal >= 50) rqdColor = '#d4a017'; // 50-75% Fair (Amber)
+          else if (rqdVal >= 25) rqdColor = '#e67e22'; // 25-50% Poor (Orange)
+
+          // Background Core Recovery (CR) track
+          if (crVal > 0) {
+            svg += `<rect x="${trackX.toFixed(1)}" y="${barY.toFixed(1)}" width="${crW.toFixed(1)}" height="${Math.max(h, 4).toFixed(1)}" fill="#c2cbd0" stroke="#99a6ad" stroke-width="0.3" opacity="0.6" rx="1"/>`;
+          }
+          // Foreground RQD track
+          if (rqdVal > 0) {
+            svg += `<rect x="${trackX.toFixed(1)}" y="${barY.toFixed(1)}" width="${rqdW.toFixed(1)}" height="${Math.max(h, 4).toFixed(1)}" fill="${rqdColor}" opacity="0.9" rx="1"/>`;
+          }
+          // Label
+          const rqdTxt = `RQD:${Math.round(rqdVal)}%`;
+          svg += `<text x="${(trackX + Math.max(crW, rqdW) + 2).toFixed(1)}" y="${(barY + Math.max(h, 4) / 2 + 2.8).toFixed(1)}" font-size="7" fill="#444444" font-weight="600" text-anchor="start">${rqdTxt}</text>`;
+        }
+      });
+    }
 
     // BH labels are placed in a vertical-stagger second pass below
     bhLabelInfo.push({ x, yG, bhName, glText: `GL ${zG.toFixed(1)}m` });
@@ -4305,62 +4602,106 @@ function buildProfileSvg(rows) {
     });
   }
 
-  const legX = padLeft;
-  const legTitleY = axisY + 58; // moved down to give Distance axis label room above legend
-  const legBodyY  = legTitleY + 22; // gap between title and first row
-  svg += `<g id="legend-group">`;
-  svg += `<text x="${legX}" y="${legTitleY}" font-size="11.5" font-weight="700" fill="#1c2b2a" letter-spacing="0.04em">ENGINEERING GEOLOGY STRATIGRAPHIC LEGEND</text>`;
+  // ── RENDER STRUCTURED MODULAR GEOLOGICAL & GEOTECHNICAL LEGEND ──
+  const legStartY = axisY + 80;
+  
+  svg += `<g id="legend-modular" font-family="Inter, sans-serif">`;
+  svg += `<text x="${padLeft}" y="${axisY + 64}" font-size="11" font-weight="800" fill="#1c2b2a" letter-spacing="0.04em">ENGINEERING GEOLOGY STRATIGRAPHIC & GEOTECHNICAL LEGEND</text>`;
+  
+  // Section 1: 3-Column Top Grid (Soil Stratigraphy, Bedrock & Weathering, Contacts & Hydrology)
+  const card1X = padLeft;
+  const card2X = card1X + col1W + colGap;
+  const card3X = card2X + col2W + colGap;
 
-  let curX = legX;
-  let curRow = 0;
-  const itemW = 155; // wider columns so text has room to breathe
-  legendItems.forEach(item => {
-    if (curX + itemW > padLeft + plotW - 10) {
-      curRow++;
-      curX = legX;
-    }
-    const itemY = legBodyY + curRow * legendRowH;
-
-    if (item.isLine) {
-      svg += `<line x1="${curX}" y1="${itemY - 5}" x2="${curX + 24}" y2="${itemY - 5}" stroke="${item.color}" stroke-width="2" stroke-dasharray="${item.dash}"/>`;
-      svg += `<text x="${curX + 30}" y="${itemY}" font-size="9.5" fill="#333" font-weight="500">${item.label}</text>`;
-    } else {
-      svg += `<rect x="${curX}" y="${itemY - 10}" width="17" height="11" fill="${item.color}" stroke="#555" stroke-width="0.7" rx="1"/>`;
-      svg += `<text x="${curX + 23}" y="${itemY}" font-size="9.5" fill="#333" font-weight="500">${item.label}</text>`;
-    }
-
-    curX += itemW;
+  // Top Card 1: Soil Stratigraphy (BS 5930)
+  svg += `<rect x="${card1X}" y="${legStartY}" width="${col1W}" height="${topCardH}" fill="#faf9f6" stroke="#e0dbce" stroke-width="1" rx="5"/>`;
+  svg += `<rect x="${card1X}" y="${legStartY}" width="${col1W}" height="24" fill="#eeebe2" stroke="#e0dbce" stroke-width="1" rx="5"/>`;
+  svg += `<rect x="${card1X}" y="${legStartY + 18}" width="${col1W}" height="6" fill="#eeebe2" stroke="none"/>`;
+  svg += `<text x="${card1X + 10}" y="${legStartY + 16}" font-size="9.5" font-weight="700" fill="#2c3e50" letter-spacing="0.02em">SOIL STRATIGRAPHY (BS 5930)</text>`;
+  
+  soilItems.forEach((it, idx) => {
+    const c = idx % soilCols;
+    const r = Math.floor(idx / soilCols);
+    const itX = card1X + 10 + c * (col1W / soilCols);
+    const itY = legStartY + 35 + r * 22;
+    svg += `<rect x="${itX}" y="${itY - 9}" width="14" height="10" fill="${it.color}" stroke="#666" stroke-width="0.6" rx="1.5"/>`;
+    svg += `<text x="${itX + 19}" y="${itY}" font-size="9" fill="#333333" font-weight="500">${it.label}</text>`;
   });
 
-  // Origin hatch key (rule 6) — separate row(s), since origin texture and
-  // BSCS colour are two independent visual channels on the same layer.
-  let originLegendEndRow = curRow;
-  if (originLegendItems.length) {
-    curRow++;
-    const hatchTitleY = legBodyY + curRow * legendRowH - 6;
-    svg += `<text x="${legX}" y="${hatchTitleY}" font-size="9.5" font-weight="700" fill="#4a453c">SOIL ORIGIN (texture overlay):</text>`;
-    curRow++;
-    curX = legX;
-    originLegendItems.forEach(item => {
-      if (curX + itemW > padLeft + plotW - 10) {
-        curRow++;
-        curX = legX;
-      }
-      const itemY = legBodyY + curRow * legendRowH;
-      svg += `<rect x="${curX}" y="${itemY - 10}" width="17" height="11" fill="#e8e4d8" stroke="#555" stroke-width="0.7" rx="1"/>`;
-      svg += `<rect x="${curX}" y="${itemY - 10}" width="17" height="11" fill="url(#${item.patternId})" stroke="none" rx="1"/>`;
-      svg += `<text x="${curX + 23}" y="${itemY}" font-size="9.5" fill="#333" font-weight="500">${item.label}</text>`;
-      curX += itemW;
+  // Top Card 2: Bedrock & Weathering
+  svg += `<rect x="${card2X}" y="${legStartY}" width="${col2W}" height="${topCardH}" fill="#faf9f6" stroke="#e0dbce" stroke-width="1" rx="5"/>`;
+  svg += `<rect x="${card2X}" y="${legStartY}" width="${col2W}" height="24" fill="#eeebe2" stroke="#e0dbce" stroke-width="1" rx="5"/>`;
+  svg += `<rect x="${card2X}" y="${legStartY + 18}" width="${col2W}" height="6" fill="#eeebe2" stroke="none"/>`;
+  svg += `<text x="${card2X + 10}" y="${legStartY + 16}" font-size="9.5" font-weight="700" fill="#2c3e50" letter-spacing="0.02em">BEDROCK & WEATHERING</text>`;
+  
+  rockItems.forEach((it, idx) => {
+    const itX = card2X + 10;
+    const itY = legStartY + 35 + idx * 22;
+    svg += `<rect x="${itX}" y="${itY - 9}" width="14" height="10" fill="${it.color}" stroke="#666" stroke-width="0.6" rx="1.5"/>`;
+    svg += `<text x="${itX + 19}" y="${itY}" font-size="9" fill="#333333" font-weight="500">${it.label}</text>`;
+  });
+
+  // Top Card 3: Contacts & Hydrology
+  svg += `<rect x="${card3X}" y="${legStartY}" width="${col3W}" height="${topCardH}" fill="#faf9f6" stroke="#e0dbce" stroke-width="1" rx="5"/>`;
+  svg += `<rect x="${card3X}" y="${legStartY}" width="${col3W}" height="24" fill="#eeebe2" stroke="#e0dbce" stroke-width="1" rx="5"/>`;
+  svg += `<rect x="${card3X}" y="${legStartY + 18}" width="${col3W}" height="6" fill="#eeebe2" stroke="none"/>`;
+  svg += `<text x="${card3X + 10}" y="${legStartY + 16}" font-size="9.5" font-weight="700" fill="#2c3e50" letter-spacing="0.02em">CONTACTS & HYDROLOGY</text>`;
+  
+  lineItems.forEach((it, idx) => {
+    const itX = card3X + 10;
+    const itY = legStartY + 35 + idx * 22;
+    svg += `<line x1="${itX}" y1="${itY - 4}" x2="${itX + 22}" y2="${itY - 4}" stroke="${it.color}" stroke-width="2" stroke-dasharray="${it.dash}"/>`;
+    if (it.isGwt) {
+      svg += renderGwtSymbol(itX + 11, itY - 4, 0.75);
+    }
+    svg += `<text x="${itX + 28}" y="${itY}" font-size="9" fill="#333333" font-weight="500">${it.label}</text>`;
+  });
+
+  // Section 2 Card: Depositional Origin (Texture Overlays)
+  let curBottomY = legStartY + topCardH + 10;
+  if (originItems.length) {
+    const originCardH = 48;
+    svg += `<rect x="${padLeft}" y="${curBottomY}" width="${legW}" height="${originCardH}" fill="#faf9f6" stroke="#e0dbce" stroke-width="1" rx="5"/>`;
+    svg += `<text x="${padLeft + 10}" y="${curBottomY + 16}" font-size="9" font-weight="700" fill="#4a453c" letter-spacing="0.02em">SOIL ORIGIN (TEXTURE OVERLAYS):</text>`;
+    
+    const origSpacing = legW / Math.max(originItems.length, 1);
+    originItems.forEach((it, idx) => {
+      const itX = padLeft + 12 + idx * Math.min(origSpacing, 220);
+      const itY = curBottomY + 34;
+      svg += `<rect x="${itX}" y="${itY - 9}" width="16" height="11" fill="#e8e4d8" stroke="#666" stroke-width="0.6" rx="1.5"/>`;
+      svg += `<rect x="${itX}" y="${itY - 9}" width="16" height="11" fill="url(#${it.patternId})" stroke="none" rx="1.5"/>`;
+      svg += `<text x="${itX + 22}" y="${itY}" font-size="9" fill="#333333" font-weight="500">${it.label}</text>`;
     });
-    originLegendEndRow = curRow;
+    curBottomY += originCardH + 10;
   }
 
-  const noteY = legBodyY + (originLegendEndRow + 1) * legendRowH + 16;
-  svg += `<text x="${legX}" y="${noteY}" font-size="8.5" fill="#c0392b" font-weight="700">⚠️ CAUTION NOTE:</text>`;
-  svg += `<text x="${legX + 85}" y="${noteY}" font-size="8.5" fill="#555555" font-style="italic">This 2D cross-section is automatically generated by spatial interpolation between borehole data. Use with caution for preliminary conceptual modeling only.</text>`;
+  // Section 3 Card: In-Situ Testing & Rock Mass Quality (when enabled)
+  if (inSituItems.length) {
+    const testCardH = 48;
+    svg += `<rect x="${padLeft}" y="${curBottomY}" width="${legW}" height="${testCardH}" fill="#faf9f6" stroke="#e0dbce" stroke-width="1" rx="5"/>`;
+    svg += `<text x="${padLeft + 10}" y="${curBottomY + 16}" font-size="9" font-weight="700" fill="#4a453c" letter-spacing="0.02em">IN-SITU TESTING & ROCK MASS QUALITY:</text>`;
+    
+    const testSpacing = Math.min(legW / inSituItems.length, 290);
+    inSituItems.forEach((it, idx) => {
+      const itX = padLeft + 12 + idx * testSpacing;
+      const itY = curBottomY + 34;
+      if (it.isCr) {
+        svg += `<rect x="${itX}" y="${itY - 8}" width="16" height="10" fill="${it.color}" stroke="#99a6ad" stroke-width="0.5" rx="1.5"/>`;
+      } else {
+        svg += `<rect x="${itX}" y="${itY - 8}" width="16" height="10" fill="${it.color}" rx="1.5"/>`;
+      }
+      svg += `<text x="${itX + 22}" y="${itY}" font-size="9" fill="#333333" font-weight="500">${it.label}</text>`;
+    });
+    curBottomY += testCardH + 10;
+  }
 
-  const copyrightY = noteY + 20;
-  svg += `<text x="${legX}" y="${copyrightY}" font-size="8" fill="#8a8378" font-weight="500">© ${new Date().getFullYear()} Geotechnical Engineering Division, National Building Research Institute (NBRI). All rights reserved.</text>`;
+  // Caution Note & Copyright Footer
+  const noteY = curBottomY + 14;
+  svg += `<text x="${padLeft}" y="${noteY}" font-size="8.5" fill="#c0392b" font-weight="700">⚠️ CAUTION NOTE:</text>`;
+  svg += `<text x="${padLeft + 85}" y="${noteY}" font-size="8.5" fill="#555555" font-style="italic">This 2D cross-section is automatically generated by spatial interpolation between borehole data. Use with caution for preliminary conceptual modeling only.</text>`;
+
+  const copyrightY = noteY + 18;
+  svg += `<text x="${padLeft}" y="${copyrightY}" font-size="8" fill="#8a8378" font-weight="500">© ${new Date().getFullYear()} Geotechnical Engineering Division, National Building Research Institute (NBRI). All rights reserved.</text>`;
   svg += `</g>`;
 
   svg += `</svg>`;
@@ -4371,9 +4712,35 @@ let currentProfileRows = null;
 
 function showProfileModal(rows){
   currentProfileRows = rows;
-  const svg = buildProfileSvg(rows);
+  // Sync modal checkbox states from profileOptions
+  const sptEl = document.getElementById('modal-opt-spt');
+  const rqdEl = document.getElementById('modal-opt-rqd');
+  const gwtEl = document.getElementById('modal-opt-gwt');
+  const weaEl = document.getElementById('modal-opt-weathering');
+  if (sptEl) sptEl.checked = profileOptions.showSPT;
+  if (rqdEl) rqdEl.checked = profileOptions.showRQD;
+  if (gwtEl) gwtEl.checked = profileOptions.showGWT;
+  if (weaEl) weaEl.checked = profileOptions.showWeathering;
+
+  const svg = buildProfileSvg(rows, profileOptions);
   document.getElementById('profile-modal-body').innerHTML = svg;
   document.getElementById('profile-modal-backdrop').classList.add('open');
+}
+
+function syncProfileOption(key, val) {
+  profileOptions[key] = val;
+  const modalEl = document.getElementById('modal-opt-' + key.replace('show', '').toLowerCase());
+  const sideEl = document.getElementById('sidebar-opt-' + key.replace('show', '').toLowerCase());
+  if (modalEl) modalEl.checked = val;
+  if (sideEl) sideEl.checked = val;
+  if (currentProfileRows && document.getElementById('profile-modal-backdrop').classList.contains('open')) {
+    const svg = buildProfileSvg(currentProfileRows, profileOptions);
+    document.getElementById('profile-modal-body').innerHTML = svg;
+  }
+}
+
+function toggleProfileOption(key, val) {
+  syncProfileOption(key, val);
 }
 
 document.getElementById('profile-close-btn').addEventListener('click', () => {
