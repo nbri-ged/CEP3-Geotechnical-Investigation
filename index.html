@@ -1245,8 +1245,14 @@ const GRAPHIC_CODE_INFO = {
 };
 const ROCK_KEYWORDS = ['BEDROCK','ROCK','GNEISS','GRANITE','QUARTZITE','SCHIST','MARBLE','DOLERITE','CHARNOCKITE','GABBRO','LIMESTONE'];
 
-function isRockCode(code){
+function isBoulderCode(code) {
   const up = (code || '').toUpperCase();
+  return up.includes('BOULDER') || up.includes('CORESTONE');
+}
+
+function isRockCode(code) {
+  const up = (code || '').toUpperCase();
+  if (isBoulderCode(up)) return false; // Boulders are isolated corestones in soil, NOT continuous regional bedrock
   return ROCK_KEYWORDS.some(k => up.includes(k));
 }
 
@@ -1261,6 +1267,9 @@ function graphicHashColor(code){
 function getGraphicInfo(code){
   const clean = (code || '').trim();
   const upper = clean.toUpperCase();
+  if (isBoulderCode(clean)){
+    return { label: 'Boulder / Corestone', color: '#b0a898', isBoulder: true, isRock: false };
+  }
   if (isRockCode(clean)){
     return { label: clean, color: '#8f8f95', isRock: true };
   }
@@ -1813,6 +1822,10 @@ const ORIGIN_HATCH_INFO = {
 function normalizeRockType(raw) {
   if (!raw) return 'Biotite Gneiss';
   const clean = raw.trim().toLowerCase();
+  if (clean.includes('marble') || clean.includes('limestone') || clean.includes('calcit')) return 'Marble';
+  if (clean.includes('amphibolite') || clean.includes('metabasite')) return 'Amphibolite';
+  if (clean.includes('pegmatite')) return 'Pegmatite';
+  if (clean.includes('schist') || clean.includes('mica schist')) return 'Schist';
   if (clean.includes('quartzite')) return 'Quartzite';
   if (clean.includes('garnet')) return 'Garnet Biotite Gneiss';
   if (clean.includes('quartzofeldspathic') || clean.includes('quartzo')) return 'Quartzofeldspathic Gneiss';
@@ -1832,48 +1845,77 @@ const ROCK_LITHOLOGY_CONFIG = {
   'Granitic Gneiss': { label: 'Granitic Gneiss', patternId: 'pat-rock-granite' },
   'Granulitic Gneiss': { label: 'Granulitic Gneiss', patternId: 'pat-rock-granulite' },
   'Hornblende Biotite Gneiss': { label: 'Hornblende Biotite Gneiss', patternId: 'pat-rock-hbg' },
-  'Charnockitic Gneiss': { label: 'Charnockitic Gneiss', patternId: 'pat-rock-charnockite' }
+  'Charnockitic Gneiss': { label: 'Charnockitic Gneiss', patternId: 'pat-rock-charnockite' },
+  'Marble': { label: 'Marble / Calc-Gneiss', patternId: 'pat-rock-marble' },
+  'Amphibolite': { label: 'Amphibolite', patternId: 'pat-rock-amphibolite' },
+  'Pegmatite': { label: 'Pegmatite', patternId: 'pat-rock-pegmatite' },
+  'Schist': { label: 'Schist', patternId: 'pat-rock-schist' }
 };
 
-function buildRockLithologyDefs() {
+function buildRockLithologyDefs(apparentDipAngle = 45, apparentDipDirectionStr = '→ B') {
+  // Rotate gneissic foliation patterns to match structural apparent dip angle & direction
+  const rot = Math.round(apparentDipDirectionStr === '← A' ? -apparentDipAngle : (apparentDipDirectionStr === '→ B' ? apparentDipAngle : 0));
+  const clampedRot = Math.max(-75, Math.min(75, rot));
+
   return `
-    <pattern id="pat-rock-bg" width="16" height="16" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
-      <!-- Standard Gneissic Foliation: Angled parallel wavy/solid lines -->
-      <line x1="0" y1="0" x2="16" y2="0" stroke="#252a2d" stroke-width="0.8" opacity="0.45"/>
-      <line x1="0" y1="8" x2="16" y2="8" stroke="#252a2d" stroke-width="0.6" stroke-dasharray="4,2" opacity="0.35"/>
+    <pattern id="pat-rock-bg" width="12" height="12" patternUnits="userSpaceOnUse" patternTransform="rotate(${clampedRot})">
+      <!-- Biotite Gneiss: Scaled down foliation lines matching apparent dip -->
+      <line x1="0" y1="0" x2="12" y2="0" stroke="#252a2d" stroke-width="0.65" opacity="0.45"/>
+      <line x1="0" y1="6" x2="12" y2="6" stroke="#252a2d" stroke-width="0.5" stroke-dasharray="3,1.5" opacity="0.35"/>
     </pattern>
-    <pattern id="pat-rock-gbg" width="18" height="18" patternUnits="userSpaceOnUse" patternTransform="rotate(35)">
+    <pattern id="pat-rock-gbg" width="14" height="14" patternUnits="userSpaceOnUse" patternTransform="rotate(${clampedRot})">
       <!-- Garnet Biotite Gneiss: Foliation lines + porphyroblast dots -->
-      <line x1="0" y1="0" x2="18" y2="0" stroke="#252a2d" stroke-width="0.8" opacity="0.45"/>
-      <circle cx="9" cy="9" r="1.5" fill="#1e2326" opacity="0.6"/>
+      <line x1="0" y1="0" x2="14" y2="0" stroke="#252a2d" stroke-width="0.65" opacity="0.45"/>
+      <circle cx="7" cy="7" r="1.1" fill="#1e2326" opacity="0.6"/>
     </pattern>
-    <pattern id="pat-rock-qfg" width="16" height="16" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
-      <!-- Quartzofeldspathic Gneiss: Double-line gneissic bands -->
-      <line x1="0" y1="0" x2="16" y2="0" stroke="#252a2d" stroke-width="1.0" opacity="0.5"/>
-      <line x1="0" y1="4" x2="16" y2="4" stroke="#252a2d" stroke-width="0.5" opacity="0.35"/>
+    <pattern id="pat-rock-qfg" width="12" height="12" patternUnits="userSpaceOnUse" patternTransform="rotate(${clampedRot})">
+      <!-- Quartzofeldspathic Gneiss: Double-line bands matching apparent dip -->
+      <line x1="0" y1="0" x2="12" y2="0" stroke="#252a2d" stroke-width="0.75" opacity="0.5"/>
+      <line x1="0" y1="3.5" x2="12" y2="3.5" stroke="#252a2d" stroke-width="0.4" opacity="0.35"/>
     </pattern>
-    <pattern id="pat-rock-quartzite" width="14" height="14" patternUnits="userSpaceOnUse">
-      <!-- Quartzite: Standard rectangular/brick cross grid -->
-      <rect x="0" y="0" width="14" height="14" fill="none" stroke="#252a2d" stroke-width="0.7" opacity="0.4"/>
-      <line x1="7" y1="0" x2="7" y2="14" stroke="#252a2d" stroke-width="0.6" stroke-dasharray="2,2" opacity="0.35"/>
+    <pattern id="pat-rock-quartzite" width="11" height="11" patternUnits="userSpaceOnUse">
+      <!-- Quartzite: Standard rectangular grid -->
+      <rect x="0" y="0" width="11" height="11" fill="none" stroke="#252a2d" stroke-width="0.55" opacity="0.4"/>
+      <line x1="5.5" y1="0" x2="5.5" y2="11" stroke="#252a2d" stroke-width="0.45" stroke-dasharray="2,1.5" opacity="0.35"/>
     </pattern>
-    <pattern id="pat-rock-granite" width="16" height="16" patternUnits="userSpaceOnUse">
+    <pattern id="pat-rock-granite" width="13" height="13" patternUnits="userSpaceOnUse">
       <!-- Granitic Gneiss: Plus / cross igneous structure -->
-      <path d="M4,2 L4,6 M2,4 L6,4 M12,10 L12,14 M10,12 L14,12" stroke="#252a2d" stroke-width="0.8" opacity="0.5"/>
+      <path d="M3.5,1.5 L3.5,5 M1.5,3.5 L5,3.5 M10,8.5 L10,12 M8.5,10 L12,10" stroke="#252a2d" stroke-width="0.65" opacity="0.5"/>
     </pattern>
-    <pattern id="pat-rock-granulite" width="12" height="12" patternUnits="userSpaceOnUse">
+    <pattern id="pat-rock-granulite" width="10" height="10" patternUnits="userSpaceOnUse">
       <!-- Granulitic Gneiss: Granular stippling dots -->
-      <circle cx="3" cy="3" r="0.9" fill="#252a2d" opacity="0.5"/>
-      <circle cx="9" cy="9" r="0.9" fill="#252a2d" opacity="0.5"/>
+      <circle cx="2.5" cy="2.5" r="0.7" fill="#252a2d" opacity="0.5"/>
+      <circle cx="7.5" cy="7.5" r="0.7" fill="#252a2d" opacity="0.5"/>
     </pattern>
-    <pattern id="pat-rock-hbg" width="14" height="14" patternUnits="userSpaceOnUse" patternTransform="rotate(35)">
+    <pattern id="pat-rock-hbg" width="12" height="12" patternUnits="userSpaceOnUse" patternTransform="rotate(${clampedRot})">
       <!-- Hornblende Biotite Gneiss: Dense angled needles -->
-      <line x1="0" y1="0" x2="14" y2="0" stroke="#252a2d" stroke-width="1.2" opacity="0.5"/>
+      <line x1="0" y1="0" x2="12" y2="0" stroke="#252a2d" stroke-width="0.9" opacity="0.5"/>
     </pattern>
-    <pattern id="pat-rock-charnockite" width="16" height="16" patternUnits="userSpaceOnUse">
+    <pattern id="pat-rock-charnockite" width="13" height="13" patternUnits="userSpaceOnUse">
       <!-- Charnockitic Gneiss: Diamond hypersthene pattern -->
-      <polygon points="4,1 7,4 4,7 1,4" fill="none" stroke="#252a2d" stroke-width="0.8" opacity="0.45"/>
-      <polygon points="12,9 15,12 12,15 9,12" fill="none" stroke="#252a2d" stroke-width="0.8" opacity="0.45"/>
+      <polygon points="3.5,1 6,3.5 3.5,6 1,3.5" fill="none" stroke="#252a2d" stroke-width="0.65" opacity="0.45"/>
+      <polygon points="10,7.5 12.5,10 10,12.5 7.5,10" fill="none" stroke="#252a2d" stroke-width="0.65" opacity="0.45"/>
+    </pattern>
+    <pattern id="pat-rock-marble" width="14" height="10" patternUnits="userSpaceOnUse">
+      <!-- Marble / Calcitic Gneiss: Standard brickwork pattern -->
+      <rect x="0" y="0" width="14" height="10" fill="none" stroke="#252a2d" stroke-width="0.6" opacity="0.45"/>
+      <line x1="7" y1="0" x2="7" y2="5" stroke="#252a2d" stroke-width="0.5" opacity="0.4"/>
+      <line x1="0" y1="5" x2="14" y2="5" stroke="#252a2d" stroke-width="0.6" opacity="0.45"/>
+      <line x1="0" y1="10" x2="14" y2="10" stroke="#252a2d" stroke-width="0.6" opacity="0.45"/>
+      <line x1="14" y1="5" x2="14" y2="10" stroke="#252a2d" stroke-width="0.5" opacity="0.4"/>
+    </pattern>
+    <pattern id="pat-rock-amphibolite" width="11" height="11" patternUnits="userSpaceOnUse" patternTransform="rotate(${clampedRot})">
+      <!-- Amphibolite: Dense interlocking prismatic dashes -->
+      <line x1="0" y1="2" x2="6" y2="2" stroke="#1e2326" stroke-width="1.1" opacity="0.6"/>
+      <line x1="5" y1="7" x2="11" y2="7" stroke="#1e2326" stroke-width="1.1" opacity="0.6"/>
+    </pattern>
+    <pattern id="pat-rock-pegmatite" width="15" height="15" patternUnits="userSpaceOnUse">
+      <!-- Pegmatite: Coarse interlocking angular crystals -->
+      <path d="M1,1 L7,4 L3,9 Z M8,8 L14,11 L10,14 Z" fill="none" stroke="#252a2d" stroke-width="0.65" opacity="0.5"/>
+    </pattern>
+    <pattern id="pat-rock-schist" width="12" height="12" patternUnits="userSpaceOnUse" patternTransform="rotate(${clampedRot})">
+      <!-- Schist: Highly fissile dense wavy foliation -->
+      <path d="M0,2 Q3,0 6,2 T12,2 M0,8 Q3,6 6,8 T12,8" fill="none" stroke="#252a2d" stroke-width="0.75" opacity="0.55"/>
     </pattern>`;
 }
 
@@ -3144,7 +3186,22 @@ let profileOptions = {
   showWeathering: true
 };
 
-function buildProfileSvg(rows, options = {}, distancesOverride = null, projectMeta = null) {
+function detectBHTrendAzimuth(rows) {
+  if (!rows || rows.length < 2) return 45.0;
+  const sorted = sortBoreholesByMapPosition(rows);
+  const e1 = toNum(sorted[0]['Easting']), n1 = toNum(sorted[0]['Northing']);
+  const e2 = toNum(sorted[sorted.length - 1]['Easting']), n2 = toNum(sorted[sorted.length - 1]['Northing']);
+  if (e1 === null || n1 === null || e2 === null || n2 === null) return 45.0;
+  const dE = e2 - e1, dN = n2 - n1;
+  if (Math.hypot(dE, dN) < 0.1) return 45.0;
+  let az = (Math.atan2(dE, dN) * 180) / Math.PI;
+  if (az < 0) az += 360;
+  return Math.round(az * 10) / 10;
+}
+
+function buildProfileSvg(rows, options = {}, projectMeta = null, distancesOverride = null) {
+  if (!rows || !rows.length) return '';
+
   const opts = Object.assign({
     showRockLithology: true,
     showSPT: true,
@@ -3153,14 +3210,20 @@ function buildProfileSvg(rows, options = {}, distancesOverride = null, projectMe
     showWeathering: true
   }, profileOptions, options);
 
+  const detectedAz = detectBHTrendAzimuth(rows);
   const meta = Object.assign({
     sectionMethod: 'sequential',
-    sectionAzimuth: 45,
+    sectionAzimuth: detectedAz,
     dipDirection: 45,
     dipAngle: 45,
     offsets: null,
     isProjection: false
   }, projectMeta || {});
+
+  // If sectionAzimuth was not explicitly customized by user, use the auto-detected borehole trend
+  if (!projectMeta || projectMeta.sectionAzimuth === undefined || projectMeta.sectionAzimuth === null) {
+    meta.sectionAzimuth = detectedAz;
+  }
 
   const appDip = calcApparentDip(meta.sectionAzimuth, meta.dipDirection, meta.dipAngle);
   const leftBearingDeg = (meta.sectionAzimuth + 180) % 360;
@@ -3253,7 +3316,7 @@ function buildProfileSvg(rows, options = {}, distancesOverride = null, projectMe
   });
 
   const totalDist = Math.max(distances[distances.length - 1], 1);
-  const padLeft = 85, padRight = 45, padTop = 115;
+  const padLeft = 85, padRight = 45, padTop = 95;
   // sideExt: small extension beyond first/last BH as a fraction of total distance
   const sideExtFraction = 0.04; // 4% of total distance on each side
   const sideExt = totalDist * sideExtFraction;
@@ -3262,7 +3325,7 @@ function buildProfileSvg(rows, options = {}, distancesOverride = null, projectMe
   const distMax = totalDist + sideExt;
   const distSpan = distMax - distMin;
   const plotMargin = 55; // Offset plot frame from Y-axis labels
-  const minInnerW = Math.max(650, totalDist * 0.18 + rows.length * 100);
+  const minInnerW = Math.max(700, totalDist * 0.18 + rows.length * 105);
   const plotW = minInnerW + plotMargin * 2;
   const plotH = 440;
   const svgW = plotW + padLeft + padRight;
@@ -3914,17 +3977,22 @@ function buildProfileSvg(rows, options = {}, distancesOverride = null, projectMe
     const raw = getBHWeathering(r);
     const zG = levelsArr[i].elevation !== null ? levelsArr[i].elevation : maxElev;
     const zR = effectiveRockLevel[i] !== null ? effectiveRockLevel[i] : zG - 5;
+    const zT = effectiveTermLevel[i] !== null ? effectiveTermLevel[i] : zR - 10;
     const dRock = Math.max(zG - zR, 0);
-    const dTerm = levelsArr[i].term !== null ? Math.max(zG - levelsArr[i].term, dRock + 1) : dRock + 10;
+    const dTerm = Math.max(zG - zT, dRock + 3.0);
     if (!raw || !raw.length) {
       return [{ zTop: zR, zBot: zG - dTerm, rockType: 'Biotite Gneiss', grade: 'fresh' }];
     }
-    const sorted = raw.slice().sort((a, b) => a.depth - b.depth);
+    // Filter out boulder / corestone entries from continuous bedrock formations
+    const sorted = raw.slice()
+      .filter(cur => !isBoulderCode(cur.rockType) && !isBoulderCode(cur.grade))
+      .sort((a, b) => a.depth - b.depth);
     const layers = [];
     for (let k = 0; k < sorted.length; k++) {
       const cur = sorted[k];
-      const nextDepth = k < sorted.length - 1 ? sorted[k+1].depth : dTerm;
       const topD = Math.max(cur.depth, dRock);
+      const dTermSafe = Math.max(dTerm, topD + 2.0);
+      const nextDepth = k < sorted.length - 1 ? sorted[k+1].depth : dTermSafe;
       const botD = Math.max(nextDepth, topD);
       const zTop = zG - topD;
       const zBot = zG - botD;
@@ -3938,13 +4006,31 @@ function buildProfileSvg(rows, options = {}, distancesOverride = null, projectMe
       }
     }
     if (!layers.length) {
-      layers.push({ zTop: zR, zBot: zG - dTerm, rockType: normalizeRockType(sorted[0].rockType), grade: sorted[0].grade || 'fresh' });
+      const defType = sorted.length ? normalizeRockType(sorted[0].rockType) : 'Biotite Gneiss';
+      layers.push({ zTop: zR, zBot: zG - dTerm, rockType: defType, grade: 'fresh' });
     }
     return layers;
   });
 
-  const sectionRockTypes = new Set();
-  rockLayersPerBH.forEach(layers => layers.forEach(l => sectionRockTypes.add(l.rockType)));
+  function getDominantRockType(layers) {
+    if (!layers || !layers.length) return 'Biotite Gneiss';
+    const totalThicknessByRock = {};
+    layers.forEach(l => {
+      const thick = Math.abs(l.zTop - l.zBot);
+      totalThicknessByRock[l.rockType] = (totalThicknessByRock[l.rockType] || 0) + thick;
+    });
+    let bestType = layers[0].rockType, maxThick = -1;
+    Object.keys(totalThicknessByRock).forEach(rType => {
+      if (totalThicknessByRock[rType] > maxThick) {
+        maxThick = totalThicknessByRock[rType];
+        bestType = rType;
+      }
+    });
+    return bestType;
+  }
+
+  const dominantRockPerBH = rows.map((r, i) => getDominantRockType(rockLayersPerBH[i]));
+  const sectionRockTypes = new Set(dominantRockPerBH);
 
   // ── CATEGORIZE LEGEND DATA INTO STRUCTURED SEMANTIC GROUPS ──
   // Group 1: Soil Stratigraphy (BS 5930)
@@ -3990,6 +4076,13 @@ function buildProfileSvg(rows, options = {}, distancesOverride = null, projectMe
     lineItems.push({ label: 'Groundwater Table (GWT)', color: '#1e6fd9', dash: '5,3', isLine: true, isGwt: true });
   }
   lineItems.push({ label: 'Soil Origin Boundary', color: '#3a3a3a', dash: '4,3', isLine: true });
+  const anyBoulders = rows.some((r, i) => {
+    const layers = layersArr[i];
+    return layers && layers.some(l => isBoulderCode(l.graphic) || isBoulderCode(l.origin));
+  });
+  if (anyBoulders) {
+    lineItems.push({ label: 'Isolated Boulder (in Soil)', color: '#7a6248', isBoulder: true });
+  }
 
   // Group 5: Depositional Origin (Texture Overlays)
   const originItems = originLegendItems.map(item => ({
@@ -4007,22 +4100,21 @@ function buildProfileSvg(rows, options = {}, distancesOverride = null, projectMe
     inSituItems.push({ label: 'Core Recovery (CR %)', color: '#c2cbd0', isCr: true });
   }
 
-  // Calculate exact modular dimensions
+  // Calculate exact modular dimensions for 4-card top row
   const legW = plotW;
-  const colGap = 12;
-  const col1W = Math.round(legW * 0.38);
-  const col2W = Math.round(legW * 0.33);
-  const col3W = legW - col1W - col2W - (colGap * 2);
+  const colGap = 10;
+  const col1W = Math.round(legW * 0.29); // Soil Stratigraphy
+  const col2W = Math.round(legW * 0.27); // Bedrock Lithology & Weathering
+  const col3W = Math.round(legW * 0.20); // Contacts & Hydrology
+  const col4W = legW - col1W - col2W - col3W - (colGap * 3); // Plan View Map Card (~24%)
 
-  const soilCols = col1W > 260 ? 2 : 1;
+  const soilCols = col1W > 240 ? 2 : 1;
   const soilRows = Math.ceil(soilItems.length / soilCols);
-  // Rock items use 28px row spacing, soil/line use 26px — card height must fit the tallest column
-  const rockRows = rockLithoItems.length + (weatherGradeItems.length ? Math.ceil(weatherGradeItems.length / 2) + 2 : 0);
-  const lineRows = lineItems.length;
   const soilColH = 38 + soilRows * 26;
   const rockColH = 38 + rockLithoItems.length * 28 + (weatherGradeItems.length ? Math.ceil(weatherGradeItems.length / 2) * 22 + 24 : 0);
-  const lineColH = 38 + lineRows * 26;
-  const topCardH = Math.max(soilColH, rockColH, lineColH, 80);
+  const lineColH = 38 + lineItems.length * 26;
+  const planCardH = 135;
+  const topCardH = Math.max(soilColH, rockColH, lineColH, planCardH, 110);
 
   const originCardH = originItems.length ? 50 : 0;
   const testCardH = inSituItems.length ? 50 : 0;
@@ -4050,7 +4142,7 @@ function buildProfileSvg(rows, options = {}, distancesOverride = null, projectMe
       <circle cx="6" cy="6" r="1.6" fill="none" stroke="#333333" stroke-width="0.5" opacity="0.28"/>
       <circle cx="13" cy="13" r="1.3" fill="none" stroke="#333333" stroke-width="0.5" opacity="0.28"/>
     </pattern>
-    ${buildRockLithologyDefs()}
+    ${buildRockLithologyDefs(appDip.angle, appDip.directionStr)}
     ${buildOriginHatchDefs()}
   </defs>`;
 
@@ -4069,24 +4161,30 @@ function buildProfileSvg(rows, options = {}, distancesOverride = null, projectMe
 
   // ── TOP TITLE & STRUCTURAL GEOLOGY METADATA BANNER ────────────────────────
   svg += `<!-- Profile Header Title & Metadata -->
-  <text x="${padLeft}" y="30" font-size="14" font-weight="800" fill="#0f172a" letter-spacing="0.02em">GEOLOGICAL CROSS-SECTION A — B</text>
-  <text x="${padLeft}" y="50" font-size="9.5" font-weight="600" fill="#334155">
-    ALIGNMENT AZIMUTH: <tspan font-weight="700" fill="#1e40af">${leftBearingStr} (A) ↔ ${rightBearingStr} (B)</tspan> | 
+  <text x="${padLeft}" y="24" font-size="13" font-weight="800" fill="#0f172a" letter-spacing="0.02em">ENGINEERING GEOLOGICAL CROSS-SECTION A — B</text>
+  <text x="${padLeft + plotW}" y="24" font-size="9.5" font-weight="800" fill="#1e293b" text-anchor="end">
+    <tspan fill="#1e40af">A [${leftBearingStr}]</tspan> ➔ <tspan fill="#b91c1c">B [${rightBearingStr}]</tspan>
+  </text>
+  <text x="${padLeft}" y="42" font-size="9" font-weight="600" fill="#334155">
+    ALIGNMENT AZIMUTH: <tspan font-weight="700" fill="#1e40af">${meta.sectionAzimuth.toFixed(1)}° N</tspan> | 
     FOLIATION: <tspan font-weight="700" fill="#0f766e">Dip Dir ${meta.dipDirection}° N / Dip ${meta.dipAngle}°</tspan> | 
     APPARENT DIP: <tspan font-weight="800" fill="#b91c1c">${appDip.angle.toFixed(1)}° ${appDip.directionStr}</tspan>
   </text>
-  <text x="${padLeft}" y="67" font-size="8.5" fill="#64748b" font-style="italic">
+  <text x="${padLeft}" y="57" font-size="8" fill="#64748b" font-style="italic">
     Method: ${meta.isProjection ? `Section Line Projection (Azimuth ${meta.sectionAzimuth.toFixed(1)}° N)` : 'Sequential Inter-Borehole Profile'} | Total Section Length: ${Math.round(totalDist)} m | Boreholes: ${rows.length}
   </text>
   `;
 
-  // ── PLAN VIEW INSET MAP (Top Right) ──────────────────────────────────────
-  svg += renderPlanViewInset(rows, distances, meta.sectionAzimuth, meta.offsets, padLeft + plotW - 220, 12, 220, 95);
-
-  // ── SECTION ENDPOINT BEARING MARKERS (Above Left & Right Axes) ────────────
-  svg += `<!-- Section Endpoints Bearing Indicators -->
-  <text x="${padLeft}" y="${padTop - 10}" font-size="10" font-weight="800" fill="#1e40af">A [${leftBearingStr}]</text>
-  <text x="${padLeft + plotW}" y="${padTop - 10}" font-size="10" font-weight="800" fill="#b91c1c" text-anchor="end">B [${rightBearingStr}]</text>
+  // ── SECTION ENDPOINT BEARING BADGES (Outside Left & Right Frame Margins) ──
+  svg += `<!-- Section Endpoints Bearing Indicators (Outer Axis Margins) -->
+  <g transform="translate(${(padLeft - 6).toFixed(1)}, ${(padTop - 8).toFixed(1)})">
+    <rect x="-38" y="-12" width="42" height="15" fill="#eff6ff" stroke="#93c5fd" stroke-width="1" rx="3"/>
+    <text x="-17" y="-1.5" font-size="8.5" font-weight="800" fill="#1e40af" text-anchor="middle">A [${leftBearingStr.split(' ')[0]}]</text>
+  </g>
+  <g transform="translate(${(padLeft + plotW + 6).toFixed(1)}, ${(padTop - 8).toFixed(1)})">
+    <rect x="-4" y="-12" width="42" height="15" fill="#fef2f2" stroke="#fca5a5" stroke-width="1" rx="3"/>
+    <text x="17" y="-1.5" font-size="8.5" font-weight="800" fill="#b91c1c" text-anchor="middle">B [${rightBearingStr.split(' ')[0]}]</text>
+  </g>
   `;
 
   // Grid Lines & Y Axis — use a "nice" integer step so labels read as whole metres
@@ -4560,121 +4658,141 @@ function buildProfileSvg(rows, options = {}, distancesOverride = null, projectMe
     svg += `</g>`;
   }
 
-  // STEP C3: Rock Lithology Standard Monochrome Hatches & Formation Boundaries
+  // STEP C3: Rock Lithology Standard Monochrome Hatches & Dipping Formation Boundaries
   if (opts.showRockLithology !== false && sectionRockTypes.size > 0) {
     svg += `<g clip-path="url(#${bedrockClipId})">`;
     const masterRockList = Array.from(sectionRockTypes);
+
+    // Apparent dip slope along section line (z change per meter of distance)
+    const dirSign = appDip.directionStr === '← A' ? -1 : (appDip.directionStr === '→ B' ? 1 : 0);
+    const dipSlope = Math.tan((appDip.angle * Math.PI) / 180) * dirSign;
+
+    // Helper: get dominant regional rock type of a borehole
+    function getDominantRockType(layers) {
+      if (!layers || !layers.length) return masterRockList[0] || 'Biotite Gneiss';
+      let bestType = layers[0].rockType, maxThick = -1;
+      layers.forEach(l => {
+        const thick = Math.abs(l.zTop - l.zBot);
+        if (thick > maxThick) {
+          maxThick = thick;
+          bestType = l.rockType;
+        }
+      });
+      return bestType;
+    }
+
+    const dominantRockPerBH = rows.map((r, i) => getDominantRockType(rockLayersPerBH[i]));
+
+    // Build polygons for each rock type
+    const polygonsByRock = {};
+    masterRockList.forEach(r => polygonsByRock[r] = { topPts: [], botPts: [] });
     const formationContactLines = [];
 
-    // ── PASS 1: compute raw zTop/zBot for every (rockType × sampleDist) ────────
-    // rawZBotMap[rType][si] = { zTop, zBot } or null
-    const rawZBotMap = {};
-    masterRockList.forEach(rType => {
-      rawZBotMap[rType] = sampleDists.map(d => {
-        const zRockHead = getZRock(d);
-        let zTop = null, zBot = null;
-        for (let j = 0; j < rows.length - 1; j++) {
-          if (d >= distances[j] && d <= distances[j + 1]) {
-            const frac = distances[j + 1] > distances[j]
-              ? (d - distances[j]) / (distances[j + 1] - distances[j]) : 0;
-            const lA = rockLayersPerBH[j].find(l => l.rockType === rType);
-            const lB = rockLayersPerBH[j + 1].find(l => l.rockType === rType);
-            const slope = appDip.slope; // Apparent dip slope along section
-            if (lA && lB) {
-              zTop = lA.zTop * (1 - frac) + lB.zTop * frac;
-              zBot = lA.zBot * (1 - frac) + lB.zBot * frac;
-            } else if (lA) {
-              const taper = Math.max(0, 1 - frac * 1.8);
-              const dX = d - distances[j];
-              const structShift = slope * dX * 0.35;
-              zTop = (lA.zTop * (1 - frac) + zRockHead * frac) - structShift;
-              zBot = (lA.zTop - (lA.zTop - lA.zBot) * taper) - structShift;
-            } else if (lB) {
-              const taper = Math.max(0, 1 - (1 - frac) * 1.8);
-              const dX = distances[j + 1] - d;
-              const structShift = slope * dX * 0.35;
-              zTop = (zRockHead * (1 - frac) + lB.zTop * frac) + structShift;
-              zBot = (lB.zTop - (lB.zTop - lB.zBot) * taper) + structShift;
-            }
+    // Helper: evaluate rock stratification at any distance d
+    sampleDists.forEach(d => {
+      const zRock = getZRock(d);
+      const x = xPos(d);
+
+      // Determine active borehole span
+      let j = 0;
+      if (d <= distances[0]) {
+        j = 0;
+      } else if (d >= distances[distances.length - 1]) {
+        j = distances.length - 2;
+      } else {
+        for (let s = 0; s < distances.length - 1; s++) {
+          if (d >= distances[s] - 1e-4 && d <= distances[s + 1] + 1e-4) {
+            j = s;
             break;
           }
         }
-        if (zTop !== null && zBot !== null && zTop > zBot + 0.05) {
-          return { zTop: Math.min(zTop, zRockHead), zBot };
-        }
-        return null;
-      });
-    });
+      }
 
-    // ── PASS 2: for each sample dist, find the single deepest rock type ─────────
-    // "Deepest" = lowest zBot elevation (smallest RL value = furthest underground)
-    // Only that one rock type may extend to minElev; all others stop at logged depth.
-    const deepestRockPerDist = sampleDists.map((d, si) => {
-      let minZBot = Infinity, deepestType = null;
-      masterRockList.forEach(rType => {
-        const v = rawZBotMap[rType][si];
-        if (v && v.zBot < minZBot) { minZBot = v.zBot; deepestType = rType; }
-      });
-      return deepestType;
-    });
+      const rockTypeA = dominantRockPerBH[j] || masterRockList[0];
+      const rockTypeB = dominantRockPerBH[j + 1] || masterRockList[0];
 
-    // ── PASS 3: build polygons and draw ─────────────────────────────────────────
-    masterRockList.forEach(rType => {
-      const conf = ROCK_LITHOLOGY_CONFIG[rType] || ROCK_LITHOLOGY_CONFIG['Biotite Gneiss'];
-      const topPts = [];
-      const botPts = [];
+      if (rockTypeA === rockTypeB) {
+        // Uniform rock type across this entire span — 100% filled with rockTypeA
+        polygonsByRock[rockTypeA].topPts.push([x, yPos(zRock)]);
+        polygonsByRock[rockTypeA].botPts.push([x, yPos(minElev)]);
+      } else {
+        // Transition between two differing rock formations across this span
+        const dMid = (distances[j] + distances[j + 1]) / 2;
+        const zR_A = getZRock(distances[j]);
+        const zR_B = getZRock(distances[j + 1]);
+        const zMid = (zR_A + zR_B) / 2;
+        const zContact = zMid - dipSlope * (d - dMid);
+        const zClamped = Math.max(minElev, Math.min(zRock, zContact));
 
-      sampleDists.forEach((d, si) => {
-        const v = rawZBotMap[rType][si];
-        if (!v) return;
-        const x = xPos(d);
-        // Only the globally-deepest rock type at this sample dist gets extended to minElev
-        const isDeepestHere = deepestRockPerDist[si] === rType;
-        const zBotFinal = isDeepestHere ? minElev : v.zBot;
-        topPts.push([x, yPos(v.zTop)]);
-        botPts.push([x, yPos(zBotFinal)]);
-      });
-
-      if (topPts.length >= 2) {
-        let polyD = `M ${topPts[0][0].toFixed(1)},${topPts[0][1].toFixed(1)}`;
-        for (let k = 1; k < topPts.length; k++) polyD += ` L ${topPts[k][0].toFixed(1)},${topPts[k][1].toFixed(1)}`;
-        for (let k = botPts.length - 1; k >= 0; k--) polyD += ` L ${botPts[k][0].toFixed(1)},${botPts[k][1].toFixed(1)}`;
-        polyD += ' Z';
-
-        svg += `<!-- Rock Stratum Hatch: ${conf.label} -->
-        <path d="${polyD}" fill="url(#${conf.patternId})" stroke="none"/>`;
-
-        // Formation contact line: bot edge, only where it's below rockhead AND
-        // above minElev (points AT minElev are the extended bottom — no contact line there)
-        if (masterRockList.length > 1) {
-          const contactRun = [];
-          for (let s = 0; s < botPts.length; s++) {
-            const xPt = botPts[s][0];
-            const yBot = botPts[s][1];
-            const yTerm = yPos(minElev);
-            let closestD = sampleDists[0];
-            let minDX = Math.abs(xPos(sampleDists[0]) - xPt);
-            for (let si = 1; si < sampleDists.length; si++) {
-              const dx = Math.abs(xPos(sampleDists[si]) - xPt);
-              if (dx < minDX) { minDX = dx; closestD = sampleDists[si]; }
-            }
-            const yRockHead = yPos(getZRock(closestD));
-            // Only draw contact where: below rockhead, strictly above minElev (not extended bottom)
-            if (yBot > yRockHead + 2 && yBot < yTerm - 4) contactRun.push(botPts[s]);
+        if (dirSign >= 0) {
+          // Dipping towards right B (-> B):
+          // Above contact is rockTypeA (up-dip, left); Below contact is rockTypeB (down-dip, right)
+          if (zRock > zClamped + 0.02) {
+            polygonsByRock[rockTypeA].topPts.push([x, yPos(zRock)]);
+            polygonsByRock[rockTypeA].botPts.push([x, yPos(zClamped)]);
           }
-          if (contactRun.length >= 2) formationContactLines.push(contactRun);
+          if (zClamped > minElev + 0.02) {
+            polygonsByRock[rockTypeB].topPts.push([x, yPos(zClamped)]);
+            polygonsByRock[rockTypeB].botPts.push([x, yPos(minElev)]);
+          }
+        } else {
+          // Dipping towards left A (<- A):
+          // Above contact is rockTypeB (up-dip, right); Below contact is rockTypeA (down-dip, left)
+          if (zRock > zClamped + 0.02) {
+            polygonsByRock[rockTypeB].topPts.push([x, yPos(zRock)]);
+            polygonsByRock[rockTypeB].botPts.push([x, yPos(zClamped)]);
+          }
+          if (zClamped > minElev + 0.02) {
+            polygonsByRock[rockTypeA].topPts.push([x, yPos(zClamped)]);
+            polygonsByRock[rockTypeA].botPts.push([x, yPos(minElev)]);
+          }
         }
       }
     });
 
-    // Draw geological formation contact boundaries between different rock types
-    formationContactLines.forEach(cRun => {
-      svg += `<!-- Geological Formation Contact Boundary -->
-      <path d="${ptsToCubicBezier(cRun, 0.55)}" fill="none" stroke="#78828c" stroke-width="1.1" stroke-dasharray="7,5" opacity="0.85"/>`;
+    // Draw polygons for each rock type
+    masterRockList.forEach(rType => {
+      const conf = ROCK_LITHOLOGY_CONFIG[rType] || ROCK_LITHOLOGY_CONFIG['Biotite Gneiss'];
+      const data = polygonsByRock[rType];
+      if (data && data.topPts.length >= 2 && data.botPts.length >= 2) {
+        let polyD = `M ${data.topPts[0][0].toFixed(1)},${data.topPts[0][1].toFixed(1)}`;
+        for (let k = 1; k < data.topPts.length; k++) polyD += ` L ${data.topPts[k][0].toFixed(1)},${data.topPts[k][1].toFixed(1)}`;
+        for (let k = data.botPts.length - 1; k >= 0; k--) polyD += ` L ${data.botPts[k][0].toFixed(1)},${data.botPts[k][1].toFixed(1)}`;
+        polyD += ' Z';
+
+        svg += `<!-- Rock Stratum Hatch: ${conf.label} -->
+        <path d="${polyD}" fill="url(#${conf.patternId})" stroke="none"/>`;
+      }
     });
+
+    // Draw geological formation contact lines strictly in the transition spans
+    for (let j = 0; j < rows.length - 1; j++) {
+      const rockTypeA = dominantRockPerBH[j];
+      const rockTypeB = dominantRockPerBH[j + 1];
+      if (rockTypeA && rockTypeB && rockTypeA !== rockTypeB) {
+        const dMid = (distances[j] + distances[j + 1]) / 2;
+        const zR_A = getZRock(distances[j]);
+        const zR_B = getZRock(distances[j + 1]);
+        const zMid = (zR_A + zR_B) / 2;
+        const run = [];
+        sampleDists.forEach(d => {
+          if (d >= distances[j] - 1e-4 && d <= distances[j + 1] + 1e-4) {
+            const zRock = getZRock(d);
+            const zC = zMid - dipSlope * (d - dMid);
+            if (zC <= zRock && zC >= minElev) {
+              run.push([xPos(d), yPos(zC)]);
+            }
+          }
+        });
+        if (run.length >= 2) {
+          svg += `<!-- Geological Formation Contact Boundary (Dipping along foliation) -->
+          <path d="${ptsToCubicBezier(run, 0.55)}" fill="none" stroke="#78828c" stroke-width="1.3" stroke-dasharray="7,5" opacity="0.95"/>`;
+        }
+      }
+    }
+
     svg += `</g>`;
   } else {
-
     // Default subtle bedrock texture overlay
     svg += `<path d="${bedrockD}" fill="url(#pat-bedrock)" stroke="none" opacity="0.4"/>`;
   }
@@ -4757,6 +4875,15 @@ function buildProfileSvg(rows, options = {}, distancesOverride = null, projectMe
         const yTop = yPos(zG - l.depth);
         const yBot = yPos(zG - l.bottom);
         const h = Math.max(yBot - yTop, 0.4);
+
+        if (info.isBoulder) {
+          // Dedicated Boulder / Corestone symbol on the borehole pillar
+          svg += `<rect x="${(x - colW / 2).toFixed(1)}" y="${yTop.toFixed(1)}" width="${colW.toFixed(1)}" height="${h.toFixed(1)}" fill="#c4bcaf" stroke="#5a5247" stroke-width="0.8" rx="3"/>`;
+          svg += `<ellipse cx="${x.toFixed(1)}" cy="${((yTop + yBot)/2).toFixed(1)}" rx="${(colW/2 - 2).toFixed(1)}" ry="${(Math.min(h/2 - 1, 4)).toFixed(1)}" fill="#ded8cd" stroke="#5a5247" stroke-width="0.6"/>`;
+          svg += `<text x="${(x + colW/2 + 3).toFixed(1)}" y="${((yTop + yBot)/2 + 2.5).toFixed(1)}" font-size="6.5" font-weight="700" fill="#7a6248">Boulder</text>`;
+          return;
+        }
+
         // For rock layers, tint with the same continuous weathering fade used
         // in the section fill, evaluated at this layer's own depth — so the
         // pillar reads consistently with the surrounding fade instead of a
@@ -4977,12 +5104,13 @@ function buildProfileSvg(rows, options = {}, distancesOverride = null, projectMe
   const legStartY = axisY + 80;
   
   svg += `<g id="legend-modular" font-family="Inter, sans-serif">`;
-  svg += `<text x="${padLeft}" y="${axisY + 64}" font-size="11" font-weight="800" fill="#1c2b2a" letter-spacing="0.04em">ENGINEERING GEOLOGY STRATIGRAPHIC & GEOTECHNICAL LEGEND</text>`;
+  svg += `<text x="${padLeft}" y="${axisY + 64}" font-size="11" font-weight="800" fill="#1c2b2a" letter-spacing="0.04em">ENGINEERING GEOLOGY STRATIGRAPHIC &amp; GEOTECHNICAL LEGEND</text>`;
   
-  // Section 1: 3-Column Top Grid (Soil Stratigraphy, Bedrock & Weathering, Contacts & Hydrology)
+  // Section 1: 4-Column Top Grid (Soil Stratigraphy, Bedrock & Weathering, Contacts & Hydrology, Plan View Map)
   const card1X = padLeft;
   const card2X = card1X + col1W + colGap;
   const card3X = card2X + col2W + colGap;
+  const card4X = card3X + col3W + colGap;
 
   // Top Card 1: Soil Stratigraphy (BS 5930)
   svg += `<rect x="${card1X}" y="${legStartY}" width="${col1W}" height="${topCardH}" fill="#faf9f6" stroke="#e0dbce" stroke-width="1" rx="5"/>`;
@@ -4995,12 +5123,12 @@ function buildProfileSvg(rows, options = {}, distancesOverride = null, projectMe
     const r = Math.floor(idx / soilCols);
     const itX = card1X + 10 + c * (col1W / soilCols);
     const itY = legStartY + 38 + r * 26;
-    const swW = 22, swH = 14;
+    const swW = 20, swH = 13;
     const clipId = `clip-soil-${idx}`;
-    svg += `<defs><clipPath id="${clipId}"><rect x="${itX}" y="${itY - 11}" width="${swW}" height="${swH}" rx="2"/></clipPath></defs>`;
-    svg += `<rect x="${itX}" y="${itY - 11}" width="${swW}" height="${swH}" fill="${it.color}" stroke="#666" stroke-width="0.7" rx="2"/>`;
-    if (it.patternId) svg += `<rect x="${itX}" y="${itY - 11}" width="${swW}" height="${swH}" fill="url(#${it.patternId})" clip-path="url(#${clipId})" stroke="none" rx="2"/>`;
-    svg += `<text x="${itX + swW + 5}" y="${itY}" font-size="9" fill="#333333" font-weight="500">${it.label}</text>`;
+    svg += `<defs><clipPath id="${clipId}"><rect x="${itX}" y="${itY - 10}" width="${swW}" height="${swH}" rx="2"/></clipPath></defs>`;
+    svg += `<rect x="${itX}" y="${itY - 10}" width="${swW}" height="${swH}" fill="${it.color}" stroke="#666" stroke-width="0.7" rx="2"/>`;
+    if (it.patternId) svg += `<rect x="${itX}" y="${itY - 10}" width="${swW}" height="${swH}" fill="url(#${it.patternId})" clip-path="url(#${clipId})" stroke="none" rx="2"/>`;
+    svg += `<text x="${itX + swW + 5}" y="${itY}" font-size="8.5" fill="#333333" font-weight="500">${it.label}</text>`;
   });
 
   // Top Card 2: Bedrock Lithology & Weathering
@@ -5010,18 +5138,15 @@ function buildProfileSvg(rows, options = {}, distancesOverride = null, projectMe
   svg += `<text x="${card2X + 10}" y="${legStartY + 16}" font-size="9.5" font-weight="700" fill="#2c3e50" letter-spacing="0.02em">BEDROCK LITHOLOGY &amp; WEATHERING</text>`;
   
   let curRockY = legStartY + 40;
-  const rSwW = 36, rSwH = 22;
+  const rSwW = 32, rSwH = 20;
   rockLithoItems.forEach((it, idx) => {
-    const rx = card2X + 10, ry = curRockY - 16;
+    const rx = card2X + 10, ry = curRockY - 15;
     const clipId = `clip-rock-${idx}`;
-    // Define clip so hatch pattern is fully contained within swatch bounds
     svg += `<defs><clipPath id="${clipId}"><rect x="${rx}" y="${ry}" width="${rSwW}" height="${rSwH}" rx="2"/></clipPath></defs>`;
-    // White base so hatches are visible against clean background
     svg += `<rect x="${rx}" y="${ry}" width="${rSwW}" height="${rSwH}" fill="#f0eeea" stroke="#555" stroke-width="0.8" rx="2"/>`;
     if (it.patternId) svg += `<rect x="${rx}" y="${ry}" width="${rSwW}" height="${rSwH}" fill="url(#${it.patternId})" clip-path="url(#${clipId})" stroke="none"/>`;
-    // Thin border on top of hatch to keep it crisp
     svg += `<rect x="${rx}" y="${ry}" width="${rSwW}" height="${rSwH}" fill="none" stroke="#555" stroke-width="0.8" rx="2"/>`;
-    svg += `<text x="${rx + rSwW + 6}" y="${curRockY - 4}" font-size="9" fill="#333333" font-weight="600">${it.label}</text>`;
+    svg += `<text x="${rx + rSwW + 6}" y="${curRockY - 3}" font-size="8.5" fill="#333333" font-weight="600">${it.label}</text>`;
     curRockY += 28;
   });
 
@@ -5036,8 +5161,8 @@ function buildProfileSvg(rows, options = {}, distancesOverride = null, projectMe
       const r = Math.floor(idx / wCols);
       const itX = card2X + 10 + c * wColW;
       const itY = curRockY + r * 22;
-      svg += `<rect x="${itX}" y="${itY - 10}" width="18" height="12" fill="${it.color}" stroke="#777" stroke-width="0.6" rx="2"/>`;
-      svg += `<text x="${itX + 22}" y="${itY}" font-size="8.5" fill="#444444" font-weight="500">${it.label.replace(' Weathered Rock', '').replace(' Rock', '')}</text>`;
+      svg += `<rect x="${itX}" y="${itY - 10}" width="16" height="11" fill="${it.color}" stroke="#777" stroke-width="0.6" rx="2"/>`;
+      svg += `<text x="${itX + 20}" y="${itY}" font-size="8" fill="#444444" font-weight="500">${it.label.replace(' Weathered Rock', '').replace(' Rock', '')}</text>`;
     });
   }
 
@@ -5050,13 +5175,20 @@ function buildProfileSvg(rows, options = {}, distancesOverride = null, projectMe
   lineItems.forEach((it, idx) => {
     const itX = card3X + 10;
     const itY = legStartY + 40 + idx * 26;
-    // Draw a wider dash sample so the dash pattern is clearly readable
-    svg += `<line x1="${itX}" y1="${itY - 5}" x2="${itX + 30}" y2="${itY - 5}" stroke="${it.color}" stroke-width="2" stroke-dasharray="${it.dash}"/>`;
-    if (it.isGwt) {
-      svg += renderGwtSymbol(itX + 15, itY - 5, 0.85);
+    if (it.isBoulder) {
+      svg += `<ellipse cx="${itX + 14}" cy="${itY - 5}" rx="8.5" ry="5.5" fill="#ded8cd" stroke="#7a6248" stroke-width="0.9"/>`;
+    } else {
+      svg += `<line x1="${itX}" y1="${itY - 5}" x2="${itX + 28}" y2="${itY - 5}" stroke="${it.color}" stroke-width="2" stroke-dasharray="${it.dash}"/>`;
     }
-    svg += `<text x="${itX + 36}" y="${itY}" font-size="9" fill="#333333" font-weight="500">${it.label}</text>`;
+    if (it.isGwt) {
+      svg += renderGwtSymbol(itX + 14, itY - 5, 0.85);
+    }
+    svg += `<text x="${itX + 34}" y="${itY}" font-size="8.5" fill="#333333" font-weight="500">${it.label}</text>`;
   });
+
+  // Top Card 4: Plan View Location Map (Always fits within card boundary)
+  svg += renderPlanViewLegendCard(rows, distances, meta.sectionAzimuth, meta.offsets, card4X, legStartY, col4W, topCardH);
+
 
   // Section 2 Card: Depositional Origin (Texture Overlays)
   let curBottomY = legStartY + topCardH + 10;
@@ -5163,22 +5295,19 @@ function updateApparentDipDisplay() {
   }
 }
 
-// Auto-detect azimuth from selected BHs (first→last after PCA sort)
+// Auto-detect azimuth from selected BHs (first→last after map sort)
 function autoDetectAzimuth() {
   if (!currentProfileRows || currentProfileRows.length < 2) return;
-  const sorted = sortBoreholesByMapPosition(currentProfileRows);
-  const e1 = toNum(sorted[0]['Easting']), n1 = toNum(sorted[0]['Northing']);
-  const e2 = toNum(sorted[sorted.length-1]['Easting']), n2 = toNum(sorted[sorted.length-1]['Northing']);
-  if (e1===null||n1===null||e2===null||n2===null) return;
-  const dE = e2 - e1, dN = n2 - n1;
-  let az = Math.atan2(dE, dN) * 180 / Math.PI;
-  if (az < 0) az += 360;
-  az = Math.round(az * 10) / 10;
-  document.getElementById('az-input').value = az;
+  const az = detectBHTrendAzimuth(currentProfileRows);
+  const input = document.getElementById('az-input');
+  if (input) input.value = az;
   sectionAzimuth = az;
   updateApparentDipDisplay();
-  document.getElementById('az-offset-info').textContent =
-    `(${az.toFixed(1)}° — detected from ${sorted[0]['BH Name'] || sorted[0]['PointID'] || 'first'} → last BH)`;
+  const sorted = sortBoreholesByMapPosition(currentProfileRows);
+  const infoEl = document.getElementById('az-offset-info');
+  if (infoEl) {
+    infoEl.textContent = `(${az.toFixed(1)}° — detected from ${sorted[0]['BH Name'] || 'first'} → ${sorted[sorted.length-1]['BH Name'] || 'last'} BH)`;
+  }
 }
 
 // ── PROJECT BHs ONTO SECTION LINE ──────────────────────────────────────────
@@ -5216,12 +5345,13 @@ function computeProjectedDistances(projectedBHs) {
   return projectedBHs.map(t => t.chainage);
 }
 
-// ── RENDER PLAN VIEW INSET MAP ─────────────────────────────────────────────
-function renderPlanViewInset(rows, distances, sectionAz, offsets, xBox, yBox, boxW = 215, boxH = 100) {
+// ── RENDER PLAN VIEW CARD INSIDE LEGEND ────────────────────────────────────
+function renderPlanViewLegendCard(rows, distances, sectionAz, offsets, cardX, cardY, cardW, cardH) {
   const pts = rows.map((r, i) => {
     const e = toNum(r['Easting']), n = toNum(r['Northing']);
-    const name = (r['BH Name'] || r['PointID'] || `BH${i+1}`).replace('BH-', '');
-    return { name, e, n, dist: distances[i], off: offsets ? offsets[i] : 0 };
+    const rawName = (r['BH Name'] || r['PointID'] || `BH${i+1}`).replace('BH-', '');
+    const shortName = rawName.replace(/^(VD|BR|OP|CU)-\d+-\d+-/, '').replace(/^(VD|BR|OP|CU)-\d+-/, '');
+    return { name: rawName, shortName: shortName || rawName, e, n, dist: distances[i], off: offsets ? offsets[i] : 0 };
   }).filter(p => p.e !== null && p.n !== null);
 
   if (pts.length < 2) return '';
@@ -5233,35 +5363,34 @@ function renderPlanViewInset(rows, distances, sectionAz, offsets, xBox, yBox, bo
   const spanE = Math.max(maxE - minE, 15);
   const spanN = Math.max(maxN - minN, 15);
 
-  const margin = 18;
-  const innerW = boxW - margin * 2;
-  const innerH = boxH - margin * 2 - 10;
+  const padX = 34, padY = 22;
+  const innerW = cardW - padX * 2;
+  const innerH = cardH - padY * 2 - 20;
   const scale = Math.min(innerW / spanE, innerH / spanN) * 0.85;
 
   const midE = (minE + maxE) / 2;
   const midN = (minN + maxN) / 2;
-  const mapCX = xBox + boxW / 2;
-  const mapCY = yBox + 16 + innerH / 2;
+  const mapCX = cardX + cardW / 2;
+  const mapCY = cardY + 24 + innerH / 2;
 
   function toMapX(e) { return mapCX + (e - midE) * scale; }
   function toMapY(n) { return mapCY - (n - midN) * scale; }
 
-  let svg = `<!-- Plan View Inset Map -->
-  <g id="plan-view-inset">
-    <rect x="${xBox}" y="${yBox}" width="${boxW}" height="${boxH}" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.2" rx="6"/>
-    <rect x="${xBox}" y="${yBox}" width="${boxW}" height="18" fill="#f1f5f9" stroke="#cbd5e1" stroke-width="1.2" rx="6"/>
-    <rect x="${xBox}" y="${yBox + 12}" width="${boxW}" height="6" fill="#f1f5f9" stroke="none"/>
-    <text x="${xBox + 8}" y="${yBox + 13}" font-size="8.5" font-weight="800" fill="#1e293b" letter-spacing="0.02em">PLAN VIEW (SECTION A — B)</text>
-    <text x="${xBox + boxW - 8}" y="${yBox + 13}" font-size="8" font-weight="700" fill="#2563eb" text-anchor="end">Az: ${sectionAz.toFixed(1)}°</text>
+  let svg = `<!-- Top Card 4: Plan View Location Map -->
+  <rect x="${cardX}" y="${cardY}" width="${cardW}" height="${cardH}" fill="#faf9f6" stroke="#e0dbce" stroke-width="1" rx="5"/>
+  <rect x="${cardX}" y="${cardY}" width="${cardW}" height="24" fill="#eeebe2" stroke="#e0dbce" stroke-width="1" rx="5"/>
+  <rect x="${cardX}" y="${cardY + 18}" width="${cardW}" height="6" fill="#eeebe2" stroke="none"/>
+  <text x="${cardX + 8}" y="${cardY + 16}" font-size="8.5" font-weight="700" fill="#2c3e50" letter-spacing="0.01em">PLAN VIEW (A — B)</text>
+  <text x="${cardX + cardW - 8}" y="${cardY + 16}" font-size="8.5" font-weight="700" fill="#2563eb" text-anchor="end">Az: ${sectionAz.toFixed(1)}°</text>
   `;
 
   // Mini True North arrow
-  const nX = xBox + boxW - 16, nY = yBox + 32;
+  const nX = cardX + cardW - 16, nY = cardY + 38;
   svg += `
     <g transform="translate(${nX}, ${nY})">
       <circle cx="0" cy="0" r="9" fill="#f8fafc" stroke="#cbd5e1" stroke-width="0.7"/>
-      <polygon points="0,-7 2.5,0 0,-1.5 -2.5,0" fill="#dc2626"/>
-      <polygon points="0,7 2.5,0 0,1.5 -2.5,0" fill="#64748b"/>
+      <polygon points="0,-7 2.2,0 0,-1.4 -2.2,0" fill="#dc2626"/>
+      <polygon points="0,7 2.2,0 0,1.4 -2.2,0" fill="#64748b"/>
       <text x="0" y="-8" font-size="6.5" font-weight="800" fill="#dc2626" text-anchor="middle">N</text>
     </g>
   `;
@@ -5270,7 +5399,7 @@ function renderPlanViewInset(rows, distances, sectionAz, offsets, xBox, yBox, bo
   const azRad = (sectionAz * Math.PI) / 180;
   const uE = Math.sin(azRad);
   const uN = Math.cos(azRad);
-  const halfLen = Math.max(spanE, spanN) * 0.7;
+  const halfLen = Math.max(spanE, spanN) * 0.62;
   const lineStartE = midE - uE * halfLen;
   const lineStartN = midN - uN * halfLen;
   const lineEndE   = midE + uE * halfLen;
@@ -5280,11 +5409,11 @@ function renderPlanViewInset(rows, distances, sectionAz, offsets, xBox, yBox, bo
   const ax2 = toMapX(lineEndE), ay2 = toMapY(lineEndN);
 
   svg += `
-    <line x1="${ax1.toFixed(1)}" y1="${ay1.toFixed(1)}" x2="${ax2.toFixed(1)}" y2="${ay2.toFixed(1)}" stroke="#2563eb" stroke-width="1.8" stroke-dasharray="4,2"/>
-    <circle cx="${ax1.toFixed(1)}" cy="${ay1.toFixed(1)}" r="3.5" fill="#2563eb" stroke="#ffffff" stroke-width="0.8"/>
-    <text x="${(ax1 - 5).toFixed(1)}" y="${(ay1 + 3).toFixed(1)}" font-size="7.5" font-weight="800" fill="#1e40af" text-anchor="end">A</text>
-    <circle cx="${ax2.toFixed(1)}" cy="${ay2.toFixed(1)}" r="3.5" fill="#dc2626" stroke="#ffffff" stroke-width="0.8"/>
-    <text x="${(ax2 + 5).toFixed(1)}" y="${(ay2 + 3).toFixed(1)}" font-size="7.5" font-weight="800" fill="#b91c1c" text-anchor="start">B</text>
+    <line x1="${ax1.toFixed(1)}" y1="${ay1.toFixed(1)}" x2="${ax2.toFixed(1)}" y2="${ay2.toFixed(1)}" stroke="#2563eb" stroke-width="2" stroke-dasharray="4,2"/>
+    <circle cx="${ax1.toFixed(1)}" cy="${ay1.toFixed(1)}" r="3.2" fill="#2563eb" stroke="#ffffff" stroke-width="0.8"/>
+    <text x="${(ax1 - 5).toFixed(1)}" y="${(ay1 + 3).toFixed(1)}" font-size="8" font-weight="800" fill="#1e40af" text-anchor="end">A</text>
+    <circle cx="${ax2.toFixed(1)}" cy="${ay2.toFixed(1)}" r="3.2" fill="#dc2626" stroke="#ffffff" stroke-width="0.8"/>
+    <text x="${(ax2 + 5).toFixed(1)}" y="${(ay2 + 3).toFixed(1)}" font-size="8" font-weight="800" fill="#b91c1c" text-anchor="start">B</text>
   `;
 
   // Perpendicular projection tie lines & BH points
@@ -5302,13 +5431,18 @@ function renderPlanViewInset(rows, distances, sectionAz, offsets, xBox, yBox, bo
     if (Math.hypot(px - projX, py - projY) > 1.5) {
       svg += `<line x1="${px.toFixed(1)}" y1="${py.toFixed(1)}" x2="${projX.toFixed(1)}" y2="${projY.toFixed(1)}" stroke="#94a3b8" stroke-width="0.8" stroke-dasharray="2,1.5"/>`;
     }
+    
+    // Inward-facing smart text anchoring with white halo so text is 100% legible & inside card
+    const isRight = px > mapCX;
+    const tx = isRight ? px - 5.5 : px + 5.5;
+    const anchor = isRight ? 'end' : 'start';
+
     svg += `
-      <circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="2.5" fill="#0f172a" stroke="#ffffff" stroke-width="0.6"/>
-      <text x="${(px + 3).toFixed(1)}" y="${(py + 2).toFixed(1)}" font-size="6" font-weight="700" fill="#334155">${p.name}</text>
+      <circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="3" fill="#1e293b" stroke="#ffffff" stroke-width="0.8"/>
+      <text x="${tx.toFixed(1)}" y="${(py + 3).toFixed(1)}" font-size="8" font-weight="700" fill="#0f172a" text-anchor="${anchor}" style="paint-order: stroke fill; stroke: #faf9f6; stroke-width: 2.5px; stroke-linejoin: round;">${p.shortName}</text>
     `;
   });
 
-  svg += `</g>`;
   return svg;
 }
 
@@ -5578,6 +5712,24 @@ function exportProfileToDXF(customRows) {
     const zG1 = levelsArr[i].elevation !== null ? levelsArr[i].elevation : 100;
     const zG2 = levelsArr[i+1].elevation !== null ? levelsArr[i+1].elevation : 100;
     addLine('GEOL_GROUND_SURFACE', distances[i], zG1, distances[i+1], zG2);
+  }
+
+  // Rockhead (bedrock contact) connect
+  for (let i = 0; i < sorted.length - 1; i++) {
+    const zR1 = levelsArr[i].rockLevel !== null ? levelsArr[i].rockLevel : null;
+    const zR2 = levelsArr[i+1].rockLevel !== null ? levelsArr[i+1].rockLevel : null;
+    if (zR1 !== null && zR2 !== null) {
+      addLine('GEOL_ROCKHEAD', distances[i], zR1, distances[i+1], zR2);
+    }
+  }
+
+  // Groundwater Table (GWT) connect
+  for (let i = 0; i < sorted.length - 1; i++) {
+    const zW1 = levelsArr[i].waterLevel !== null ? levelsArr[i].waterLevel : null;
+    const zW2 = levelsArr[i+1].waterLevel !== null ? levelsArr[i+1].waterLevel : null;
+    if (zW1 !== null && zW2 !== null) {
+      addLine('GEOL_GWT', distances[i], zW1, distances[i+1], zW2);
+    }
   }
 
   dxf += `0\nENDSEC\n0\nEOF\n`;
