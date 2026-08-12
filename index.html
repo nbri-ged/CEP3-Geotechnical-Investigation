@@ -3,6 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+<meta http-equiv="Pragma" content="no-cache" />
+<meta http-equiv="Expires" content="0" />
 <title>NBRI Borehole Map - CEP3 - Rambukkana - Galagedara Section</title>
 
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -579,6 +582,135 @@
     line-height: 1.4 !important;
   }
 
+  .version-badge {
+    background: rgba(255, 255, 255, 0.15);
+    border: 1px solid rgba(255, 255, 255, 0.32);
+    color: #ffffff;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 12px;
+    cursor: pointer;
+    letter-spacing: 0.04em;
+    transition: all 0.2s ease;
+    user-select: none;
+    margin-left: 6px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .version-badge:hover {
+    background: #2563eb;
+    border-color: #60a5fa;
+    box-shadow: 0 0 10px rgba(37, 99, 235, 0.6);
+  }
+
+  /* Version Update Modal */
+  #version-modal-backdrop {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.7);
+    backdrop-filter: blur(4px);
+    z-index: 3000;
+    align-items: center;
+    justify-content: center;
+    animation: fadeIn 0.2s ease;
+  }
+  #version-modal-backdrop.open {
+    display: flex;
+  }
+  .version-modal {
+    background: #ffffff;
+    border-radius: 14px;
+    max-width: 520px;
+    width: 92vw;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.4);
+    border: 1px solid #e2e8f0;
+    overflow: hidden;
+    animation: slideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .version-modal-header {
+    background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+    color: #ffffff;
+    padding: 14px 18px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .version-modal-header h3 {
+    margin: 0;
+    font-size: 14.5px;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .version-tag {
+    background: #2563eb;
+    color: #fff;
+    font-size: 10.5px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-weight: 700;
+    letter-spacing: .02em;
+  }
+  .version-modal-body {
+    padding: 16px 20px;
+    color: #334155;
+    font-size: 12.5px;
+    line-height: 1.5;
+  }
+  .version-modal-body ul {
+    margin: 8px 0 14px 0;
+    padding-left: 18px;
+  }
+  .version-modal-body li {
+    margin-bottom: 6px;
+    color: #475569;
+  }
+  .version-modal-footer {
+    padding: 12px 18px;
+    background: #f8fafc;
+    border-top: 1px solid #e2e8f0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+  }
+  .version-modal-btn {
+    padding: 7px 16px;
+    background: #2563eb;
+    color: #ffffff;
+    font-weight: 700;
+    font-size: 11.5px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.15s ease;
+  }
+  .version-modal-btn:hover {
+    background: #1d4ed8;
+  }
+  .version-clear-btn {
+    padding: 7px 12px;
+    background: #ffffff;
+    color: #475569;
+    font-weight: 600;
+    font-size: 11px;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+  .version-clear-btn:hover {
+    background: #f1f5f9;
+    color: #0f172a;
+    border-color: #94a3b8;
+  }
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes slideUp { from { transform: translateY(12px) scale(0.97); opacity: 0; } to { transform: translateY(0) scale(1); opacity: 1; } }
+
   #map .bh-label, #map .pkg-label { display: none; }
   #map.show-pkg-labels .pkg-label { display: block; }
   #map.show-bh-labels .bh-label { display: block; }
@@ -711,8 +843,41 @@
   <div id="status-line">
     <button id="refresh-btn" title="Refresh data now">&#8635;</button>
     <span id="status-dot"></span><span id="status-text">Loading data&hellip;</span>
+    <span id="app-version-badge" class="version-badge" onclick="showVersionModal(true)" title="Click to view update details or reset browser cache">v2.4.0</span>
   </div>
 </header>
+
+<!-- Version Update Notification Modal -->
+<div id="version-modal-backdrop">
+  <div class="version-modal">
+    <div class="version-modal-header">
+      <div style="display:flex; align-items:center; gap:8px;">
+        <span style="font-size:18px;">🚀</span>
+        <div>
+          <h3 style="margin:0; font-size:14.5px; font-weight:800;">System Updated</h3>
+          <span style="font-size:10px; opacity:0.85;">NBRI Geotechnical GIS Platform</span>
+        </div>
+      </div>
+      <span class="version-tag">v2.4.0</span>
+    </div>
+    <div class="version-modal-body">
+      <div style="font-weight:700; color:#0f172a; margin-bottom:8px;">✨ What's New in Version 2.4.0:</div>
+      <ul style="margin:0 0 14px 18px; padding:0; color:#334155; font-size:12.5px; line-height:1.55;">
+        <li><b>Geotechnical Schematic Log:</b> Integrated multi-column borehole popup dashboard with stratigraphic scaling.</li>
+        <li><b>SPT &amp; RQD Charts:</b> Dedicated N-value &amp; Core Recovery bar charts with refusal flags (<span style="color:#ef4444; font-weight:700;">50★</span>).</li>
+        <li><b>Non-Overlapping Text:</b> Precise stratum boundary leader lines for clear readability.</li>
+        <li><b>Cache Reset Applied:</b> Local storage and memory caches were purged to guarantee the latest dataset loads immediately.</li>
+      </ul>
+      <div style="font-size:11.5px; background:#eff6ff; border:1px solid #bfdbfe; padding:8px 10px; border-radius:6px; color:#1e40af;">
+        ℹ️ <i>Your local browser cache has been purged. The latest data is freshly synced.</i>
+      </div>
+    </div>
+    <div class="version-modal-footer">
+      <button class="version-clear-btn" onclick="forceHardRefreshAndPurge()">🔄 Force Clear All &amp; Hard Reload</button>
+      <button class="version-modal-btn" onclick="closeVersionModal()">Got It &mdash; Continue</button>
+    </div>
+  </div>
+</div>
 
 <div id="dashboard">
   <div class="dash-stat"><span class="dash-label">Last Updated</span><span id="dash-updated" class="dash-value">&mdash;</span></div>
@@ -970,9 +1135,87 @@
 
 <script>
 /* ============================================================
+   APPLICATION VERSION & CACHE MANAGEMENT
+   ============================================================ */
+const APP_VERSION = "2.4.0"; // Major: Stratigraphic Log Dashboards & Geotechnical Engine
+const APP_BUILD_DATE = "2026-08-12";
+
+function getBustedUrl(url) {
+  if (!url || url.indexOf('PASTE_') === 0) return url;
+  const sep = url.includes('?') ? '&' : '?';
+  return `${url}${sep}_v=${APP_VERSION}&_cb=${Date.now()}`;
+}
+
+function showVersionModal(isManual = false) {
+  const backdrop = document.getElementById('version-modal-backdrop');
+  if (backdrop) backdrop.classList.add('open');
+}
+
+function closeVersionModal() {
+  const backdrop = document.getElementById('version-modal-backdrop');
+  if (backdrop) backdrop.classList.remove('open');
+}
+
+function forceHardRefreshAndPurge() {
+  try {
+    localStorage.clear();
+    sessionStorage.clear();
+  } catch(e) {}
+  if ('caches' in window) {
+    caches.keys().then(names => Promise.all(names.map(n => caches.delete(n))))
+      .then(() => { window.location.reload(true); })
+      .catch(() => { window.location.reload(true); });
+  } else {
+    window.location.reload(true);
+  }
+}
+
+function checkAppVersionAndClearCache() {
+  const STORAGE_KEY = 'cep3_app_version';
+  let lastVersion = null;
+  try {
+    lastVersion = localStorage.getItem(STORAGE_KEY);
+  } catch(e) {}
+  
+  if (lastVersion !== APP_VERSION) {
+    console.log(`[NBRI System] Upgraded from "${lastVersion || 'initial'}" to "${APP_VERSION}". Syncing dataset and cache...`);
+    try {
+      const oldCache = localStorage.getItem('nbri_allrows_cache');
+      if (oldCache) {
+        localStorage.setItem('nbri_allrows_cache_backup', oldCache);
+      }
+      sessionStorage.clear();
+    } catch(e) {}
+    
+    if ('caches' in window) {
+      caches.keys().then(names => Promise.all(names.map(n => caches.delete(n)))).catch(() => {});
+    }
+    
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then(regs => {
+        regs.forEach(reg => reg.unregister());
+      }).catch(() => {});
+    }
+    
+    try {
+      localStorage.setItem(STORAGE_KEY, APP_VERSION);
+      localStorage.setItem('cep3_last_update_ts', new Date().toISOString());
+    } catch(e) {}
+    
+    // Automatically show update notification modal on first load of new version
+    setTimeout(() => {
+      showVersionModal(false);
+    }, 450);
+  }
+}
+
+checkAppVersionAndClearCache();
+
+/* ============================================================
    CONFIG
    ============================================================ */
 const SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS8PKkh7RDdd1g5boTWjdryadGLVhDkvKUMEjScApNAeWA7TrPrcetA1YiccjQvhPfnZ8ewg1NQugfv/pub?gid=364501395&single=true&output=csv";
+const LOCAL_BOREHOLES_CSV = "CEP 3  Rambukkana-Galagedara - BoreholesDetails (2).csv";
 const LOG_SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS8PKkh7RDdd1g5boTWjdryadGLVhDkvKUMEjScApNAeWA7TrPrcetA1YiccjQvhPfnZ8ewg1NQugfv/pub?output=csv";
 const BH_PROFILE_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS8PKkh7RDdd1g5boTWjdryadGLVhDkvKUMEjScApNAeWA7TrPrcetA1YiccjQvhPfnZ8ewg1NQugfv/pub?output=csv&gid=1914424732";
 const CEP4_BH_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS8PKkh7RDdd1g5boTWjdryadGLVhDkvKUMEjScApNAeWA7TrPrcetA1YiccjQvhPfnZ8ewg1NQugfv/pub?output=csv&gid=1030712797";
@@ -1038,7 +1281,7 @@ const cep4Layer = L.layerGroup();
 layersControl.addOverlay(cep4Layer, 'CEP4 BHs (separate project)');
 
 function fetchCEP4BHs(){
-  Papa.parse(CEP4_BH_CSV_URL, {
+  Papa.parse(getBustedUrl(CEP4_BH_CSV_URL), {
     download: true, header: true, skipEmptyLines: true,
     complete: (results) => {
       cep4Layer.clearLayers();
@@ -1437,35 +1680,80 @@ function cleanBHKey(key) {
   return (key || '').trim().toUpperCase().replace(/[\s\-_]/g, '');
 }
 
-function parseCsvWithProxy(url, onComplete, onError) {
-  Papa.parse(url, {
-    download: true, header: true, skipEmptyLines: true,
-    complete: (results) => {
-      if (results.data && results.data.length > 0) {
-        onComplete(results.data);
-      } else {
-        tryProxy();
-      }
-    },
-    error: () => tryProxy()
-  });
+async function parseCsvWithProxy(url, onComplete, onError) {
+  const targetUrl = getBustedUrl(url);
 
-  function tryProxy() {
-    const proxyUrl = 'https://api.allorigins.win/raw?url=' + encodeURIComponent(url);
-    Papa.parse(proxyUrl, {
-      download: true, header: true, skipEmptyLines: true,
-      complete: (results) => {
-        if (results.data && results.data.length > 0) {
-          onComplete(results.data);
-        } else if (onError) {
-          onError();
-        }
-      },
-      error: () => {
-        if (onError) onError();
+  function parseText(csvText) {
+    if (!csvText || typeof csvText !== 'string' || csvText.trim().length === 0) return false;
+    try {
+      const res = Papa.parse(csvText, { header: true, skipEmptyLines: true });
+      if (res && res.data && res.data.length > 0) {
+        onComplete(res.data);
+        return true;
       }
-    });
+    } catch(e) {}
+    return false;
   }
+
+  // 1. Direct fetch
+  try {
+    const ctrl = new AbortController();
+    const tid = setTimeout(() => ctrl.abort(), 6000);
+    const resp = await fetch(targetUrl, { signal: ctrl.signal, cache: 'no-store' });
+    clearTimeout(tid);
+    if (resp.ok) {
+      const text = await resp.text();
+      if (parseText(text)) return;
+    }
+  } catch(e) {}
+
+  // 2. Direct Papa parse download
+  try {
+    let parsedOk = false;
+    await new Promise((resolve) => {
+      Papa.parse(targetUrl, {
+        download: true, header: true, skipEmptyLines: true,
+        complete: (results) => {
+          if (results && results.data && results.data.length > 0) {
+            parsedOk = true;
+            onComplete(results.data);
+          }
+          resolve();
+        },
+        error: () => resolve()
+      });
+      setTimeout(resolve, 5000);
+    });
+    if (parsedOk) return;
+  } catch(e) {}
+
+  // 3. Proxy 1: AllOrigins JSON API
+  try {
+    const ctrl = new AbortController();
+    const tid = setTimeout(() => ctrl.abort(), 5000);
+    const proxyUrl = 'https://api.allorigins.win/get?url=' + encodeURIComponent(targetUrl);
+    const resp = await fetch(proxyUrl, { signal: ctrl.signal });
+    clearTimeout(tid);
+    if (resp.ok) {
+      const json = await resp.json();
+      if (json && json.contents && parseText(json.contents)) return;
+    }
+  } catch(e) {}
+
+  // 4. Proxy 2: AllOrigins Raw API
+  try {
+    const ctrl = new AbortController();
+    const tid = setTimeout(() => ctrl.abort(), 4000);
+    const proxyUrl = 'https://api.allorigins.win/raw?url=' + encodeURIComponent(targetUrl);
+    const resp = await fetch(proxyUrl, { signal: ctrl.signal });
+    clearTimeout(tid);
+    if (resp.ok) {
+      const text = await resp.text();
+      if (parseText(text)) return;
+    }
+  } catch(e) {}
+
+  if (onError) onError();
 }
 
 /* ============================================================
@@ -2184,7 +2472,7 @@ function processBHProfileData(data) {
 
 function fetchBHProfileLog(){
   const localProfUrl = 'CEP 3  Rambukkana-Galagedara - BH Profile.csv';
-  Papa.parse(BH_PROFILE_CSV_URL, {
+  Papa.parse(getBustedUrl(BH_PROFILE_CSV_URL), {
     download: true,
     header: false,
     skipEmptyLines: true,
@@ -2201,7 +2489,7 @@ function fetchBHProfileLog(){
   });
 
   function fetchLocalProfile() {
-    Papa.parse(localProfUrl, {
+    Papa.parse(getBustedUrl(localProfUrl), {
       download: true,
       header: false,
       skipEmptyLines: true,
@@ -2272,7 +2560,7 @@ function getBHWeathering(rOrName) {
   return null;
 }
 function fetchLogDates(){
-  Papa.parse(LOG_SHEET_CSV_URL, {
+  Papa.parse(getBustedUrl(LOG_SHEET_CSV_URL), {
     download: true, header: true, skipEmptyLines: true,
     complete: (results) => {
       const map = {};
@@ -2298,7 +2586,7 @@ function fetchProgressSeries(){
     console.warn('PROGRESS_SHEET_CSV_URL not set yet — timeline slider will stay disabled.');
     return;
   }
-  Papa.parse(PROGRESS_SHEET_CSV_URL, {
+  Papa.parse(getBustedUrl(PROGRESS_SHEET_CSV_URL), {
     download: true, header: true, skipEmptyLines: true,
     complete: (results) => {
       const series = [];
@@ -2758,7 +3046,7 @@ function loadRows(rows){
 
 function fetchData(){
   if (!navigator.onLine) {
-    const localRowsData = localStorage.getItem('nbri_allrows_cache');
+    const localRowsData = localStorage.getItem('nbri_allrows_cache') || localStorage.getItem('nbri_allrows_cache_backup');
     const localDatesData = localStorage.getItem('nbri_dates_cache');
     const cacheStamp = localStorage.getItem('nbri_cache_timestamp');
     if (localRowsData) {
@@ -2766,24 +3054,68 @@ function fetchData(){
       allRows = JSON.parse(localRowsData);
       bhDatesLookup = localDatesData ? JSON.parse(localDatesData) : {};
       loadRows(allRows);
-      setStatus(`Offline Mode — Cached: ${formatDateDMY(cacheStamp)}`, 'err');
+      setStatus(`Offline Mode — Cached: ${formatDateDMY(cacheStamp)}`, 'ok');
       document.getElementById('dash-updated').textContent = "Offline Storage Mode";
       return;
     }
   }
+
   if (SHEET_CSV_URL){
-    setStatus('Refreshing from Google Sheet…');
+    setStatus('Connecting to Google Sheet…');
     parseCsvWithProxy(SHEET_CSV_URL, (data) => {
       loadRows(data);
+      try {
+        localStorage.setItem('nbri_allrows_cache', JSON.stringify(data));
+        localStorage.setItem('nbri_cache_timestamp', new Date().toISOString());
+      } catch(e) {}
       setStatus('Live — synced ' + new Date().toLocaleTimeString(), 'ok');
       document.getElementById('dash-updated').textContent = formatDateDMY(new Date()) + ', ' + new Date().toLocaleTimeString();
     }, () => {
-      setStatus('Could not reach sheet — showing sample data', 'err');
-      Papa.parse(SAMPLE_CSV, { header:true, skipEmptyLines:true, complete: r => loadRows(r.data) });
+      fetchLocalMasterCsv();
     });
   } else {
+    fetchLocalMasterCsv();
+  }
+
+  function fetchLocalMasterCsv() {
+    Papa.parse(getBustedUrl(LOCAL_BOREHOLES_CSV), {
+      download: true,
+      header: true,
+      skipEmptyLines: true,
+      complete: (results) => {
+        if (results && results.data && results.data.length > 0) {
+          loadRows(results.data);
+          try {
+            localStorage.setItem('nbri_allrows_cache', JSON.stringify(results.data));
+            localStorage.setItem('nbri_cache_timestamp', new Date().toISOString());
+          } catch(e) {}
+          setStatus(`Loaded from local master file (${results.data.length} BHs)`, 'ok');
+          document.getElementById('dash-updated').textContent = "Local File Sync: " + formatDateDMY(new Date());
+        } else {
+          fallbackToOfflineCacheOrSample();
+        }
+      },
+      error: () => {
+        fallbackToOfflineCacheOrSample();
+      }
+    });
+  }
+
+  function fallbackToOfflineCacheOrSample() {
+    const cached = localStorage.getItem('nbri_allrows_cache') || localStorage.getItem('nbri_allrows_cache_backup');
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached);
+        if (parsed && parsed.length > 0) {
+          loadRows(parsed);
+          setStatus('Offline Mode — Loaded from browser cache', 'ok');
+          document.getElementById('dash-updated').textContent = "Offline Cache";
+          return;
+        }
+      } catch(e) {}
+    }
+    setStatus('Could not reach online sheet — showing sample data', 'err');
     Papa.parse(SAMPLE_CSV, { header:true, skipEmptyLines:true, complete: r => loadRows(r.data) });
-    setStatus('Sample data (not connected to a live sheet)');
   }
 }
 
@@ -3001,7 +3333,7 @@ const PERMANENT_OVERLAYS = [ { name: "CEP3 Road Corridor", url: "Polyline_cep32.
 let roadCorridorGeoJSON = null;
 function loadPermanentOverlays(){
   PERMANENT_OVERLAYS.forEach(o => {
-    fetch(o.url).then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.arrayBuffer(); })
+    fetch(getBustedUrl(o.url)).then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.arrayBuffer(); })
     .then(buf => shp(buf)).then(geojson => { roadCorridorGeoJSON = geojson; addOverlayLayer(o.name, geojson, false); })
     .catch(err => console.error('Could not load permanent overlay:', err));
   });
