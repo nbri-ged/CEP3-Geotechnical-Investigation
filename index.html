@@ -891,6 +891,16 @@
         <span id="app-dip-badge" style="font-size:10px; font-weight:700; color:#1e40af; margin-left:4px; background:#dbeafe; padding:1px 6px; border-radius:3px; white-space:nowrap;" title="Calculated Apparent Dip along cross-section">App. Dip: 45.0°</span>
       </div>
 
+      <!-- Section Title Customizer -->
+      <div id="title-panel" style="display:flex; align-items:center; gap:5px; background:#fff; padding:2px 8px; border-radius:4px; border:1px solid #cbd5e1; margin-left:4px;">
+        <span style="color:#1e3a5f; font-weight:700; font-size:10.5px; white-space:nowrap;">🏷️ Title:</span>
+        <input id="section-title-input" type="text" value="ENGINEERING GEOLOGICAL CROSS-SECTION A — B"
+               style="width:280px; padding:1px 6px; border:1px solid #94a3b8; border-radius:3px; font-size:11px; font-weight:600; color:#0f172a;"
+               title="Customize cross-section title text (e.g. BETWEEN BH 15 TO BH 20)"
+               oninput="this.setAttribute('data-auto-generated', 'false'); recreateProfile()"
+               onchange="this.setAttribute('data-auto-generated', 'false'); recreateProfile()">
+      </div>
+
       <button id="recreate-profile-btn" onclick="recreateProfile()" title="Regenerate profile with current settings">
         🔄 Recreate Profile
       </button>
@@ -918,6 +928,18 @@
       <label style="display:flex; align-items:center; gap:5px; cursor:pointer; user-select:none;">
         <input type="checkbox" id="modal-opt-weathering" checked onchange="toggleProfileOption('showWeathering', this.checked)">
         <span style="color:#5d4037; font-weight:600;">🌫️ Weathering Fade</span>
+      </label>
+      <label style="display:flex; align-items:center; gap:5px; cursor:pointer; user-select:none; margin-left:4px; background:#edf7ed; padding:1px 7px; border-radius:4px; border:1px solid #c8e6c9;">
+        <input type="checkbox" id="modal-opt-roughground" onchange="toggleProfileOption('showRoughGround', this.checked)">
+        <span style="color:#2e7d32; font-weight:700;">🌿 Natural Ground</span>
+      </label>
+      <label style="display:flex; align-items:center; gap:5px; cursor:pointer; user-select:none; margin-left:2px; background:#fff8e1; padding:1px 7px; border-radius:4px; border:1px solid #ffe082;">
+        <input type="checkbox" id="modal-opt-roughsoil" onchange="toggleProfileOption('showRoughSoil', this.checked)">
+        <span style="color:#b26a00; font-weight:700;">🍂 Natural Soil Layers</span>
+      </label>
+      <label style="display:flex; align-items:center; gap:5px; cursor:pointer; user-select:none; margin-left:2px; background:#f5f3ef; padding:1px 7px; border-radius:4px; border:1px solid #dcd7ce;">
+        <input type="checkbox" id="modal-opt-roughrockhead" onchange="toggleProfileOption('showRoughRockhead', this.checked)">
+        <span style="color:#6e5842; font-weight:700;">🪨 Foliation Rockhead</span>
       </label>
     </div>
     <div id="profile-modal-body"></div>
@@ -1935,21 +1957,18 @@ function buildOriginHatchDefs() {
       <line x1="8" y1="8" x2="8" y2="14" stroke="#6b4a2a" stroke-width="0.6" opacity="0.25"/>
     </pattern>
     <pattern id="pat-origin-residual" width="16" height="16" patternUnits="userSpaceOnUse">
-      <!-- Small chevron/tick motif — deliberately NOT circular, so it never
-           reads as "sand" (pat-sand, filled dots) or "gravel" (pat-gravel,
-           outlined circles) at a glance. Sparse/low-opacity since Residual
-           is the common baseline material and this is layered ON TOP of
-           whatever BSCS material pattern (sand/clay/gravel) is already
-           present — two stacked textures compound visually, so each one
-           individually must be much lighter than it would need to be alone. -->
-      <path d="M3,11 L6,5 L9,11" fill="none" stroke="#4a3f2f" stroke-width="0.5" opacity="0.28"/>
+      <!-- Residual Soil: Distinctive fine plus / stipple cross markers -->
+      <line x1="2" y1="5" x2="6" y2="5" stroke="#5a4632" stroke-width="0.8" opacity="0.45"/>
+      <line x1="4" y1="3" x2="4" y2="7" stroke="#5a4632" stroke-width="0.8" opacity="0.45"/>
+      <line x1="10" y1="13" x2="14" y2="13" stroke="#5a4632" stroke-width="0.8" opacity="0.45"/>
+      <line x1="12" y1="11" x2="12" y2="15" stroke="#5a4632" stroke-width="0.8" opacity="0.45"/>
     </pattern>
-    <pattern id="pat-origin-cwr" width="16" height="16" patternUnits="userSpaceOnUse">
-      <!-- Same chevron motif as Residual (same weathering continuum) but
-           DOUBLED/denser, hinting CWR is the "further along" end — still
-           non-circular, so no ambiguity with sand/gravel material hatches. -->
-      <path d="M3,11 L6,5 L9,11" fill="none" stroke="#4a3f2f" stroke-width="0.6" opacity="0.38"/>
-      <path d="M3,5 L6,-1 L9,5" fill="none" stroke="#4a3f2f" stroke-width="0.6" opacity="0.38"/>
+    <pattern id="pat-origin-cwr" width="18" height="18" patternUnits="userSpaceOnUse">
+      <!-- Completely Weathered Rock (Grade V): Angular rock clasts & corestone fragments -->
+      <polygon points="3,3 8,2 7,7 2,6" fill="#8f8578" stroke="#332a1e" stroke-width="0.8" opacity="0.65"/>
+      <polygon points="11,10 16,9 15,15 10,14" fill="#8f8578" stroke="#332a1e" stroke-width="0.8" opacity="0.65"/>
+      <line x1="3" y1="13" x2="6" y2="16" stroke="#332a1e" stroke-width="0.85" opacity="0.55"/>
+      <line x1="12" y1="3" x2="15" y2="6" stroke="#332a1e" stroke-width="0.85" opacity="0.55"/>
     </pattern>`;
 }
 
@@ -3183,7 +3202,10 @@ let profileOptions = {
   showSPT: true,
   showRQD: true,
   showGWT: true,
-  showWeathering: true
+  showWeathering: true,
+  showRoughGround: false,
+  showRoughSoil: false,
+  showRoughRockhead: false
 };
 
 function detectBHTrendAzimuth(rows) {
@@ -3221,7 +3243,10 @@ function buildProfileSvg(rows, options = {}, arg3 = null, arg4 = null) {
     showSPT: true,
     showRQD: true,
     showGWT: true,
-    showWeathering: true
+    showWeathering: true,
+    showRoughGround: false,
+    showRoughSoil: false,
+    showRoughRockhead: false
   }, profileOptions, options);
 
   const detectedAz = detectBHTrendAzimuth(rows);
@@ -3330,7 +3355,7 @@ function buildProfileSvg(rows, options = {}, arg3 = null, arg4 = null) {
   });
 
   const totalDist = Math.max(distances[distances.length - 1], 1);
-  const padLeft = 85, padRight = 45, padTop = 95;
+  const padLeft = 85, padRight = 45, padTop = 140;
   // sideExt: small extension beyond first/last BH as a fraction of total distance
   const sideExtFraction = 0.04; // 4% of total distance on each side
   const sideExt = totalDist * sideExtFraction;
@@ -3374,8 +3399,10 @@ function buildProfileSvg(rows, options = {}, arg3 = null, arg4 = null) {
     if (effectiveRockLevel[i] !== null && effectiveRockLevel[i] !== undefined) minElev = Math.min(minElev, effectiveRockLevel[i]);
   });
   if (!isFinite(maxElev) || !isFinite(minElev)) { maxElev = 100; minElev = 70; }
-  const elevPad = (maxElev - minElev) * 0.15 || 4;
-  maxElev += elevPad; minElev -= elevPad;
+  const elevSpanRaw = maxElev - minElev;
+  const elevPadTop = Math.max(elevSpanRaw * 0.20, 6);
+  const elevPadBottom = Math.max(elevSpanRaw * 0.12, 3);
+  maxElev += elevPadTop; minElev -= elevPadBottom;
   const elevRange = maxElev - minElev;
 
   // xPos maps actual distances (including negative sideExt) to SVG X
@@ -3734,19 +3761,107 @@ function buildProfileSvg(rows, options = {}, arg3 = null, arg4 = null) {
     return null;
   }).filter(Boolean);
 
-  // Extended ground/rock for side extensions — clamp to first/last BH values
-  function getZGround(d) {
+  // Natural micro-topographic subtle roughness (small organic micro-relief, not large undulations)
+  function calcNaturalGroundRoughness(d) {
+    if (!opts.showRoughGround) return 0;
+    // Side extensions: subtle tapering micro-relief
+    if (d <= distances[0] || d >= distances[distances.length - 1]) {
+      const distFromEdge = d < distances[0] ? (distances[0] - d) : (d - distances[distances.length - 1]);
+      const extEnvelope = Math.sin(Math.min(distFromEdge / 12, 1) * Math.PI / 2);
+      return extEnvelope * (0.06 * Math.sin(d / 3.2 + 1.1) + 0.03 * Math.sin(d / 1.6 + 2.3));
+    }
+    // Find active borehole span
+    let j = 0;
+    for (let s = 0; s < distances.length - 1; s++) {
+      if (d >= distances[s] - 1e-4 && d <= distances[s + 1] + 1e-4) {
+        j = s;
+        break;
+      }
+    }
+    const d0 = distances[j], d1 = distances[j + 1];
+    const spanLen = Math.max(d1 - d0, 1);
+    const t = (d - d0) / spanLen; // 0 at BH j, 1 at BH j+1
+
+    // Envelope window: exactly 0 at boreholes (preserving 100% exact GL collar elevations)
+    const envelope = Math.pow(Math.sin(t * Math.PI), 1.3);
+    const maxAmp = Math.min(0.12, spanLen * 0.006); // Subtle natural micro-relief (0.04m to 0.12m)
+
+    // Multi-frequency organic natural ground texture
+    const wave1 = Math.sin((d * 2 * Math.PI) / 6.5 + 0.8);
+    const wave2 = 0.50 * Math.sin((d * 2 * Math.PI) / 2.8 + 2.4);
+    const wave3 = 0.25 * Math.sin((d * 2 * Math.PI) / 1.3 + 4.1);
+
+    return envelope * maxAmp * (wave1 + wave2 + wave3);
+  }
+
+  // Smooth ground surface (base spline) — used for water table and smooth reference
+  function getZGroundSmooth(d) {
     if (d <= groundPts[0].x) return groundPts[0].y;
     if (d >= groundPts[groundPts.length - 1].x) return groundPts[groundPts.length - 1].y;
     return interpolateSpline(groundPts, d);
   }
+
+  // Extended ground for terrain line and soil layering (includes subtle natural micro-relief when active)
+  function getZGround(d) {
+    return getZGroundSmooth(d) + calcNaturalGroundRoughness(d);
+  }
+
+  // Foliation-guided anisotropic rockhead roughness (when opts.showRoughRockhead is active)
+  function calcFoliationRockheadRoughness(d) {
+    if (!opts.showRoughRockhead) return 0;
+    const dirSign = appDip.directionStr === '← A' ? -1 : (appDip.directionStr === '→ B' ? 1 : 0);
+    const dipFactor = Math.sin((appDip.angle * Math.PI) / 180); // 0 at horizontal, 1 at vertical
+
+    // Side extensions: subtle tapering anisotropic steps
+    if (d <= distances[0] || d >= distances[distances.length - 1]) {
+      const distFromEdge = d < distances[0] ? (distances[0] - d) : (d - distances[distances.length - 1]);
+      const extEnvelope = Math.sin(Math.min(distFromEdge / 12, 1) * Math.PI / 2);
+      const phase = (d * (dirSign || 1)) / 8.0;
+      const saw = (phase % 1 + 1) % 1;
+      const sawWave = saw < 0.65 ? (saw / 0.65) * 2 - 1 : (1 - (saw - 0.65) / 0.35) * 2 - 1;
+      return extEnvelope * (0.10 * sawWave + 0.04 * Math.sin(d / 2.5));
+    }
+
+    // Find active borehole span
+    let j = 0;
+    for (let s = 0; s < distances.length - 1; s++) {
+      if (d >= distances[s] - 1e-4 && d <= distances[s + 1] + 1e-4) {
+        j = s;
+        break;
+      }
+    }
+    const d0 = distances[j], d1 = distances[j + 1];
+    const spanLen = Math.max(d1 - d0, 1);
+    const t = (d - d0) / spanLen; // 0 at BH j, 1 at BH j+1
+
+    // Envelope window: strictly 0 at boreholes (preserving 100% exact logged rockhead elevation)
+    const envelope = Math.pow(Math.sin(t * Math.PI), 1.25);
+    const maxAmp = Math.min(0.24, spanLen * 0.012) * (0.45 + 0.55 * Math.max(dipFactor, 0.3));
+
+    // Foliation-stepped anisotropic wave:
+    // Steeper face along cross-joints, gentle face along foliation apparent dip
+    const waveLambda = 7.5; // meters
+    const phase = (d * (dirSign || 1)) / waveLambda;
+    const saw = (phase % 1 + 1) % 1; // 0 to 1
+    const sawWave = saw < 0.65 ? (saw / 0.65) * 2 - 1 : (1 - (saw - 0.65) / 0.35) * 2 - 1;
+    const harmWave = 0.30 * Math.sin(phase * Math.PI * 2 * 2.1 + 1.2);
+
+    return envelope * maxAmp * (sawWave + harmWave);
+  }
+
   function getZRock(d) {
-    const zR = (d <= rockPts[0].x) ? rockPts[0].y
-      : (d >= rockPts[rockPts.length - 1].x) ? rockPts[rockPts.length - 1].y
-      : interpolateSpline(rockPts, d);
+    let zRBase;
+    if (d <= rockPts[0].x) zRBase = rockPts[0].y;
+    else if (d >= rockPts[rockPts.length - 1].x) zRBase = rockPts[rockPts.length - 1].y;
+    else zRBase = interpolateSpline(rockPts, d);
+
+    const roughness = calcFoliationRockheadRoughness(d);
+    const zR = zRBase + roughness;
+
     return Math.min(zR, getZGround(d) - 0.05);
   }
 
+  // Groundwater Table always follows the smooth hydraulic piezometric surface
   function getZWater(d) {
     if (gwDepthPts.length === 0) return null;
     const depthGw = Math.max(
@@ -3755,7 +3870,7 @@ function buildProfileSvg(rows, options = {}, arg3 = null, arg4 = null) {
       : interpolateSpline(gwDepthPts, d),
       0.1
     );
-    return getZGround(d) - depthGw;
+    return getZGroundSmooth(d) - depthGw;
   }
 
   // getCumBoundaryAtX with PINCH-OUT logic:
@@ -3769,6 +3884,53 @@ function buildProfileSvg(rows, options = {}, arg3 = null, arg4 = null) {
       : d >= pts[pts.length - 1].x ? pts[pts.length - 1].y
       : interpolateSpline(pts, d);
     return Math.min(Math.max(val, 0.0), 1.0);
+  }
+
+  // Natural depositional undulations for internal soil layer boundaries (when opts.showRoughSoil is active)
+  function calcNaturalSoilBoundaryRoughness(k, d) {
+    if (!opts.showRoughSoil || k <= 0 || k >= K) return 0;
+    // Side extensions: subtle tapering
+    if (d <= distances[0] || d >= distances[distances.length - 1]) {
+      const distFromEdge = d < distances[0] ? (distances[0] - d) : (d - distances[distances.length - 1]);
+      const extEnvelope = Math.sin(Math.min(distFromEdge / 12, 1) * Math.PI / 2);
+      return extEnvelope * (0.04 * Math.sin(d / 2.8 + k * 1.5) + 0.02 * Math.sin(d / 1.4 + k * 0.7));
+    }
+    // Find active borehole span
+    let j = 0;
+    for (let s = 0; s < distances.length - 1; s++) {
+      if (d >= distances[s] - 1e-4 && d <= distances[s + 1] + 1e-4) {
+        j = s;
+        break;
+      }
+    }
+    const d0 = distances[j], d1 = distances[j + 1];
+    const spanLen = Math.max(d1 - d0, 1);
+    const t = (d - d0) / spanLen; // 0 at BH j, 1 at BH j+1
+
+    // Envelope window: strictly 0 at boreholes (preserving 100% exact logged layer contact depths)
+    const envelope = Math.pow(Math.sin(t * Math.PI), 1.25);
+    const maxAmp = Math.min(0.10, spanLen * 0.005); // Subtle depositional waviness (0.03m to 0.10m)
+
+    // Multi-frequency organic depositional texture with unique phase per soil boundary k
+    const wave1 = Math.sin((d * 2 * Math.PI) / 5.5 + k * 1.8);
+    const wave2 = 0.45 * Math.sin((d * 2 * Math.PI) / 2.5 + k * 3.1 + 0.9);
+
+    return envelope * maxAmp * (wave1 + wave2);
+  }
+
+  // Evaluate elevation of cumulative soil boundary k at distance d
+  function getSoilBoundaryZ(k, d) {
+    const zG = getZGround(d);
+    const zR = getZRock(d);
+    if (k === 0) return zG;
+    if (k === K) return zR;
+    const overburdenAtD = Math.max(zG - zR, 0.05);
+    const f = getCumBoundaryAtX(k, d);
+    if (f <= 0.0001) return zG;
+    if (f >= 0.9999) return zR;
+    const zBase = zG - f * overburdenAtD;
+    const roughness = calcNaturalSoilBoundaryRoughness(k, d);
+    return zBase + roughness;
   }
 
   // Helper: get the range of distances over which unit k has non-zero thickness
@@ -4173,23 +4335,31 @@ function buildProfileSvg(rows, options = {}, arg3 = null, arg4 = null) {
 
   svg += `<rect x="0" y="0" width="${svgW}" height="${svgH}" fill="#ffffff"/>`;
 
+  // Helper to escape unsafe characters in user-entered SVG text
+  function escapeSvg(str) {
+    if (!str) return '';
+    return String(str).replace(/[<>&'"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', "'": '&apos;', '"': '&quot;' }[c]));
+  }
+
   // ── TOP TITLE & STRUCTURAL GEOLOGY METADATA BANNER ────────────────────────
+  const sectionTitle = (meta.sectionTitle && meta.sectionTitle.trim()) ? meta.sectionTitle.trim() : 'ENGINEERING GEOLOGICAL CROSS-SECTION A — B';
   svg += `<!-- Profile Header Title & Metadata -->
-  <text x="${padLeft}" y="24" font-size="13" font-weight="800" fill="#0f172a" letter-spacing="0.02em">ENGINEERING GEOLOGICAL CROSS-SECTION A — B</text>
-  <text x="${padLeft + plotW}" y="24" font-size="9.5" font-weight="800" fill="#1e293b" text-anchor="end">
+  <text x="${padLeft}" y="28" font-size="13" font-weight="800" fill="#0f172a" letter-spacing="0.02em">${escapeSvg(sectionTitle)}</text>
+  <text x="${padLeft + plotW}" y="28" font-size="9.5" font-weight="800" fill="#1e293b" text-anchor="end">
     <tspan fill="#1e40af">A [${leftBearingStr}]</tspan> ➔ <tspan fill="#b91c1c">B [${rightBearingStr}]</tspan>
   </text>
-  <text x="${padLeft}" y="42" font-size="9" font-weight="600" fill="#334155">
+  <text x="${padLeft}" y="48" font-size="9" font-weight="600" fill="#334155">
     ALIGNMENT AZIMUTH: <tspan font-weight="700" fill="#1e40af">${meta.sectionAzimuth.toFixed(1)}° N</tspan> | 
     FOLIATION: <tspan font-weight="700" fill="#0f766e">Dip Dir ${meta.dipDirection}° N / Dip ${meta.dipAngle}°</tspan> | 
     APPARENT DIP: <tspan font-weight="800" fill="#b91c1c">${appDip.angle.toFixed(1)}° ${appDip.directionStr}</tspan>
   </text>
-  <text x="${padLeft}" y="57" font-size="8" fill="#64748b" font-style="italic">
+  <text x="${padLeft}" y="65" font-size="8" fill="#64748b" font-style="italic">
     Method: ${meta.isProjection ? `Section Line Projection (Azimuth ${meta.sectionAzimuth.toFixed(1)}° N)` : 'Sequential Inter-Borehole Profile'} | Total Section Length: ${Math.round(totalDist)} m | Boreholes: ${rows.length}
   </text>
+  <line x1="${padLeft}" y1="78" x2="${padLeft + plotW}" y2="78" stroke="#cbd5e1" stroke-width="0.8" stroke-dasharray="4,2"/>
   `;
 
-  // ── SECTION ENDPOINT BEARING BADGES (Outside Left & Right Frame Margins) ──
+  // ── SECTION ENDPOINT BEARING BADGES (Outer Axis Margins) ──
   svg += `<!-- Section Endpoints Bearing Indicators (Outer Axis Margins) -->
   <g transform="translate(${(padLeft - 6).toFixed(1)}, ${(padTop - 8).toFixed(1)})">
     <rect x="-38" y="-12" width="42" height="15" fill="#eff6ff" stroke="#93c5fd" stroke-width="1" rx="3"/>
@@ -4283,12 +4453,9 @@ function buildProfileSvg(rows, options = {}, arg3 = null, arg4 = null) {
       const x = xPos(d);
       const zG = getZGround(d);
       const zR = getZRock(d);
-      const overburdenAtD = Math.max(zG - zR, 0.1);
 
-      const fTop = getCumBoundaryAtX(uIdx, d);
-      const fBot = getCumBoundaryAtX(uIdx + 1, d);
-      let zTop = zG - fTop * overburdenAtD;
-      let zBot = zG - fBot * overburdenAtD;
+      let zTop = getSoilBoundaryZ(uIdx, d);
+      let zBot = getSoilBoundaryZ(uIdx + 1, d);
 
       // Handle side extensions (left of first BH, right of last BH) — clamp
       // to the terminal borehole's own range rather than re-interpolating.
@@ -4523,11 +4690,7 @@ function buildProfileSvg(rows, options = {}, arg3 = null, arg4 = null) {
     originTransitionIndices.forEach(k => {
       const linePts = [];
       sampleDists.forEach(d => {
-        const zG = getZGround(d);
-        const zR = getZRock(d);
-        const overburdenAtD = Math.max(zG - zR, 0.1);
-        const f = getCumBoundaryAtX(k, d);
-        const z = zG - f * overburdenAtD;
+        const z = getSoilBoundaryZ(k, d);
         linePts.push([xPos(d), yPos(z)]);
       });
       svg += `<!-- Soil Origin transition line (master unit boundary index ${k}) -->
@@ -4697,87 +4860,91 @@ function buildProfileSvg(rows, options = {}, arg3 = null, arg4 = null) {
 
     const dominantRockPerBH = rows.map((r, i) => getDominantRockType(rockLayersPerBH[i]));
 
-    // Build polygons for each rock type
-    const polygonsByRock = {};
-    masterRockList.forEach(r => polygonsByRock[r] = { topPts: [], botPts: [] });
-    const formationContactLines = [];
+    // Helper to render a closed polygon from top and bottom points
+    function renderRockPolygon(topPts, botPts, rockType) {
+      if (!topPts || topPts.length < 2 || !botPts || botPts.length < 2) return '';
+      const conf = ROCK_LITHOLOGY_CONFIG[rockType] || ROCK_LITHOLOGY_CONFIG['Biotite Gneiss'];
+      let polyD = `M ${topPts[0][0].toFixed(1)},${topPts[0][1].toFixed(1)}`;
+      for (let k = 1; k < topPts.length; k++) polyD += ` L ${topPts[k][0].toFixed(1)},${topPts[k][1].toFixed(1)}`;
+      for (let k = botPts.length - 1; k >= 0; k--) polyD += ` L ${botPts[k][0].toFixed(1)},${botPts[k][1].toFixed(1)}`;
+      polyD += ' Z';
+      return `<path d="${polyD}" fill="url(#${conf.patternId})" stroke="none"/>\n`;
+    }
 
-    // Helper: evaluate rock stratification at any distance d
-    sampleDists.forEach(d => {
-      const zRock = getZRock(d);
-      const x = xPos(d);
-
-      // Determine active borehole span
-      let j = 0;
-      if (d <= distances[0]) {
-        j = 0;
-      } else if (d >= distances[distances.length - 1]) {
-        j = distances.length - 2;
-      } else {
-        for (let s = 0; s < distances.length - 1; s++) {
-          if (d >= distances[s] - 1e-4 && d <= distances[s + 1] + 1e-4) {
-            j = s;
-            break;
-          }
-        }
+    // 1. Left side extension (from distMin to distances[0])
+    if (distMin < distances[0] - 1e-4) {
+      const extDists = sampleDists.filter(d => d <= distances[0] + 1e-4);
+      if (extDists.length >= 2) {
+        const rockType0 = dominantRockPerBH[0];
+        const topPts = extDists.map(d => [xPos(d), yPos(getZRock(d))]);
+        const botPts = extDists.map(d => [xPos(d), yPos(minElev)]);
+        svg += `<!-- Rock Stratum Extension Left: ${rockType0} -->\n`;
+        svg += renderRockPolygon(topPts, botPts, rockType0);
       }
+    }
 
-      const rockTypeA = dominantRockPerBH[j] || masterRockList[0];
-      const rockTypeB = dominantRockPerBH[j + 1] || masterRockList[0];
+    // 2. Intermediate spans between boreholes (mutually exclusive, non-overlapping)
+    for (let j = 0; j < rows.length - 1; j++) {
+      const dStart = distances[j], dEnd = distances[j + 1];
+      const spanDists = sampleDists.filter(d => d >= dStart - 1e-4 && d <= dEnd + 1e-4);
+      if (spanDists.length < 2) continue;
+
+      const rockTypeA = dominantRockPerBH[j];
+      const rockTypeB = dominantRockPerBH[j + 1];
 
       if (rockTypeA === rockTypeB) {
-        // Uniform rock type across this entire span — 100% filled with rockTypeA
-        polygonsByRock[rockTypeA].topPts.push([x, yPos(zRock)]);
-        polygonsByRock[rockTypeA].botPts.push([x, yPos(minElev)]);
+        // Uniform rock formation across this span
+        const topPts = spanDists.map(d => [xPos(d), yPos(getZRock(d))]);
+        const botPts = spanDists.map(d => [xPos(d), yPos(minElev)]);
+        svg += `<!-- Rock Stratum Span ${j}-${j+1} Uniform: ${rockTypeA} -->\n`;
+        svg += renderRockPolygon(topPts, botPts, rockTypeA);
       } else {
-        // Transition between two differing rock formations across this span
-        const dMid = (distances[j] + distances[j + 1]) / 2;
-        const zR_A = getZRock(distances[j]);
-        const zR_B = getZRock(distances[j + 1]);
+        // Dipping geological formation contact along foliation
+        const dMid = (dStart + dEnd) / 2;
+        const zR_A = getZRock(dStart);
+        const zR_B = getZRock(dEnd);
         const zMid = (zR_A + zR_B) / 2;
-        const zContact = zMid - dipSlope * (d - dMid);
-        const zClamped = Math.max(minElev, Math.min(zRock, zContact));
 
-        if (dirSign >= 0) {
-          // Dipping towards right B (-> B):
-          // Above contact is rockTypeA (up-dip, left); Below contact is rockTypeB (down-dip, right)
-          if (zRock > zClamped + 0.02) {
-            polygonsByRock[rockTypeA].topPts.push([x, yPos(zRock)]);
-            polygonsByRock[rockTypeA].botPts.push([x, yPos(zClamped)]);
+        const upperTop = [], upperBot = [];
+        const lowerTop = [], lowerBot = [];
+
+        spanDists.forEach(d => {
+          const zRock = getZRock(d);
+          const zContact = zMid - dipSlope * (d - dMid);
+          const zClamped = Math.max(minElev, Math.min(zRock, zContact));
+          const x = xPos(d);
+
+          if (zRock > zClamped + 0.01) {
+            upperTop.push([x, yPos(zRock)]);
+            upperBot.push([x, yPos(zClamped)]);
           }
-          if (zClamped > minElev + 0.02) {
-            polygonsByRock[rockTypeB].topPts.push([x, yPos(zClamped)]);
-            polygonsByRock[rockTypeB].botPts.push([x, yPos(minElev)]);
+          if (zClamped > minElev + 0.01) {
+            lowerTop.push([x, yPos(zClamped)]);
+            lowerBot.push([x, yPos(minElev)]);
           }
-        } else {
-          // Dipping towards left A (<- A):
-          // Above contact is rockTypeB (up-dip, right); Below contact is rockTypeA (down-dip, left)
-          if (zRock > zClamped + 0.02) {
-            polygonsByRock[rockTypeB].topPts.push([x, yPos(zRock)]);
-            polygonsByRock[rockTypeB].botPts.push([x, yPos(zClamped)]);
-          }
-          if (zClamped > minElev + 0.02) {
-            polygonsByRock[rockTypeA].topPts.push([x, yPos(zClamped)]);
-            polygonsByRock[rockTypeA].botPts.push([x, yPos(minElev)]);
-          }
-        }
+        });
+
+        const upperRock = dirSign >= 0 ? rockTypeA : rockTypeB;
+        const lowerRock = dirSign >= 0 ? rockTypeB : rockTypeA;
+
+        svg += `<!-- Rock Stratum Span ${j}-${j+1} Upper: ${upperRock} -->\n`;
+        svg += renderRockPolygon(upperTop, upperBot, upperRock);
+        svg += `<!-- Rock Stratum Span ${j}-${j+1} Lower: ${lowerRock} -->\n`;
+        svg += renderRockPolygon(lowerTop, lowerBot, lowerRock);
       }
-    });
+    }
 
-    // Draw polygons for each rock type
-    masterRockList.forEach(rType => {
-      const conf = ROCK_LITHOLOGY_CONFIG[rType] || ROCK_LITHOLOGY_CONFIG['Biotite Gneiss'];
-      const data = polygonsByRock[rType];
-      if (data && data.topPts.length >= 2 && data.botPts.length >= 2) {
-        let polyD = `M ${data.topPts[0][0].toFixed(1)},${data.topPts[0][1].toFixed(1)}`;
-        for (let k = 1; k < data.topPts.length; k++) polyD += ` L ${data.topPts[k][0].toFixed(1)},${data.topPts[k][1].toFixed(1)}`;
-        for (let k = data.botPts.length - 1; k >= 0; k--) polyD += ` L ${data.botPts[k][0].toFixed(1)},${data.botPts[k][1].toFixed(1)}`;
-        polyD += ' Z';
-
-        svg += `<!-- Rock Stratum Hatch: ${conf.label} -->
-        <path d="${polyD}" fill="url(#${conf.patternId})" stroke="none"/>`;
+    // 3. Right side extension (from distances[N-1] to distMax)
+    if (distMax > distances[distances.length - 1] + 1e-4) {
+      const extDists = sampleDists.filter(d => d >= distances[distances.length - 1] - 1e-4);
+      if (extDists.length >= 2) {
+        const rockTypeN = dominantRockPerBH[rows.length - 1];
+        const topPts = extDists.map(d => [xPos(d), yPos(getZRock(d))]);
+        const botPts = extDists.map(d => [xPos(d), yPos(minElev)]);
+        svg += `<!-- Rock Stratum Extension Right: ${rockTypeN} -->\n`;
+        svg += renderRockPolygon(topPts, botPts, rockTypeN);
       }
-    });
+    }
 
     // Draw geological formation contact lines strictly in the transition spans
     for (let j = 0; j < rows.length - 1; j++) {
@@ -4800,7 +4967,7 @@ function buildProfileSvg(rows, options = {}, arg3 = null, arg4 = null) {
         });
         if (run.length >= 2) {
           svg += `<!-- Geological Formation Contact Boundary (Dipping along foliation) -->
-          <path d="${ptsToCubicBezier(run, 0.55)}" fill="none" stroke="#78828c" stroke-width="1.3" stroke-dasharray="7,5" opacity="0.95"/>`;
+          <path d="${ptsToCubicBezier(run, 0.55)}" fill="none" stroke="#78828c" stroke-width="1.3" stroke-dasharray="7,5" opacity="0.95"/>\n`;
         }
       }
     }
@@ -5041,17 +5208,33 @@ function buildProfileSvg(rows, options = {}, arg3 = null, arg4 = null) {
       // Find the lowest row (closest to ground) that doesn't collide
       let row = 0;
       let collision = true;
+      let targetYTop = yG - (row + 1) * rowH - 8;
       while (collision && row < maxRows) {
-        const yTop = yG - (row + 1) * rowH - 8;
+        targetYTop = yG - (row + 1) * rowH - 8;
         collision = placed.some(p => {
           const minDist = (boxW + p.boxW) / 2 + 4;
-          return Math.abs(cx - p.cx) < minDist && Math.abs(yTop - p.yTop) < boxH + 2;
+          return Math.abs(cx - p.cx) < minDist && Math.abs(targetYTop - p.yTop) < boxH + 2;
         });
         if (collision) row++;
       }
 
-      const yTop = yG - (row + 1) * rowH - 8;
-      placed.push({ x, cx, yTop, boxW });
+      // Hard ceiling clamp: NEVER allow yTop to go above 84 (title banner boundary is y <= 78)
+      const minAllowedYTop = 84;
+      let yTop = Math.max(targetYTop, minAllowedYTop);
+      let targetCX = cx;
+
+      // If vertical stacking was clamped at the ceiling and collides horizontally:
+      if (yTop === minAllowedYTop) {
+        let xShift = 0;
+        let xCollision = placed.some(p => Math.abs(targetCX - p.cx) < (boxW + p.boxW)/2 + 4 && Math.abs(yTop - p.yTop) < boxH + 2);
+        while (xCollision && Math.abs(xShift) < 140) {
+          xShift = (xShift >= 0) ? -(xShift + 25) : -xShift;
+          targetCX = cx + xShift;
+          xCollision = placed.some(p => Math.abs(targetCX - p.cx) < (boxW + p.boxW)/2 + 4 && Math.abs(yTop - p.yTop) < boxH + 2);
+        }
+      }
+
+      placed.push({ x, cx: targetCX, yTop, boxW });
 
       // Leader: vertical dashed line from bottom of box to BH top
       svg += `<line x1="${cx.toFixed(1)}" y1="${(yTop + boxH).toFixed(1)}" x2="${x.toFixed(1)}" y2="${yG.toFixed(1)}" stroke="#8a8478" stroke-width="0.8" stroke-dasharray="2,2"/>`;
@@ -5213,11 +5396,12 @@ function buildProfileSvg(rows, options = {}, arg3 = null, arg4 = null) {
     
     const origSpacing = legW / Math.max(originItems.length, 1);
     originItems.forEach((it, idx) => {
-      const itX = padLeft + 12 + idx * Math.min(origSpacing, 220);
+      const itX = padLeft + 12 + idx * Math.min(origSpacing, 240);
       const itY = curBottomY + 34;
-      svg += `<rect x="${itX}" y="${itY - 9}" width="16" height="11" fill="#e8e4d8" stroke="#666" stroke-width="0.6" rx="1.5"/>`;
-      svg += `<rect x="${itX}" y="${itY - 9}" width="16" height="11" fill="url(#${it.patternId})" stroke="none" rx="1.5"/>`;
-      svg += `<text x="${itX + 22}" y="${itY}" font-size="9" fill="#333333" font-weight="500">${it.label}</text>`;
+      const baseCol = it.patternId === 'pat-origin-cwr' ? '#ded8cd' : (it.patternId === 'pat-origin-residual' ? '#efe6d8' : '#e8e4d8');
+      svg += `<rect x="${itX}" y="${itY - 10}" width="22" height="14" fill="${baseCol}" stroke="#555" stroke-width="0.8" rx="2"/>`;
+      svg += `<rect x="${itX}" y="${itY - 10}" width="22" height="14" fill="url(#${it.patternId})" stroke="none" rx="2"/>`;
+      svg += `<text x="${itX + 28}" y="${itY}" font-size="9" fill="#333333" font-weight="600">${it.label}</text>`;
     });
     curBottomY += originCardH + 10;
   }
@@ -5377,15 +5561,15 @@ function renderPlanViewLegendCard(rows, distances, sectionAz, offsets, cardX, ca
   const spanE = Math.max(maxE - minE, 15);
   const spanN = Math.max(maxN - minN, 15);
 
-  const padX = 34, padY = 22;
+  const padX = 30, padY = 20;
   const innerW = cardW - padX * 2;
-  const innerH = cardH - padY * 2 - 20;
-  const scale = Math.min(innerW / spanE, innerH / spanN) * 0.85;
+  const innerH = cardH - 34 - padY;
+  const scale = Math.min(innerW / spanE, innerH / spanN) * 0.72;
 
   const midE = (minE + maxE) / 2;
   const midN = (minN + maxN) / 2;
   const mapCX = cardX + cardW / 2;
-  const mapCY = cardY + 24 + innerH / 2;
+  const mapCY = cardY + 32 + innerH / 2;
 
   function toMapX(e) { return mapCX + (e - midE) * scale; }
   function toMapY(n) { return mapCY - (n - midN) * scale; }
@@ -5409,11 +5593,11 @@ function renderPlanViewLegendCard(rows, distances, sectionAz, offsets, cardX, ca
     </g>
   `;
 
-  // Baseline A - B
+  // Baseline A - B with high-visibility white background halo + bold blue dashed line
   const azRad = (sectionAz * Math.PI) / 180;
   const uE = Math.sin(azRad);
   const uN = Math.cos(azRad);
-  const halfLen = Math.max(spanE, spanN) * 0.62;
+  const halfLen = Math.max(spanE, spanN) * 0.60;
   const lineStartE = midE - uE * halfLen;
   const lineStartN = midN - uN * halfLen;
   const lineEndE   = midE + uE * halfLen;
@@ -5423,15 +5607,20 @@ function renderPlanViewLegendCard(rows, distances, sectionAz, offsets, cardX, ca
   const ax2 = toMapX(lineEndE), ay2 = toMapY(lineEndN);
 
   svg += `
-    <line x1="${ax1.toFixed(1)}" y1="${ay1.toFixed(1)}" x2="${ax2.toFixed(1)}" y2="${ay2.toFixed(1)}" stroke="#2563eb" stroke-width="2" stroke-dasharray="4,2"/>
-    <circle cx="${ax1.toFixed(1)}" cy="${ay1.toFixed(1)}" r="3.2" fill="#2563eb" stroke="#ffffff" stroke-width="0.8"/>
-    <text x="${(ax1 - 5).toFixed(1)}" y="${(ay1 + 3).toFixed(1)}" font-size="8" font-weight="800" fill="#1e40af" text-anchor="end">A</text>
-    <circle cx="${ax2.toFixed(1)}" cy="${ay2.toFixed(1)}" r="3.2" fill="#dc2626" stroke="#ffffff" stroke-width="0.8"/>
-    <text x="${(ax2 + 5).toFixed(1)}" y="${(ay2 + 3).toFixed(1)}" font-size="8" font-weight="800" fill="#b91c1c" text-anchor="start">B</text>
+    <line x1="${ax1.toFixed(1)}" y1="${ay1.toFixed(1)}" x2="${ax2.toFixed(1)}" y2="${ay2.toFixed(1)}" stroke="#ffffff" stroke-width="5.5" stroke-linecap="round"/>
+    <line x1="${ax1.toFixed(1)}" y1="${ay1.toFixed(1)}" x2="${ax2.toFixed(1)}" y2="${ay2.toFixed(1)}" stroke="#1d4ed8" stroke-width="2.2" stroke-dasharray="6,3"/>
+    
+    <!-- Endpoint A Badge -->
+    <circle cx="${ax1.toFixed(1)}" cy="${ay1.toFixed(1)}" r="5.5" fill="#1d4ed8" stroke="#ffffff" stroke-width="1.2"/>
+    <text x="${ax1.toFixed(1)}" y="${(ay1 + 2.8).toFixed(1)}" font-size="7.5" font-weight="900" fill="#ffffff" text-anchor="middle">A</text>
+
+    <!-- Endpoint B Badge -->
+    <circle cx="${ax2.toFixed(1)}" cy="${ay2.toFixed(1)}" r="5.5" fill="#dc2626" stroke="#ffffff" stroke-width="1.2"/>
+    <text x="${ax2.toFixed(1)}" y="${(ay2 + 2.8).toFixed(1)}" font-size="7.5" font-weight="900" fill="#ffffff" text-anchor="middle">B</text>
   `;
 
-  // Perpendicular projection tie lines & BH points
-  pts.forEach(p => {
+  // Perpendicular projection tie lines & BH points with staggered label placement
+  pts.forEach((p, pIdx) => {
     const px = toMapX(p.e);
     const py = toMapY(p.n);
     const vE = p.e - lineStartE;
@@ -5442,18 +5631,30 @@ function renderPlanViewLegendCard(rows, distances, sectionAz, offsets, cardX, ca
     const projX = toMapX(projE);
     const projY = toMapY(projN);
 
+    const perpDist = (p.e - lineStartE) * uN - (p.n - lineStartN) * uE;
+
     if (Math.hypot(px - projX, py - projY) > 1.5) {
-      svg += `<line x1="${px.toFixed(1)}" y1="${py.toFixed(1)}" x2="${projX.toFixed(1)}" y2="${projY.toFixed(1)}" stroke="#94a3b8" stroke-width="0.8" stroke-dasharray="2,1.5"/>`;
+      svg += `<line x1="${px.toFixed(1)}" y1="${py.toFixed(1)}" x2="${projX.toFixed(1)}" y2="${projY.toFixed(1)}" stroke="#64748b" stroke-width="1" stroke-dasharray="2,1.5"/>`;
     }
-    
-    // Inward-facing smart text anchoring with white halo so text is 100% legible & inside card
-    const isRight = px > mapCX;
-    const tx = isRight ? px - 5.5 : px + 5.5;
-    const anchor = isRight ? 'end' : 'start';
+
+    // Smart non-colliding text placement: alternate above/below or place towards outer side
+    let tx, ty, anchor;
+    if (Math.abs(perpDist) > 2.5) {
+      // Off-line: place text towards the outer side away from baseline
+      const isRight = px > mapCX;
+      tx = isRight ? px - 6 : px + 6;
+      ty = py + (perpDist > 0 ? 8 : -4);
+      anchor = isRight ? 'end' : 'start';
+    } else {
+      // On-line: alternate above and below baseline
+      tx = px;
+      ty = (pIdx % 2 === 0) ? py - 7 : py + 12;
+      anchor = 'middle';
+    }
 
     svg += `
-      <circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="3" fill="#1e293b" stroke="#ffffff" stroke-width="0.8"/>
-      <text x="${tx.toFixed(1)}" y="${(py + 3).toFixed(1)}" font-size="8" font-weight="700" fill="#0f172a" text-anchor="${anchor}" style="paint-order: stroke fill; stroke: #faf9f6; stroke-width: 2.5px; stroke-linejoin: round;">${p.shortName}</text>
+      <circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="3.2" fill="#0f172a" stroke="#ffffff" stroke-width="1"/>
+      <text x="${tx.toFixed(1)}" y="${ty.toFixed(1)}" font-size="8" font-weight="700" fill="#0f172a" text-anchor="${anchor}" style="paint-order: stroke fill; stroke: #ffffff; stroke-width: 3px; stroke-linejoin: round;">${p.shortName}</text>
     `;
   });
 
@@ -5466,6 +5667,7 @@ function recreateProfile() {
   sectionAzimuth = parseFloat(document.getElementById('az-input')?.value) || 0;
   foliationDipDir = parseFloat(document.getElementById('dip-dir-input')?.value) || 45;
   foliationDipAngle = parseFloat(document.getElementById('dip-ang-input')?.value) || 45;
+  const sectionTitle = (document.getElementById('section-title-input')?.value || '').trim();
   updateApparentDipDisplay();
 
   let orderedRows, distances, offsets = null;
@@ -5486,6 +5688,7 @@ function recreateProfile() {
   const projectMeta = {
     sectionMethod,
     sectionAzimuth,
+    sectionTitle,
     dipDirection: foliationDipDir,
     dipAngle: foliationDipAngle,
     offsets,
@@ -5503,14 +5706,28 @@ function showProfileModal(rows){
   const rqdEl  = document.getElementById('modal-opt-rqd');
   const gwtEl  = document.getElementById('modal-opt-gwt');
   const weaEl  = document.getElementById('modal-opt-weathering');
+  const rghEl  = document.getElementById('modal-opt-roughground');
+  const rsoEl  = document.getElementById('modal-opt-roughsoil');
+  const rckEl  = document.getElementById('modal-opt-roughrockhead');
   if (rockEl) rockEl.checked = profileOptions.showRockLithology;
   if (sptEl)  sptEl.checked  = profileOptions.showSPT;
   if (rqdEl)  rqdEl.checked  = profileOptions.showRQD;
   if (gwtEl)  gwtEl.checked  = profileOptions.showGWT;
   if (weaEl)  weaEl.checked  = profileOptions.showWeathering;
+  if (rghEl)  rghEl.checked  = profileOptions.showRoughGround || false;
+  if (rsoEl)  rsoEl.checked  = profileOptions.showRoughSoil || false;
+  if (rckEl)  rckEl.checked  = profileOptions.showRoughRockhead || false;
 
   const seqRadio = document.querySelector('input[name="section-method"][value="sequential"]');
   if (seqRadio) { seqRadio.checked = true; onSectionMethodChange('sequential'); }
+
+  const titleInput = document.getElementById('section-title-input');
+  if (titleInput && (!titleInput.value || titleInput.value === 'ENGINEERING GEOLOGICAL CROSS-SECTION A — B' || titleInput.getAttribute('data-auto-generated') === 'true')) {
+    const firstBH = (rows[0]['BH Name'] || rows[0]['PointID'] || 'BH 1').trim();
+    const lastBH  = (rows[rows.length - 1]['BH Name'] || rows[rows.length - 1]['PointID'] || `BH ${rows.length}`).trim();
+    titleInput.value = `ENGINEERING GEOLOGICAL CROSS-SECTION A — B (${firstBH} to ${lastBH})`;
+    titleInput.setAttribute('data-auto-generated', 'true');
+  }
 
   autoDetectAzimuth();
   recreateProfile();
