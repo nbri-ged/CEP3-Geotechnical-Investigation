@@ -888,6 +888,7 @@
         <span style="color:#475569; font-size:10.5px; margin-left:2px;">Dip:</span>
         <input id="dip-ang-input" type="number" min="0" max="90" step="1" value="45" style="width:40px; padding:1px 4px; border:1px solid #94a3b8; border-radius:3px; font-size:11px; text-align:center;" title="True Dip Angle (0-90° from horizontal)" onchange="updateApparentDipDisplay()">
         <span style="color:#64748b; font-size:10px;">°</span>
+        <button id="foliation-auto-btn" onclick="autoSuggestFoliation()" style="font-size:10px; padding:1px 6px; background:#0f766e; color:#fff; border:none; border-radius:3px; cursor:pointer; font-weight:700; margin-left:2px;" title="Suggest best matching foliation dip plane from observed rock contacts">⚡ Best Match</button>
         <span id="app-dip-badge" style="font-size:10px; font-weight:700; color:#1e40af; margin-left:4px; background:#dbeafe; padding:1px 6px; border-radius:3px; white-space:nowrap;" title="Calculated Apparent Dip along cross-section">App. Dip: 45.0°</span>
       </div>
 
@@ -4206,7 +4207,14 @@ function buildProfileSvg(rows, options = {}, arg3 = null, arg4 = null) {
   }
 
   const dominantRockPerBH = rows.map((r, i) => getDominantRockType(rockLayersPerBH[i]));
-  const sectionRockTypes = new Set(dominantRockPerBH);
+  const sectionRockTypes = new Set();
+  rockLayersPerBH.forEach(layers => {
+    if (layers && layers.length) {
+      layers.forEach(l => sectionRockTypes.add(l.rockType));
+    }
+  });
+  if (!sectionRockTypes.size) dominantRockPerBH.forEach(t => sectionRockTypes.add(t));
+  if (!sectionRockTypes.size) sectionRockTypes.add('Biotite Gneiss');
 
   // ── CATEGORIZE LEGEND DATA INTO STRUCTURED SEMANTIC GROUPS ──
   // Group 1: Soil Stratigraphy (BS 5930)
@@ -4847,27 +4855,9 @@ function buildProfileSvg(rows, options = {}, arg3 = null, arg4 = null) {
   // STEP C3: Rock Lithology Standard Monochrome Hatches & Dipping Formation Boundaries
   if (opts.showRockLithology !== false && sectionRockTypes.size > 0) {
     svg += `<g clip-path="url(#${bedrockClipId})">`;
-    const masterRockList = Array.from(sectionRockTypes);
-
     // Apparent dip slope along section line (z change per meter of distance)
     const dirSign = appDip.directionStr === '← A' ? -1 : (appDip.directionStr === '→ B' ? 1 : 0);
     const dipSlope = Math.tan((appDip.angle * Math.PI) / 180) * dirSign;
-
-    // Helper: get dominant regional rock type of a borehole
-    function getDominantRockType(layers) {
-      if (!layers || !layers.length) return masterRockList[0] || 'Biotite Gneiss';
-      let bestType = layers[0].rockType, maxThick = -1;
-      layers.forEach(l => {
-        const thick = Math.abs(l.zTop - l.zBot);
-        if (thick > maxThick) {
-          maxThick = thick;
-          bestType = l.rockType;
-        }
-      });
-      return bestType;
-    }
-
-    const dominantRockPerBH = rows.map((r, i) => getDominantRockType(rockLayersPerBH[i]));
 
     // Helper to render a closed polygon from top and bottom points
     function renderRockPolygon(topPts, botPts, rockType) {
@@ -4880,103 +4870,227 @@ function buildProfileSvg(rows, options = {}, arg3 = null, arg4 = null) {
       return `<path d="${polyD}" fill="url(#${conf.patternId})" stroke="none"/>\n`;
     }
 
-    // 1. Left side extension (from distMin to distances[0])
-    if (distMin < distances[0] - 1e-4) {
-      const extDists = sampleDists.filter(d => d <= distances[0] + 1e-4);
-      if (extDists.length >= 2) {
-        const rockType0 = dominantRockPerBH[0];
-        const topPts = extDists.map(d => [xPos(d), yPos(getZRock(d))]);
-        const botPts = extDists.map(d => [xPos(d), yPos(minElev)]);
-        svg += `<!-- Rock Stratum Extension Left: ${rockType0} -->\n`;
-        svg += renderRockPolygon(topPts, botPts, rockType0);
+    // 1. Extract all logged rock contacts across boreholes
+    const loggedContacts = []; // { bhIdx, dist, z, rockAbove, rockBelow, contactKey }
+    rows.forEach((r, i) => {
+      const layers = rockLayersPerBH[i];
+      if (!layers || layers.length < 2) return;
+      for (let k = 0; k < layers.length - 1; k++) {
+        const up = layers[k];
+        const dn = layers[k + 1];
+        if (up.rockType !== dn.rockType) {
+          loggedContacts.push({
+            bhIdx: i,
+            dist: distances[i],
+            z: up.zBot,
+            rockAbove: up.rockType,
+            rockBelow: dn.rockType,
+            contactKey: `${up.rockType}➔${dn.rockType}`
+          });
+        }
       }
-    }
+    });
 
-    // 2. Intermediate spans between boreholes (mutually exclusive, non-overlapping)
-    for (let j = 0; j < rows.length - 1; j++) {
-      const dStart = distances[j], dEnd = distances[j + 1];
-      const spanDists = sampleDists.filter(d => d >= dStart - 1e-4 && d <= dEnd + 1e-4);
-      if (spanDists.length < 2) continue;
+    const contactGroups = {};
+    loggedContacts.forEach(c => {
+      if (!contactGroups[c.contactKey]) contactGroups[c.contactKey] = [];
+      contactGroups[c.contactKey].push(c);
+    });
 
-      const rockTypeA = dominantRockPerBH[j];
-      const rockTypeB = dominantRockPerBH[j + 1];
-
-      if (rockTypeA === rockTypeB) {
-        // Uniform rock formation across this span
-        const topPts = spanDists.map(d => [xPos(d), yPos(getZRock(d))]);
-        const botPts = spanDists.map(d => [xPos(d), yPos(minElev)]);
-        svg += `<!-- Rock Stratum Span ${j}-${j+1} Uniform: ${rockTypeA} -->\n`;
-        svg += renderRockPolygon(topPts, botPts, rockTypeA);
-      } else {
-        // Dipping geological formation contact along foliation
-        const dMid = (dStart + dEnd) / 2;
-        const zR_A = getZRock(dStart);
-        const zR_B = getZRock(dEnd);
-        const zMid = (zR_A + zR_B) / 2;
-
-        const upperTop = [], upperBot = [];
-        const lowerTop = [], lowerBot = [];
-
-        spanDists.forEach(d => {
-          const zRock = getZRock(d);
-          const zContact = zMid - dipSlope * (d - dMid);
-          const zClamped = Math.max(minElev, Math.min(zRock, zContact));
-          const x = xPos(d);
-
-          if (zRock > zClamped + 0.01) {
-            upperTop.push([x, yPos(zRock)]);
-            upperBot.push([x, yPos(zClamped)]);
+    const contactCurves = [];
+    Object.keys(contactGroups).forEach(ck => {
+      const pts = contactGroups[ck].slice().sort((a, b) => a.dist - b.dist);
+      contactCurves.push({
+        contactKey: ck,
+        rockAbove: pts[0].rockAbove,
+        rockBelow: pts[0].rockBelow,
+        pts: pts,
+        getZAt: function(d) {
+          if (pts.length === 1) {
+            return pts[0].z - dipSlope * (d - pts[0].dist);
           }
-          if (zClamped > minElev + 0.01) {
-            lowerTop.push([x, yPos(zClamped)]);
-            lowerBot.push([x, yPos(minElev)]);
+          if (d <= pts[0].dist) {
+            return pts[0].z - dipSlope * (d - pts[0].dist);
           }
+          if (d >= pts[pts.length - 1].dist) {
+            const last = pts[pts.length - 1];
+            return last.z - dipSlope * (d - last.dist);
+          }
+          for (let m = 0; m < pts.length - 1; m++) {
+            if (d >= pts[m].dist && d <= pts[m + 1].dist) {
+              const span = pts[m + 1].dist - pts[m].dist;
+              const frac = span > 1e-4 ? (d - pts[m].dist) / span : 0;
+              return pts[m].z + frac * (pts[m + 1].z - pts[m].z);
+            }
+          }
+          return pts[0].z;
+        }
+      });
+    });
+
+    if (contactCurves.length > 0) {
+      // Sort contact curves from highest elevation to lowest elevation
+      contactCurves.sort((a, b) => {
+        const midD = (distMin + distMax) / 2;
+        return b.getZAt(midD) - a.getZAt(midD);
+      });
+
+      // Upper rock layer (above topmost contact)
+      const topRock = contactCurves[0].rockAbove;
+      const topCurveTop = sampleDists.map(d => [xPos(d), yPos(getZRock(d))]);
+      const topCurveBot = sampleDists.map(d => {
+        const zR = getZRock(d);
+        const zC = Math.max(minElev, Math.min(zR, contactCurves[0].getZAt(d)));
+        return [xPos(d), yPos(zC)];
+      });
+      svg += `<!-- Stratified Rock Formation Upper: ${topRock} -->\n`;
+      svg += renderRockPolygon(topCurveTop, topCurveBot, topRock);
+
+      // Intermediate rock layers (between contacts)
+      for (let ci = 0; ci < contactCurves.length - 1; ci++) {
+        const cUpper = contactCurves[ci];
+        const cLower = contactCurves[ci + 1];
+        const midRock = cUpper.rockBelow || cLower.rockAbove;
+        const midCurveTop = sampleDists.map(d => {
+          const zR = getZRock(d);
+          const zC = Math.max(minElev, Math.min(zR, cUpper.getZAt(d)));
+          return [xPos(d), yPos(zC)];
         });
-
-        const upperRock = dirSign >= 0 ? rockTypeB : rockTypeA;
-        const lowerRock = dirSign >= 0 ? rockTypeA : rockTypeB;
-
-        svg += `<!-- Rock Stratum Span ${j}-${j+1} Upper: ${upperRock} -->\n`;
-        svg += renderRockPolygon(upperTop, upperBot, upperRock);
-        svg += `<!-- Rock Stratum Span ${j}-${j+1} Lower: ${lowerRock} -->\n`;
-        svg += renderRockPolygon(lowerTop, lowerBot, lowerRock);
+        const midCurveBot = sampleDists.map(d => {
+          const zR = getZRock(d);
+          const zC = Math.max(minElev, Math.min(zR, cLower.getZAt(d)));
+          return [xPos(d), yPos(zC)];
+        });
+        svg += `<!-- Stratified Rock Formation Intermediate: ${midRock} -->\n`;
+        svg += renderRockPolygon(midCurveTop, midCurveBot, midRock);
       }
-    }
 
-    // 3. Right side extension (from distances[N-1] to distMax)
-    if (distMax > distances[distances.length - 1] + 1e-4) {
-      const extDists = sampleDists.filter(d => d >= distances[distances.length - 1] - 1e-4);
-      if (extDists.length >= 2) {
-        const rockTypeN = dominantRockPerBH[rows.length - 1];
-        const topPts = extDists.map(d => [xPos(d), yPos(getZRock(d))]);
-        const botPts = extDists.map(d => [xPos(d), yPos(minElev)]);
-        svg += `<!-- Rock Stratum Extension Right: ${rockTypeN} -->\n`;
-        svg += renderRockPolygon(topPts, botPts, rockTypeN);
-      }
-    }
+      // Lower rock layer (below bottommost contact)
+      const botRock = contactCurves[contactCurves.length - 1].rockBelow;
+      const botCurveTop = sampleDists.map(d => {
+        const zR = getZRock(d);
+        const zC = Math.max(minElev, Math.min(zR, contactCurves[contactCurves.length - 1].getZAt(d)));
+        return [xPos(d), yPos(zC)];
+      });
+      const botCurveBot = sampleDists.map(d => [xPos(d), yPos(minElev)]);
+      svg += `<!-- Stratified Rock Formation Lower: ${botRock} -->\n`;
+      svg += renderRockPolygon(botCurveTop, botCurveBot, botRock);
 
-    // Draw geological formation contact lines strictly in the transition spans
-    for (let j = 0; j < rows.length - 1; j++) {
-      const rockTypeA = dominantRockPerBH[j];
-      const rockTypeB = dominantRockPerBH[j + 1];
-      if (rockTypeA && rockTypeB && rockTypeA !== rockTypeB) {
-        const dMid = (distances[j] + distances[j + 1]) / 2;
-        const zR_A = getZRock(distances[j]);
-        const zR_B = getZRock(distances[j + 1]);
-        const zMid = (zR_A + zR_B) / 2;
+      // Draw continuous geological formation contact dashed lines (from rockhead to plot base / side margin)
+      contactCurves.forEach(curve => {
         const run = [];
         sampleDists.forEach(d => {
-          if (d >= distances[j] - 1e-4 && d <= distances[j + 1] + 1e-4) {
-            const zRock = getZRock(d);
-            const zC = zMid - dipSlope * (d - dMid);
-            if (zC <= zRock && zC >= minElev) {
-              run.push([xPos(d), yPos(zC)]);
-            }
+          const zR = getZRock(d);
+          const zC = curve.getZAt(d);
+          if (zC <= zR + 0.05 && zC >= minElev - 0.05) {
+            const zDraw = Math.max(minElev, Math.min(zR, zC));
+            run.push([xPos(d), yPos(zDraw)]);
           }
         });
         if (run.length >= 2) {
           svg += `<!-- Geological Formation Contact Boundary (Dipping along foliation) -->
-          <path d="${ptsToCubicBezier(run, 0.55)}" fill="none" stroke="#78828c" stroke-width="1.3" stroke-dasharray="7,5" opacity="0.95"/>\n`;
+          <path d="${ptsToCubicBezier(run, 0.55)}" fill="none" stroke="#1f2937" stroke-width="1.4" stroke-dasharray="6,3" opacity="0.95"/>\n`;
+        }
+      });
+    } else {
+      // If no intra-borehole contacts, partition lateral transitions between boreholes along dipping foliation
+      // 1. Left side extension (from distMin to distances[0])
+      if (distMin < distances[0] - 1e-4) {
+        const extDists = sampleDists.filter(d => d <= distances[0] + 1e-4);
+        if (extDists.length >= 2) {
+          const rockType0 = dominantRockPerBH[0];
+          const topPts = extDists.map(d => [xPos(d), yPos(getZRock(d))]);
+          const botPts = extDists.map(d => [xPos(d), yPos(minElev)]);
+          svg += `<!-- Rock Stratum Extension Left: ${rockType0} -->\n`;
+          svg += renderRockPolygon(topPts, botPts, rockType0);
+        }
+      }
+
+      // 2. Intermediate spans between boreholes (mutually exclusive, non-overlapping)
+      for (let j = 0; j < rows.length - 1; j++) {
+        const dStart = distances[j], dEnd = distances[j + 1];
+        const spanDists = sampleDists.filter(d => d >= dStart - 1e-4 && d <= dEnd + 1e-4);
+        if (spanDists.length < 2) continue;
+
+        const rockTypeA = dominantRockPerBH[j];
+        const rockTypeB = dominantRockPerBH[j + 1];
+
+        if (rockTypeA === rockTypeB) {
+          const topPts = spanDists.map(d => [xPos(d), yPos(getZRock(d))]);
+          const botPts = spanDists.map(d => [xPos(d), yPos(minElev)]);
+          svg += `<!-- Rock Stratum Span ${j}-${j+1} Uniform: ${rockTypeA} -->\n`;
+          svg += renderRockPolygon(topPts, botPts, rockTypeA);
+        } else {
+          const dMid = (dStart + dEnd) / 2;
+          const zR_A = getZRock(dStart);
+          const zR_B = getZRock(dEnd);
+          const zMid = (zR_A + zR_B) / 2;
+
+          const upperTop = [], upperBot = [];
+          const lowerTop = [], lowerBot = [];
+
+          spanDists.forEach(d => {
+            const zRock = getZRock(d);
+            const zContact = zMid - dipSlope * (d - dMid);
+            const zClamped = Math.max(minElev, Math.min(zRock, zContact));
+            const x = xPos(d);
+
+            if (zRock > zClamped + 0.01) {
+              upperTop.push([x, yPos(zRock)]);
+              upperBot.push([x, yPos(zClamped)]);
+            }
+            if (zClamped > minElev + 0.01) {
+              lowerTop.push([x, yPos(zClamped)]);
+              lowerBot.push([x, yPos(minElev)]);
+            }
+          });
+
+          const upperRock = dirSign >= 0 ? rockTypeB : rockTypeA;
+          const lowerRock = dirSign >= 0 ? rockTypeA : rockTypeB;
+
+          svg += `<!-- Rock Stratum Span ${j}-${j+1} Upper: ${upperRock} -->\n`;
+          svg += renderRockPolygon(upperTop, upperBot, upperRock);
+          svg += `<!-- Rock Stratum Span ${j}-${j+1} Lower: ${lowerRock} -->\n`;
+          svg += renderRockPolygon(lowerTop, lowerBot, lowerRock);
+        }
+      }
+
+      // 3. Right side extension (from distances[N-1] to distMax)
+      if (distMax > distances[distances.length - 1] + 1e-4) {
+        const extDists = sampleDists.filter(d => d >= distances[distances.length - 1] - 1e-4);
+        if (extDists.length >= 2) {
+          const rockTypeN = dominantRockPerBH[rows.length - 1];
+          const topPts = extDists.map(d => [xPos(d), yPos(getZRock(d))]);
+          const botPts = extDists.map(d => [xPos(d), yPos(minElev)]);
+          svg += `<!-- Rock Stratum Extension Right: ${rockTypeN} -->\n`;
+          svg += renderRockPolygon(topPts, botPts, rockTypeN);
+        }
+      }
+
+      // Draw geological formation contact lines strictly in the transition spans (from rockhead to base/side)
+      for (let j = 0; j < rows.length - 1; j++) {
+        const rockTypeA = dominantRockPerBH[j];
+        const rockTypeB = dominantRockPerBH[j + 1];
+        if (rockTypeA && rockTypeB && rockTypeA !== rockTypeB) {
+          const dMid = (distances[j] + distances[j + 1]) / 2;
+          const zR_A = getZRock(distances[j]);
+          const zR_B = getZRock(distances[j + 1]);
+          const zMid = (zR_A + zR_B) / 2;
+          const run = [];
+          sampleDists.forEach(d => {
+            if (d >= distances[j] - 1e-4 && d <= distances[j + 1] + 1e-4) {
+              const zRock = getZRock(d);
+              const zC = zMid - dipSlope * (d - dMid);
+              if (zC <= zRock + 0.05 && zC >= minElev - 0.05) {
+                const zDraw = Math.max(minElev, Math.min(zRock, zC));
+                run.push([xPos(d), yPos(zDraw)]);
+              }
+            }
+          });
+          if (run.length >= 2) {
+            svg += `<!-- Geological Formation Contact Boundary (Dipping along foliation) -->
+            <path d="${ptsToCubicBezier(run, 0.55)}" fill="none" stroke="#1f2937" stroke-width="1.4" stroke-dasharray="6,3" opacity="0.95"/>\n`;
+          }
         }
       }
     }
@@ -5517,6 +5631,88 @@ function autoDetectAzimuth() {
   }
 }
 
+// Infer best matching foliation plane from observed rock contacts across boreholes
+function inferBestFoliationFromContacts(rows, distances, sectionAz) {
+  if (!rows || rows.length < 2 || !distances || distances.length < 2) return null;
+  const levelsArr = rows.map(computeBHLevels);
+  const rockLayersPerBH = rows.map((r, i) => {
+    const raw = getBHWeathering(r);
+    const zG = levelsArr[i].elevation !== null ? levelsArr[i].elevation : 100;
+    const dRock = (levelsArr[i].overburden !== null) ? levelsArr[i].overburden : 5;
+    if (!raw || !raw.length) return [];
+    const sorted = raw.slice().filter(cur => !isBoulderCode(cur.rockType) && !isBoulderCode(cur.grade)).sort((a, b) => a.depth - b.depth);
+    const layers = [];
+    for (let k = 0; k < sorted.length; k++) {
+      const cur = sorted[k];
+      const topD = Math.max(cur.depth, dRock);
+      const nextDepth = k < sorted.length - 1 ? sorted[k+1].depth : topD + 10;
+      const botD = Math.max(nextDepth, topD);
+      if (topD < botD) layers.push({ zTop: zG - topD, zBot: zG - botD, rockType: normalizeRockType(cur.rockType) });
+    }
+    return layers;
+  });
+
+  const slopes = [];
+  for (let i = 0; i < rows.length - 1; i++) {
+    const lA = rockLayersPerBH[i];
+    const lB = rockLayersPerBH[i + 1];
+    if (!lA || !lB || !lA.length || !lB.length) continue;
+    const dSpan = distances[i + 1] - distances[i];
+    if (dSpan <= 0.1) continue;
+
+    for (let ka = 0; ka < lA.length - 1; ka++) {
+      const topA = lA[ka].rockType, botA = lA[ka + 1].rockType;
+      for (let kb = 0; kb < lB.length - 1; kb++) {
+        const topB = lB[kb].rockType, botB = lB[kb + 1].rockType;
+        if (topA === topB && botA === botB) {
+          const zContactA = lA[ka].zBot;
+          const zContactB = lB[kb].zBot;
+          const dz = zContactB - zContactA;
+          const slope = dz / dSpan; // negative = dips towards B, positive = dips towards A
+          slopes.push({ slope, weight: dSpan });
+        }
+      }
+    }
+  }
+
+  if (!slopes.length) return null;
+  const totalW = slopes.reduce((acc, s) => acc + s.weight, 0);
+  const avgSlope = slopes.reduce((acc, s) => acc + s.slope * s.weight, 0) / (totalW || 1);
+  const appAngle = Math.atan(Math.abs(avgSlope)) * 180 / Math.PI;
+
+  const trueDipDir = avgSlope < 0 ? ((sectionAz % 360) + 360) % 360 : (((sectionAz + 180) % 360) + 360) % 360;
+  const trueDipAngle = Math.min(Math.max(appAngle, 5), 85);
+
+  return {
+    trueDipDir,
+    trueDipAngle,
+    apparentAngle: appAngle,
+    slope: avgSlope
+  };
+}
+
+// User Action: Auto-Suggest best foliation plane from observed rock contacts
+function autoSuggestFoliation() {
+  if (!currentProfileRows || currentProfileRows.length < 2) return;
+  const sAz = parseFloat(document.getElementById('az-input')?.value) || detectBHTrendAzimuth(currentProfileRows);
+  const orderedRows = sectionMethod === 'projection' ? projectBoreholes(currentProfileRows, sAz).map(t => t.row) : sortBoreholesByMapPosition(currentProfileRows);
+  const dists = sectionMethod === 'projection' ? computeProjectedDistances(projectBoreholes(currentProfileRows, sAz)) : computeProfilePositions(orderedRows);
+
+  const inferred = inferBestFoliationFromContacts(orderedRows, dists, sAz);
+  if (inferred) {
+    const dirInput = document.getElementById('dip-dir-input');
+    const angInput = document.getElementById('dip-ang-input');
+    if (dirInput && angInput) {
+      dirInput.value = Math.round(inferred.trueDipDir);
+      angInput.value = Math.round(inferred.trueDipAngle);
+      updateApparentDipDisplay();
+      recreateProfile();
+    }
+  } else {
+    alert('No multi-borehole matching rock contacts found in the current selection. You can manually adjust the Foliation Dip Dir and Dip Angle inputs.');
+  }
+}
+
 // ── PROJECT BHs ONTO SECTION LINE ──────────────────────────────────────────
 function projectBoreholes(rows, azDeg) {
   const azRad = (azDeg * Math.PI) / 180;
@@ -5757,6 +5953,22 @@ function showProfileModal(rows){
   }
 
   autoDetectAzimuth();
+
+  const orderedRows = sortBoreholesByMapPosition(rows);
+  const dists = computeProfilePositions(orderedRows);
+  const inferred = inferBestFoliationFromContacts(orderedRows, dists, sectionAzimuth);
+  if (inferred) {
+    const dirInput = document.getElementById('dip-dir-input');
+    const angInput = document.getElementById('dip-ang-input');
+    if (dirInput && angInput) {
+      dirInput.value = Math.round(inferred.trueDipDir);
+      angInput.value = Math.round(inferred.trueDipAngle);
+      foliationDipDir = Math.round(inferred.trueDipDir);
+      foliationDipAngle = Math.round(inferred.trueDipAngle);
+    }
+  }
+  updateApparentDipDisplay();
+
   recreateProfile();
   document.getElementById('profile-modal-backdrop').classList.add('open');
 }
