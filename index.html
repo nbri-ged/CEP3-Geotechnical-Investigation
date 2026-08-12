@@ -3199,8 +3199,22 @@ function detectBHTrendAzimuth(rows) {
   return Math.round(az * 10) / 10;
 }
 
-function buildProfileSvg(rows, options = {}, projectMeta = null, distancesOverride = null) {
+function buildProfileSvg(rows, options = {}, arg3 = null, arg4 = null) {
   if (!rows || !rows.length) return '';
+
+  let distancesOverride = null;
+  let projectMeta = null;
+
+  if (Array.isArray(arg3)) {
+    distancesOverride = arg3;
+    projectMeta = (arg4 && typeof arg4 === 'object' && !Array.isArray(arg4)) ? arg4 : null;
+  } else if (arg3 && typeof arg3 === 'object' && !Array.isArray(arg3)) {
+    projectMeta = arg3;
+    distancesOverride = Array.isArray(arg4) ? arg4 : null;
+  } else {
+    if (Array.isArray(arg4)) distancesOverride = arg4;
+    else if (arg4 && typeof arg4 === 'object') projectMeta = arg4;
+  }
 
   const opts = Object.assign({
     showRockLithology: true,
