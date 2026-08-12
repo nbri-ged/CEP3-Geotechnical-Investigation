@@ -3,9 +3,6 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
-<meta http-equiv="Pragma" content="no-cache" />
-<meta http-equiv="Expires" content="0" />
 <title>NBRI Borehole Map - CEP3 - Rambukkana - Galagedara Section</title>
 
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -432,6 +429,46 @@
   .leaflet-popup-content{
     margin:12px 14px;
   }
+  .wide-popup .leaflet-popup-content-wrapper {
+    padding: 12px 16px;
+    border-radius: 12px;
+    box-shadow: 0 16px 36px rgba(0,0,0,0.22), 0 3px 10px rgba(0,0,0,0.1);
+  }
+  .wide-popup .leaflet-popup-content {
+    margin: 6px 4px;
+    line-height: 1.35;
+    max-width: 860px !important;
+    width: auto !important;
+  }
+  @media (max-width: 860px) {
+    .wide-popup .leaflet-popup-content-wrapper {
+      max-width: 95vw;
+    }
+  }
+  .bh-popup-grid {
+    display: flex;
+    gap: 16px;
+    align-items: stretch;
+    width: 820px;
+    max-width: 100%;
+    color: #1e293b;
+    font-family: 'Inter', sans-serif;
+  }
+  .bh-popup-left {
+    width: 240px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    border-right: 1px solid #e2e8f0;
+    padding-right: 14px;
+  }
+  .bh-popup-right {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+  }
   .popup-title{
     font-weight:700;
     font-size:14px;
@@ -477,9 +514,9 @@
     box-shadow:var(--shadow-md);
   }
   .bh-log-wrap{
-    margin-top:10px;
-    padding-top:10px;
-    border-top:1px solid var(--line);
+    margin-top:0px;
+    padding-top:0px;
+    border-top:none;
   }
   .bh-log-title{
     font-size:10.5px;
@@ -570,146 +607,6 @@
   .bh-label::before, .pkg-label::before {
     border-top-color: var(--line) !important;
   }
-  .wide-popup .leaflet-popup-content-wrapper {
-    padding: 12px 14px !important;
-    border-radius: 10px !important;
-    box-shadow: 0 12px 30px -5px rgba(15, 23, 42, 0.22), 0 6px 12px -4px rgba(15, 23, 42, 0.12) !important;
-    background: #ffffff !important;
-  }
-  .wide-popup .leaflet-popup-content {
-    margin: 0 !important;
-    width: auto !important;
-    line-height: 1.4 !important;
-  }
-
-  .version-badge {
-    background: rgba(255, 255, 255, 0.15);
-    border: 1px solid rgba(255, 255, 255, 0.32);
-    color: #ffffff;
-    font-size: 10px;
-    font-weight: 700;
-    padding: 2px 8px;
-    border-radius: 12px;
-    cursor: pointer;
-    letter-spacing: 0.04em;
-    transition: all 0.2s ease;
-    user-select: none;
-    margin-left: 6px;
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-  }
-  .version-badge:hover {
-    background: #2563eb;
-    border-color: #60a5fa;
-    box-shadow: 0 0 10px rgba(37, 99, 235, 0.6);
-  }
-
-  /* Version Update Modal */
-  #version-modal-backdrop {
-    display: none;
-    position: fixed;
-    inset: 0;
-    background: rgba(15, 23, 42, 0.7);
-    backdrop-filter: blur(4px);
-    z-index: 3000;
-    align-items: center;
-    justify-content: center;
-    animation: fadeIn 0.2s ease;
-  }
-  #version-modal-backdrop.open {
-    display: flex;
-  }
-  .version-modal {
-    background: #ffffff;
-    border-radius: 14px;
-    max-width: 520px;
-    width: 92vw;
-    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.4);
-    border: 1px solid #e2e8f0;
-    overflow: hidden;
-    animation: slideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1);
-  }
-  .version-modal-header {
-    background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
-    color: #ffffff;
-    padding: 14px 18px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-  }
-  .version-modal-header h3 {
-    margin: 0;
-    font-size: 14.5px;
-    font-weight: 800;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-  .version-tag {
-    background: #2563eb;
-    color: #fff;
-    font-size: 10.5px;
-    padding: 2px 8px;
-    border-radius: 10px;
-    font-weight: 700;
-    letter-spacing: .02em;
-  }
-  .version-modal-body {
-    padding: 16px 20px;
-    color: #334155;
-    font-size: 12.5px;
-    line-height: 1.5;
-  }
-  .version-modal-body ul {
-    margin: 8px 0 14px 0;
-    padding-left: 18px;
-  }
-  .version-modal-body li {
-    margin-bottom: 6px;
-    color: #475569;
-  }
-  .version-modal-footer {
-    padding: 12px 18px;
-    background: #f8fafc;
-    border-top: 1px solid #e2e8f0;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 10px;
-  }
-  .version-modal-btn {
-    padding: 7px 16px;
-    background: #2563eb;
-    color: #ffffff;
-    font-weight: 700;
-    font-size: 11.5px;
-    border: none;
-    border-radius: 6px;
-    cursor: pointer;
-    transition: background 0.15s ease;
-  }
-  .version-modal-btn:hover {
-    background: #1d4ed8;
-  }
-  .version-clear-btn {
-    padding: 7px 12px;
-    background: #ffffff;
-    color: #475569;
-    font-weight: 600;
-    font-size: 11px;
-    border: 1px solid #cbd5e1;
-    border-radius: 6px;
-    cursor: pointer;
-    transition: all 0.15s ease;
-  }
-  .version-clear-btn:hover {
-    background: #f1f5f9;
-    color: #0f172a;
-    border-color: #94a3b8;
-  }
-  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-  @keyframes slideUp { from { transform: translateY(12px) scale(0.97); opacity: 0; } to { transform: translateY(0) scale(1); opacity: 1; } }
 
   #map .bh-label, #map .pkg-label { display: none; }
   #map.show-pkg-labels .pkg-label { display: block; }
@@ -843,41 +740,8 @@
   <div id="status-line">
     <button id="refresh-btn" title="Refresh data now">&#8635;</button>
     <span id="status-dot"></span><span id="status-text">Loading data&hellip;</span>
-    <span id="app-version-badge" class="version-badge" onclick="showVersionModal(true)" title="Click to view update details or reset browser cache">v2.4.0</span>
   </div>
 </header>
-
-<!-- Version Update Notification Modal -->
-<div id="version-modal-backdrop">
-  <div class="version-modal">
-    <div class="version-modal-header">
-      <div style="display:flex; align-items:center; gap:8px;">
-        <span style="font-size:18px;">🚀</span>
-        <div>
-          <h3 style="margin:0; font-size:14.5px; font-weight:800;">System Updated</h3>
-          <span style="font-size:10px; opacity:0.85;">NBRI Geotechnical GIS Platform</span>
-        </div>
-      </div>
-      <span class="version-tag">v2.4.0</span>
-    </div>
-    <div class="version-modal-body">
-      <div style="font-weight:700; color:#0f172a; margin-bottom:8px;">✨ What's New in Version 2.4.0:</div>
-      <ul style="margin:0 0 14px 18px; padding:0; color:#334155; font-size:12.5px; line-height:1.55;">
-        <li><b>Geotechnical Schematic Log:</b> Integrated multi-column borehole popup dashboard with stratigraphic scaling.</li>
-        <li><b>SPT &amp; RQD Charts:</b> Dedicated N-value &amp; Core Recovery bar charts with refusal flags (<span style="color:#ef4444; font-weight:700;">50★</span>).</li>
-        <li><b>Non-Overlapping Text:</b> Precise stratum boundary leader lines for clear readability.</li>
-        <li><b>Cache Reset Applied:</b> Local storage and memory caches were purged to guarantee the latest dataset loads immediately.</li>
-      </ul>
-      <div style="font-size:11.5px; background:#eff6ff; border:1px solid #bfdbfe; padding:8px 10px; border-radius:6px; color:#1e40af;">
-        ℹ️ <i>Your local browser cache has been purged. The latest data is freshly synced.</i>
-      </div>
-    </div>
-    <div class="version-modal-footer">
-      <button class="version-clear-btn" onclick="forceHardRefreshAndPurge()">🔄 Force Clear All &amp; Hard Reload</button>
-      <button class="version-modal-btn" onclick="closeVersionModal()">Got It &mdash; Continue</button>
-    </div>
-  </div>
-</div>
 
 <div id="dashboard">
   <div class="dash-stat"><span class="dash-label">Last Updated</span><span id="dash-updated" class="dash-value">&mdash;</span></div>
@@ -1064,7 +928,6 @@
         <span style="color:#475569; font-size:10.5px; margin-left:2px;">Dip:</span>
         <input id="dip-ang-input" type="number" min="0" max="90" step="1" value="45" style="width:40px; padding:1px 4px; border:1px solid #94a3b8; border-radius:3px; font-size:11px; text-align:center;" title="True Dip Angle (0-90° from horizontal)" onchange="updateApparentDipDisplay()">
         <span style="color:#64748b; font-size:10px;">°</span>
-        <button id="foliation-auto-btn" onclick="autoSuggestFoliation()" style="font-size:10px; padding:1px 6px; background:#0f766e; color:#fff; border:none; border-radius:3px; cursor:pointer; font-weight:700; margin-left:2px;" title="Suggest best matching foliation dip plane from observed rock contacts">⚡ Best Match</button>
         <span id="app-dip-badge" style="font-size:10px; font-weight:700; color:#1e40af; margin-left:4px; background:#dbeafe; padding:1px 6px; border-radius:3px; white-space:nowrap;" title="Calculated Apparent Dip along cross-section">App. Dip: 45.0°</span>
       </div>
 
@@ -1132,81 +995,75 @@
 <script src="https://unpkg.com/tokml@0.4.0/tokml.js"></script>
 <script src="https://unpkg.com/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
 <script src="https://unpkg.com/leaflet-image@0.0.4/leaflet-image.js"></script>
+<script src="data_master.js"></script>
 
 <script>
 /* ============================================================
    APPLICATION VERSION & CACHE MANAGEMENT
    ============================================================ */
 const APP_VERSION = "2.4.0"; // Major: Stratigraphic Log Dashboards & Geotechnical Engine
-const APP_BUILD_DATE = "2026-08-12";
+const LOCAL_BOREHOLES_CSV = "CEP 3  Rambukkana-Galagedara - BoreholesDetails (2).csv";
 
 function getBustedUrl(url) {
-  if (!url || url.indexOf('PASTE_') === 0) return url;
+  if (!url) return '';
   const sep = url.includes('?') ? '&' : '?';
-  return `${url}${sep}_v=${APP_VERSION}&_cb=${Date.now()}`;
+  return `${url}${sep}_v=${APP_VERSION}_t=${Date.now()}`;
 }
 
-function showVersionModal(isManual = false) {
-  const backdrop = document.getElementById('version-modal-backdrop');
-  if (backdrop) backdrop.classList.add('open');
+function checkAppVersionAndClearCache() {
+  const storedVer = localStorage.getItem('nbri_app_version');
+  if (storedVer !== APP_VERSION) {
+    console.log(`[NBRI System] Upgraded from "${storedVer || 'initial'}" to "${APP_VERSION}". Syncing dataset and cache...`);
+    try {
+      const oldRows = localStorage.getItem('nbri_allrows_cache');
+      if (oldRows) localStorage.setItem('nbri_allrows_cache_backup', oldRows);
+      
+      const keysToPurge = ['nbri_dates_cache', 'nbri_cache_timestamp'];
+      keysToPurge.forEach(k => localStorage.removeItem(k));
+      sessionStorage.clear();
+      
+      if ('caches' in window) {
+        caches.keys().then(names => {
+          names.forEach(name => caches.delete(name));
+        });
+      }
+    } catch(e) {
+      console.warn('Cache purge non-fatal error:', e);
+    }
+    localStorage.setItem('nbri_app_version', APP_VERSION);
+    if (storedVer && storedVer !== APP_VERSION) {
+      setTimeout(() => {
+        showVersionUpdateNotice(storedVer, APP_VERSION);
+      }, 800);
+    }
+  }
 }
 
-function closeVersionModal() {
-  const backdrop = document.getElementById('version-modal-backdrop');
-  if (backdrop) backdrop.classList.remove('open');
+function showVersionUpdateNotice(oldVer, newVer) {
+  const div = document.createElement('div');
+  div.id = 'version-update-modal';
+  div.style.cssText = 'position:fixed; bottom:24px; right:24px; z-index:9999; background:#0f172a; color:#fff; padding:16px 20px; border-radius:10px; box-shadow:0 10px 25px rgba(0,0,0,0.3); border-left:4px solid #2563eb; font-family:"Inter",sans-serif; max-width:360px; animation:slideIn 0.3s ease;';
+  div.innerHTML = `
+    <div style="font-weight:700; font-size:13px; margin-bottom:4px; display:flex; justify-content:space-between; align-items:center;">
+      <span>🚀 Dashboard Updated (v${newVer})</span>
+      <button onclick="document.getElementById('version-update-modal').remove()" style="background:none; border:none; color:#94a3b8; font-size:16px; cursor:pointer; padding:0 4px;">&times;</button>
+    </div>
+    <div style="font-size:11.5px; color:#cbd5e1; line-height:1.4; margin-bottom:10px;">
+      The borehole data engine has loaded the latest geotechnical master dataset and refreshed cache memory.
+    </div>
+    <button onclick="forceHardRefreshAndPurge()" style="background:#2563eb; color:#fff; border:none; padding:6px 12px; border-radius:5px; font-weight:600; font-size:11px; cursor:pointer; width:100%;">
+      🔄 Reload Latest System State
+    </button>
+  `;
+  document.body.appendChild(div);
 }
 
 function forceHardRefreshAndPurge() {
   try {
     localStorage.clear();
     sessionStorage.clear();
-  } catch(e) {}
-  if ('caches' in window) {
-    caches.keys().then(names => Promise.all(names.map(n => caches.delete(n))))
-      .then(() => { window.location.reload(true); })
-      .catch(() => { window.location.reload(true); });
-  } else {
-    window.location.reload(true);
-  }
-}
-
-function checkAppVersionAndClearCache() {
-  const STORAGE_KEY = 'cep3_app_version';
-  let lastVersion = null;
-  try {
-    lastVersion = localStorage.getItem(STORAGE_KEY);
-  } catch(e) {}
-  
-  if (lastVersion !== APP_VERSION) {
-    console.log(`[NBRI System] Upgraded from "${lastVersion || 'initial'}" to "${APP_VERSION}". Syncing dataset and cache...`);
-    try {
-      const oldCache = localStorage.getItem('nbri_allrows_cache');
-      if (oldCache) {
-        localStorage.setItem('nbri_allrows_cache_backup', oldCache);
-      }
-      sessionStorage.clear();
-    } catch(e) {}
-    
-    if ('caches' in window) {
-      caches.keys().then(names => Promise.all(names.map(n => caches.delete(n)))).catch(() => {});
-    }
-    
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.getRegistrations().then(regs => {
-        regs.forEach(reg => reg.unregister());
-      }).catch(() => {});
-    }
-    
-    try {
-      localStorage.setItem(STORAGE_KEY, APP_VERSION);
-      localStorage.setItem('cep3_last_update_ts', new Date().toISOString());
-    } catch(e) {}
-    
-    // Automatically show update notification modal on first load of new version
-    setTimeout(() => {
-      showVersionModal(false);
-    }, 450);
-  }
+  } catch(e){}
+  window.location.reload(true);
 }
 
 checkAppVersionAndClearCache();
@@ -1215,7 +1072,6 @@ checkAppVersionAndClearCache();
    CONFIG
    ============================================================ */
 const SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS8PKkh7RDdd1g5boTWjdryadGLVhDkvKUMEjScApNAeWA7TrPrcetA1YiccjQvhPfnZ8ewg1NQugfv/pub?gid=364501395&single=true&output=csv";
-const LOCAL_BOREHOLES_CSV = "CEP 3  Rambukkana-Galagedara - BoreholesDetails (2).csv";
 const LOG_SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS8PKkh7RDdd1g5boTWjdryadGLVhDkvKUMEjScApNAeWA7TrPrcetA1YiccjQvhPfnZ8ewg1NQugfv/pub?output=csv";
 const BH_PROFILE_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS8PKkh7RDdd1g5boTWjdryadGLVhDkvKUMEjScApNAeWA7TrPrcetA1YiccjQvhPfnZ8ewg1NQugfv/pub?output=csv&gid=1914424732";
 const CEP4_BH_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS8PKkh7RDdd1g5boTWjdryadGLVhDkvKUMEjScApNAeWA7TrPrcetA1YiccjQvhPfnZ8ewg1NQugfv/pub?output=csv&gid=1030712797";
@@ -1281,7 +1137,7 @@ const cep4Layer = L.layerGroup();
 layersControl.addOverlay(cep4Layer, 'CEP4 BHs (separate project)');
 
 function fetchCEP4BHs(){
-  Papa.parse(getBustedUrl(CEP4_BH_CSV_URL), {
+  Papa.parse(CEP4_BH_CSV_URL, {
     download: true, header: true, skipEmptyLines: true,
     complete: (results) => {
       cep4Layer.clearLayers();
@@ -1695,7 +1551,7 @@ async function parseCsvWithProxy(url, onComplete, onError) {
     return false;
   }
 
-  // 1. Direct fetch
+  // 1. Direct fetch with timeout
   try {
     const ctrl = new AbortController();
     const tid = setTimeout(() => ctrl.abort(), 6000);
@@ -2472,24 +2328,31 @@ function processBHProfileData(data) {
 
 function fetchBHProfileLog(){
   const localProfUrl = 'CEP 3  Rambukkana-Galagedara - BH Profile.csv';
-  Papa.parse(getBustedUrl(BH_PROFILE_CSV_URL), {
-    download: true,
-    header: false,
-    skipEmptyLines: true,
-    complete: (results) => {
-      if (results && results.data && results.data.length) {
-        processBHProfileData(results.data);
-      } else {
-        fetchLocalProfile();
+  
+  if (window.EMBEDDED_BH_PROFILE_CSV) {
+    try {
+      const parsed = Papa.parse(window.EMBEDDED_BH_PROFILE_CSV, { header: false, skipEmptyLines: true });
+      if (parsed && parsed.data && parsed.data.length) {
+        processBHProfileData(parsed.data);
       }
-    },
-    error: () => {
-      fetchLocalProfile();
+    } catch(e){}
+  }
+
+  parseCsvWithProxy(BH_PROFILE_CSV_URL, (data) => {
+    if (data && data.length) {
+      if (Array.isArray(data[0])) {
+        processBHProfileData(data);
+      } else {
+        const rawRows = [Object.keys(data[0]), ...data.map(r => Object.values(r))];
+        processBHProfileData(rawRows);
+      }
     }
+  }, () => {
+    fetchLocalProfile();
   });
 
   function fetchLocalProfile() {
-    Papa.parse(getBustedUrl(localProfUrl), {
+    Papa.parse(localProfUrl, {
       download: true,
       header: false,
       skipEmptyLines: true,
@@ -2560,7 +2423,7 @@ function getBHWeathering(rOrName) {
   return null;
 }
 function fetchLogDates(){
-  Papa.parse(getBustedUrl(LOG_SHEET_CSV_URL), {
+  Papa.parse(LOG_SHEET_CSV_URL, {
     download: true, header: true, skipEmptyLines: true,
     complete: (results) => {
       const map = {};
@@ -2586,7 +2449,7 @@ function fetchProgressSeries(){
     console.warn('PROGRESS_SHEET_CSV_URL not set yet — timeline slider will stay disabled.');
     return;
   }
-  Papa.parse(getBustedUrl(PROGRESS_SHEET_CSV_URL), {
+  Papa.parse(PROGRESS_SHEET_CSV_URL, {
     download: true, header: true, skipEmptyLines: true,
     complete: (results) => {
       const series = [];
@@ -2647,6 +2510,7 @@ function computeBHLevels(row){
   const gwDepth = toNum(row['Groundwater Level']);
   const overburden = (termDepth !== null && rockCoring !== null) ? Math.max(termDepth - rockCoring, 0) : null;
   const rockLevel = (elevation !== null && overburden !== null) ? (elevation - overburden) : null;
+  const terminationLevel = (elevation !== null && termDepth !== null) ? (elevation - termDepth) : null;
   const gwLevel = (elevation !== null && gwDepth !== null) ? (elevation - gwDepth) : null;
   return { elevation, termDepth, rockCoring, gwDepth, overburden, rockLevel, terminationLevel, gwLevel };
 }
@@ -2657,16 +2521,16 @@ function rockLevelDisplay(levels){
 }
 
 function buildBoreholeLogSvg(levels, layers, row){
-  const { termDepth, overburden, gwDepth } = levels;
+  const { elevation, termDepth, overburden, gwDepth, rockLevel, terminationLevel, gwLevel } = levels;
   const effectiveTermDepth = (layers && layers.length)
     ? Math.max(...layers.map(l => l.bottom))
     : (termDepth || 15);
   if (effectiveTermDepth === null || effectiveTermDepth <= 0) return '';
 
-  const colH = 260, colW = 24, x0 = 50, y0 = 24;
-  const svgW = 500, svgH = colH + 46;
+  const colH = 310, colW = 26, x0 = 52, y0 = 25;
   const scale = colH / effectiveTermDepth;
   const gwPx = (gwDepth !== null) ? Math.min(Math.max(gwDepth * scale, 0), colH) : null;
+  const rkPx = (overburden !== null) ? Math.min(Math.max(overburden * scale, 0), colH) : null;
 
   const POPUP_BEDROCK_COLOR = '#8f8f95';
   let fadeProfile = null;
@@ -2675,156 +2539,199 @@ function buildBoreholeLogSvg(levels, layers, row){
     const readings = getBHWeathering(row);
     if (readings && readings.length) {
       const rockLayer = (layers && layers.length) ? layers.find(l => getGraphicInfo(l.graphic).isRock) : null;
-      rockDepthTopForFade = rockLayer ? rockLayer.depth : (overburden || 0);
+      rockDepthTopForFade = rockLayer ? rockLayer.depth : (overburden !== null ? overburden : 0);
       fadeProfile = buildSingleBHFadeProfile(readings, rockDepthTopForFade, effectiveTermDepth);
     }
   }
 
-  let svg = `<svg width="${svgW}" height="${svgH}" viewBox="0 0 ${svgW} ${svgH}" xmlns="http://www.w3.org/2000/svg">`;
+  let svg = `<svg width="530" height="${colH + 45}" viewBox="0 0 530 ${colH + 45}" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <!-- Geological Patterns matching Profile -->
+      <pattern id="pat-alluvium" width="20" height="10" patternUnits="userSpaceOnUse">
+        <path d="M0,5 Q5,1 10,5 T20,5" fill="none" stroke="#1e3a8a" stroke-width="1.1" opacity="0.65"/>
+      </pattern>
+      <pattern id="pat-residual" width="14" height="14" patternUnits="userSpaceOnUse">
+        <line x1="2" y1="5" x2="6" y2="5" stroke="#451a03" stroke-width="0.85" opacity="0.5"/>
+        <line x1="4" y1="3" x2="4" y2="7" stroke="#451a03" stroke-width="0.85" opacity="0.5"/>
+        <line x1="9" y1="12" x2="13" y2="12" stroke="#451a03" stroke-width="0.85" opacity="0.5"/>
+        <line x1="11" y1="10" x2="11" y2="14" stroke="#451a03" stroke-width="0.85" opacity="0.5"/>
+      </pattern>
+      <pattern id="pat-cwr" width="16" height="16" patternUnits="userSpaceOnUse">
+        <polygon points="2,2 6,1 5,5 1,4" fill="#78716c" stroke="#292524" stroke-width="0.75" opacity="0.65"/>
+        <polygon points="10,9 14,8 13,13 9,12" fill="#78716c" stroke="#292524" stroke-width="0.75" opacity="0.65"/>
+      </pattern>
+      <pattern id="pat-rock" width="12" height="12" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+        <line x1="0" y1="0" x2="12" y2="0" stroke="#0f172a" stroke-width="0.65" opacity="0.45"/>
+        <circle cx="6" cy="6" r="1.0" fill="#0f172a" opacity="0.6"/>
+      </pattern>
+    </defs>
 
-  // Column Headers
-  svg += `<text x="24" y="12" font-size="7" font-weight="700" fill="#64748b" text-anchor="middle">DEPTH</text>`;
-  svg += `<text x="${x0 + colW/2}" y="12" font-size="7" font-weight="700" fill="#64748b" text-anchor="middle">COLUMN</text>`;
-  svg += `<text x="165" y="12" font-size="7" font-weight="700" fill="#64748b" text-anchor="middle">LITHOLOGY &amp; STRATA</text>`;
+    <!-- COLUMN HEADERS -->
+    <text x="35" y="14" font-size="7.5" font-weight="700" fill="#475569" text-anchor="middle">DEPTH (m)</text>
+    <text x="65" y="14" font-size="7.5" font-weight="700" fill="#475569" text-anchor="middle">COLUMN</text>
+    <text x="185" y="14" font-size="7.5" font-weight="700" fill="#475569" text-anchor="middle">LITHOLOGY &amp; STRATA</text>
 
-  // SPT & RQD Column Headers
-  const sptX0 = 280, sptW = 50;
-  const rqdX0 = 380, rqdW = 50;
+    <!-- SPT Header -->
+    <text x="330" y="10" font-size="7.5" font-weight="700" fill="#dc2626" text-anchor="middle">SPT N-VALUE</text>
+    <line x1="300" y1="13" x2="360" y2="13" stroke="#cbd5e1" stroke-width="0.8"/>
+    <text x="300" y="22" font-size="6.5" fill="#64748b" text-anchor="middle">0</text>
+    <text x="330" y="22" font-size="6.5" fill="#64748b" text-anchor="middle">25</text>
+    <text x="360" y="22" font-size="6.5" fill="#64748b" text-anchor="middle">50+</text>
 
-  svg += `<text x="${sptX0 + sptW/2}" y="8" font-size="7" font-weight="700" fill="#dc2626" text-anchor="middle">SPT N-VALUE</text>`;
-  svg += `<line x1="${sptX0}" y1="11" x2="${sptX0 + sptW}" y2="11" stroke="#cbd5e1" stroke-width="0.7"/>`;
-  svg += `<text x="${sptX0}" y="18" font-size="6" fill="#94a3b8" text-anchor="middle">0</text>`;
-  svg += `<text x="${sptX0 + sptW/2}" y="18" font-size="6" fill="#94a3b8" text-anchor="middle">25</text>`;
-  svg += `<text x="${sptX0 + sptW}" y="18" font-size="6" fill="#94a3b8" text-anchor="middle">50+</text>`;
+    <!-- RQD Header -->
+    <text x="445" y="10" font-size="7.5" font-weight="700" fill="#15803d" text-anchor="middle">RQD % / RECOVERY</text>
+    <line x1="415" y1="13" x2="475" y2="13" stroke="#cbd5e1" stroke-width="0.8"/>
+    <text x="415" y="22" font-size="6.5" fill="#64748b" text-anchor="middle">0%</text>
+    <text x="445" y="22" font-size="6.5" fill="#64748b" text-anchor="middle">50%</text>
+    <text x="475" y="22" font-size="6.5" fill="#64748b" text-anchor="middle">100%</text>
 
-  svg += `<text x="${rqdX0 + rqdW/2}" y="8" font-size="7" font-weight="700" fill="#16a34a" text-anchor="middle">RQD % / RECOVERY</text>`;
-  svg += `<line x1="${rqdX0}" y1="11" x2="${rqdX0 + rqdW}" y2="11" stroke="#cbd5e1" stroke-width="0.7"/>`;
-  svg += `<text x="${rqdX0}" y="18" font-size="6" fill="#94a3b8" text-anchor="middle">0%</text>`;
-  svg += `<text x="${rqdX0 + rqdW/2}" y="18" font-size="6" fill="#94a3b8" text-anchor="middle">50%</text>`;
-  svg += `<text x="${rqdX0 + rqdW}" y="18" font-size="6" fill="#94a3b8" text-anchor="middle">100%</text>`;
+    <!-- Vertical Grid Lines -->
+    <line x1="300" y1="24" x2="300" y2="${y0+colH}" stroke="#f1f5f9" stroke-width="1"/>
+    <line x1="330" y1="24" x2="330" y2="${y0+colH}" stroke="#f1f5f9" stroke-width="1" stroke-dasharray="2,2"/>
+    <line x1="360" y1="24" x2="360" y2="${y0+colH}" stroke="#f1f5f9" stroke-width="1"/>
 
-  // Grid lines
-  svg += `<line x1="${sptX0}" y1="20" x2="${sptX0}" y2="${y0+colH}" stroke="#f1f5f9" stroke-width="0.8"/>`;
-  svg += `<line x1="${sptX0 + sptW/2}" y1="20" x2="${sptX0 + sptW/2}" y2="${y0+colH}" stroke="#f1f5f9" stroke-width="0.8" stroke-dasharray="2,2"/>`;
-  svg += `<line x1="${sptX0 + sptW}" y1="20" x2="${sptX0 + sptW}" y2="${y0+colH}" stroke="#f1f5f9" stroke-width="0.8"/>`;
+    <line x1="415" y1="24" x2="415" y2="${y0+colH}" stroke="#f1f5f9" stroke-width="1"/>
+    <line x1="445" y1="24" x2="445" y2="${y0+colH}" stroke="#f1f5f9" stroke-width="1" stroke-dasharray="2,2"/>
+    <line x1="475" y1="24" x2="475" y2="${y0+colH}" stroke="#f1f5f9" stroke-width="1"/>
+  `;
 
-  svg += `<line x1="${rqdX0}" y1="20" x2="${rqdX0}" y2="${y0+colH}" stroke="#f1f5f9" stroke-width="0.8"/>`;
-  svg += `<line x1="${rqdX0 + rqdW/2}" y1="20" x2="${rqdX0 + rqdW/2}" y2="${y0+colH}" stroke="#f1f5f9" stroke-width="0.8" stroke-dasharray="2,2"/>`;
-  svg += `<line x1="${rqdX0 + rqdW}" y1="20" x2="${rqdX0 + rqdW}" y2="${y0+colH}" stroke="#f1f5f9" stroke-width="0.8"/>`;
+  // Depth Axis Ticks
+  const depthTicks = new Set([0, effectiveTermDepth]);
+  if (layers && layers.length) {
+    layers.forEach(l => { depthTicks.add(l.depth); depthTicks.add(l.bottom); });
+  } else if (overburden !== null) {
+    depthTicks.add(overburden);
+  }
 
-  // Draw Layers
-  if (layers && layers.length){
-    let lastLabelBot = 0;
+  Array.from(depthTicks).sort((a,b) => a - b).forEach(d => {
+    const y = y0 + Math.min(d * scale, colH);
+    const isTerm = Math.abs(d - effectiveTermDepth) < 0.05;
+    const isRockHead = (overburden !== null && Math.abs(d - overburden) < 0.05);
+    const strokeCol = isTerm ? '#0f172a' : (isRockHead ? '#b91c1c' : '#64748b');
+    const strokeW = (isTerm || isRockHead) ? 1.2 : 0.8;
+    svg += `<line x1="44" y1="${y.toFixed(1)}" x2="52" y2="${y.toFixed(1)}" stroke="${strokeCol}" stroke-width="${strokeW}"/>`;
+    svg += `<text x="41" y="${(y + 2.8).toFixed(1)}" font-size="7.5" font-weight="${(isTerm||isRockHead)?'800':'600'}" fill="${strokeCol}" text-anchor="end">${d.toFixed(1)}</text>`;
+  });
+
+  // GWT Indicator Line
+  if (gwPx !== null) {
+    const gwY = y0 + gwPx;
+    svg += `<line x1="12" y1="${gwY.toFixed(1)}" x2="${x0+colW+4}" y2="${gwY.toFixed(1)}" stroke="#2563eb" stroke-width="1.2" stroke-dasharray="3,2"/>`;
+    svg += `<polygon points="26,${gwY.toFixed(1)} 20,${(gwY-5).toFixed(1)} 32,${(gwY-5).toFixed(1)}" fill="#2563eb"/>`;
+    svg += `<text x="18" y="${(gwY-3).toFixed(1)}" font-size="6.5" font-weight="800" fill="#2563eb" text-anchor="end">GWT</text>`;
+    svg += `<text x="18" y="${(gwY+5).toFixed(1)}" font-size="6.5" font-weight="700" fill="#2563eb" text-anchor="end">${gwDepth.toFixed(1)}m</text>`;
+  }
+
+  // Rockhead Indicator Line
+  if (rkPx !== null && rkPx > 0 && rkPx < colH) {
+    const rkY = y0 + rkPx;
+    svg += `<line x1="12" y1="${rkY.toFixed(1)}" x2="${x0+colW+4}" y2="${rkY.toFixed(1)}" stroke="#b91c1c" stroke-width="1.2" stroke-dasharray="3,2"/>`;
+    svg += `<text x="18" y="${(rkY-4).toFixed(1)}" font-size="6.5" font-weight="800" fill="#b91c1c" text-anchor="end">ROCK</text>`;
+    svg += `<text x="18" y="${(rkY+4).toFixed(1)}" font-size="6.5" font-weight="800" fill="#b91c1c" text-anchor="end">HEAD</text>`;
+  }
+
+  // Borehole Column Stratigraphy & Non-overlapping Labels
+  if (layers && layers.length) {
+    let lastLabelBot = y0 - 10;
     layers.forEach(layer => {
       const info = getGraphicInfo(layer.graphic);
       const yTop = y0 + Math.min(layer.depth * scale, colH);
       const yBot = y0 + Math.min(layer.bottom * scale, colH);
-      const h = Math.max(yBot - yTop, 0.4);
+      const h = Math.max(yBot - yTop, 0.5);
       let fillColor = info.color;
-      if (info.isRock && fadeProfile) {
-        const midDepth = (layer.depth + layer.bottom) / 2;
-        const fade = evalSingleBHFade(fadeProfile, midDepth - rockDepthTopForFade);
-        fillColor = colorAtFadePosition(fade, POPUP_BEDROCK_COLOR);
-      }
-      svg += `<rect x="${x0}" y="${yTop.toFixed(1)}" width="${colW}" height="${h.toFixed(1)}" fill="${fillColor}" stroke="#574c38" stroke-width="0.4"/>`;
-      
-      // Pattern overlay if available
-      if (layer.origin) {
-        const hKey = originHatchKeyOf(layer.origin);
-        if (ORIGIN_HATCH_INFO[hKey]) {
-          svg += `<rect x="${x0}" y="${yTop.toFixed(1)}" width="${colW}" height="${h.toFixed(1)}" fill="url(#${ORIGIN_HATCH_INFO[hKey].patternId})" stroke="none"/>`;
-        }
-      }
-      if (info.isRock){
-        const rockPat = ROCK_LITHOLOGY_CONFIG[normalizeRockType(layer.graphic)] ? ROCK_LITHOLOGY_CONFIG[normalizeRockType(layer.graphic)].patternId : 'pat-rock-bg';
-        svg += `<rect x="${x0}" y="${yTop.toFixed(1)}" width="${colW}" height="${h.toFixed(1)}" fill="url(#${rockPat})" stroke="none"/>`;
-        for (let hy = yTop + 8; hy < yBot; hy += 9){
-          svg += `<line x1="${x0}" y1="${hy.toFixed(1)}" x2="${(x0+colW).toFixed(1)}" y2="${hy.toFixed(1)}" stroke="#1e293b" stroke-width="0.35" opacity="0.3"/>`;
-        }
-      }
-      
-      // Layer label rendering with leader line
-      let midY = (yTop + yBot) / 2;
-      if (midY - 7 < lastLabelBot) midY = lastLabelBot + 7;
-      const labelText = info.label;
-      const originSub = layer.origin ? `${layer.origin} (${layer.depth.toFixed(2)}–${layer.bottom.toFixed(2)}m)` : `(${layer.depth.toFixed(2)}–${layer.bottom.toFixed(2)}m)`;
-      
-      const leaderX = x0 + colW;
-      const textX = leaderX + 12;
-      svg += `<circle cx="${leaderX}" cy="${((yTop+yBot)/2).toFixed(1)}" r="1.3" fill="#64748b"/>`;
-      svg += `<line x1="${leaderX}" y1="${((yTop+yBot)/2).toFixed(1)}" x2="${leaderX+8}" y2="${midY.toFixed(1)}" stroke="#cbd5e1" stroke-width="0.6"/>`;
-      
-      svg += `<text x="${textX}" y="${(midY-1).toFixed(1)}" font-size="7.5" font-weight="700" fill="#0f172a">${labelText}</text>`;
-      svg += `<text x="${textX}" y="${(midY+7.5).toFixed(1)}" font-size="6.5" font-weight="500" fill="#64748b">${originSub}</text>`;
-      lastLabelBot = midY + 9;
-    });
 
-    const boundaries = new Set([0]);
-    layers.forEach(l => { boundaries.add(l.depth); boundaries.add(l.bottom); });
-    Array.from(boundaries).sort((a,b)=>a-b).forEach(d => {
-      const y = y0 + Math.min(d * scale, colH);
-      svg += `<line x1="${x0-3}" y1="${y.toFixed(1)}" x2="${x0}" y2="${y.toFixed(1)}" stroke="#64748b" stroke-width="0.7"/>`;
-      svg += `<text x="${x0-5}" y="${(y+2.2).toFixed(1)}" font-size="6.8" fill="#64748b" font-weight="600" text-anchor="end">${d.toFixed(1)}</text>`;
+      if (info.isRock) {
+        if (fadeProfile) {
+          const midDepth = (layer.depth + layer.bottom) / 2;
+          const fade = evalSingleBHFade(fadeProfile, midDepth - rockDepthTopForFade);
+          fillColor = colorAtFadePosition(fade, POPUP_BEDROCK_COLOR);
+        } else {
+          fillColor = POPUP_BEDROCK_COLOR;
+        }
+      }
+
+      // Column fill
+      svg += `<rect x="${x0}" y="${yTop.toFixed(1)}" width="${colW}" height="${h.toFixed(1)}" fill="${fillColor}" stroke="#574c38" stroke-width="0.4"/>`;
+
+      // Geological Hatch pattern
+      const hKey = originHatchKeyOf(layer.origin);
+      if (hKey === 'alluvium') {
+        svg += `<rect x="${x0}" y="${yTop.toFixed(1)}" width="${colW}" height="${h.toFixed(1)}" fill="url(#pat-alluvium)" stroke="none"/>`;
+      } else if (hKey === 'residual' || hKey === 'colluvium') {
+        svg += `<rect x="${x0}" y="${yTop.toFixed(1)}" width="${colW}" height="${h.toFixed(1)}" fill="url(#pat-residual)" stroke="none"/>`;
+      } else if (hKey === 'completely_weathered_rock' || hKey === 'cwr') {
+        svg += `<rect x="${x0}" y="${yTop.toFixed(1)}" width="${colW}" height="${h.toFixed(1)}" fill="url(#pat-cwr)" stroke="none"/>`;
+      } else if (info.isRock) {
+        svg += `<rect x="${x0}" y="${yTop.toFixed(1)}" width="${colW}" height="${h.toFixed(1)}" fill="url(#pat-rock)" stroke="none"/>`;
+      }
+
+      // Foliation lines in rock
+      if (info.isRock) {
+        for (let hy = yTop + 6; hy < yBot - 2; hy += 10) {
+          svg += `<line x1="${x0}" y1="${hy.toFixed(1)}" x2="${x0+colW}" y2="${hy.toFixed(1)}" stroke="#1e293b" stroke-width="0.4" opacity="0.35"/>`;
+        }
+      }
+
+      // Label with leader line
+      const midY = (yTop + yBot) / 2;
+      let labelY = Math.max(midY, lastLabelBot + 14);
+      lastLabelBot = labelY + 12;
+
+      svg += `<line x1="${x0+colW}" y1="${midY.toFixed(1)}" x2="${x0+colW+10}" y2="${labelY.toFixed(1)}" stroke="#94a3b8" stroke-width="0.7"/>`;
+      svg += `<circle cx="${x0+colW}" cy="${midY.toFixed(1)}" r="1.5" fill="#475569"/>`;
+      
+      const layerTitle = info.label;
+      const originDesc = layer.origin ? `${layer.origin} (${layer.depth.toFixed(2)}–${layer.bottom.toFixed(2)}m)` : `(${layer.depth.toFixed(2)}–${layer.bottom.toFixed(2)}m)`;
+      svg += `<text x="${x0+colW+14}" y="${(labelY-2).toFixed(1)}" font-size="8.5" font-weight="700" fill="#0f172a">${layerTitle}</text>`;
+      svg += `<text x="${x0+colW+14}" y="${(labelY+7).toFixed(1)}" font-size="7.5" font-weight="500" fill="#64748b">${originDesc}</text>`;
     });
+  } else {
+    // Simple Overburden + Bedrock model
+    const overburdenPx = overburden !== null ? Math.min(overburden * scale, colH) : colH;
+    const rockPx = colH - overburdenPx;
+    svg += `<rect x="${x0}" y="${y0}" width="${colW}" height="${overburdenPx.toFixed(1)}" fill="#c9a84e" stroke="#574c38" stroke-width="0.4"/>`;
+    svg += `<rect x="${x0}" y="${y0}" width="${colW}" height="${overburdenPx.toFixed(1)}" fill="url(#pat-residual)" stroke="none"/>`;
+    if (rockPx > 0.3) {
+      svg += `<rect x="${x0}" y="${(y0+overburdenPx).toFixed(1)}" width="${colW}" height="${rockPx.toFixed(1)}" fill="${POPUP_BEDROCK_COLOR}" stroke="#574c38" stroke-width="0.4"/>`;
+      svg += `<rect x="${x0}" y="${(y0+overburdenPx).toFixed(1)}" width="${colW}" height="${rockPx.toFixed(1)}" fill="url(#pat-rock)" stroke="none"/>`;
+    }
+    svg += `<text x="${x0+colW+14}" y="${y0+15}" font-size="8.5" font-weight="700" fill="#0f172a">Soil Overburden</text>`;
+    svg += `<text x="${x0+colW+14}" y="${y0+24}" font-size="7.5" font-weight="500" fill="#64748b">Thickness ${overburden !== null ? overburden.toFixed(2)+'m' : '—'}</text>`;
+    if (rockPx > 0.3) {
+      svg += `<text x="${x0+colW+14}" y="${(y0+overburdenPx+18).toFixed(1)}" font-size="8.5" font-weight="700" fill="#0f172a">Bedrock</text>`;
+      svg += `<text x="${x0+colW+14}" y="${(y0+overburdenPx+27).toFixed(1)}" font-size="7.5" font-weight="500" fill="#64748b">Cored ${levels.rockCoring !== null ? levels.rockCoring.toFixed(2)+'m' : '—'}</text>`;
+    }
   }
 
   // Column outer border
-  svg += `<rect x="${x0}" y="${y0}" width="${colW}" height="${colH.toFixed(1)}" fill="none" stroke="#0f172a" stroke-width="1.2"/>`;
+  svg += `<rect x="${x0}" y="${y0}" width="${colW}" height="${colH.toFixed(1)}" fill="none" stroke="#0f172a" stroke-width="1.3"/>`;
 
-  // Rockhead indicator
-  if (levels.overburden !== null && levels.overburden > 0 && levels.overburden < effectiveTermDepth) {
-    const rhY = (y0 + levels.overburden * scale).toFixed(1);
-    svg += `<line x1="8" y1="${rhY}" x2="${x0+colW+2}" y2="${rhY}" stroke="#b91c1c" stroke-width="1.1" stroke-dasharray="3,2"/>`;
-    svg += `<text x="6" y="${rhY-2}" font-size="6.5" font-weight="800" fill="#b91c1c" text-anchor="end">ROCK</text>`;
-    svg += `<text x="6" y="${parseFloat(rhY)+6}" font-size="6.5" font-weight="800" fill="#b91c1c" text-anchor="end">HEAD</text>`;
-  }
-
-  // GWT indicator
-  if (gwPx !== null){
-    const gwY = (y0 + gwPx).toFixed(1);
-    svg += `<line x1="8" y1="${gwY}" x2="${x0+colW+2}" y2="${gwY}" stroke="#2563eb" stroke-width="1.1" stroke-dasharray="3,2"/>`;
-    svg += `<polygon points="${x0-8},${gwY} ${x0-12},${gwY-3.5} ${x0-4},${gwY-3.5}" fill="#2563eb"/>`;
-    svg += `<text x="6" y="${gwY-2}" font-size="6.5" font-weight="800" fill="#2563eb" text-anchor="end">GWT</text>`;
-    svg += `<text x="6" y="${parseFloat(gwY)+6}" font-size="6" font-weight="700" fill="#2563eb" text-anchor="end">${(levels.gwDepth).toFixed(1)}m</text>`;
-  }
-
-  // SPT & RQD Bars from tests
+  // Plot SPT Tests & RQD Tests
   const tests = row ? getBHTests(row) : [];
   if (tests && tests.length) {
     tests.forEach(t => {
       const ty = y0 + Math.min(t.depth * scale, colH);
-      // SPT Bar
       if (t.nVal !== null && t.nVal !== undefined) {
-        const isRefusal = t.nVal >= 50;
-        const bW = Math.min(Math.max((t.nVal / 50) * sptW, 3), sptW);
-        const color = isRefusal ? '#ef4444' : '#22c55e';
-        const txtColor = isRefusal ? '#fff' : '#15803d';
-        const bH = 9.5;
-        svg += `<rect x="${sptX0}" y="${(ty - bH/2).toFixed(1)}" width="${bW.toFixed(1)}" height="${bH}" fill="${color}" opacity="0.9" rx="1.5"/>`;
-        if (isRefusal) {
-          svg += `<text x="${sptX0 + bW - 2}" y="${(ty + 2.5).toFixed(1)}" font-size="6.5" font-weight="800" fill="${txtColor}" text-anchor="end">${t.nVal}★</text>`;
-        } else {
-          svg += `<text x="${sptX0 + bW + 3}" y="${(ty + 2.5).toFixed(1)}" font-size="6.5" font-weight="800" fill="${txtColor}">${t.nVal}</text>`;
-        }
+        const val = t.nVal;
+        const bw = Math.min(val / 50, 1) * 60;
+        const isRefusal = val >= 50;
+        const barFill = isRefusal ? '#ef4444' : (val > 25 ? '#f59e0b' : '#10b981');
+        svg += `<rect x="300" y="${(ty-3.5).toFixed(1)}" width="${bw.toFixed(1)}" height="7" fill="${barFill}" rx="1"/>`;
+        svg += `<text x="${(300+bw+3).toFixed(1)}" y="${(ty+2.5).toFixed(1)}" font-size="7" font-weight="700" fill="${isRefusal?'#b91c1c':'#1e293b'}">${isRefusal ? '50★' : val}</text>`;
       }
-      // RQD Bar
-      if (t.rqd !== null && t.rqd !== undefined) {
-        const bW = Math.min(Math.max((t.rqd / 100) * rqdW, 3), rqdW);
-        const bH = (t.length ? t.length * scale : 1.5 * scale) - 1.5;
-        const boundedH = Math.max(Math.min(bH, 30), 8);
-        const color = t.rqd >= 75 ? '#15803d' : (t.rqd >= 50 ? '#22c55e' : '#4ade80');
-        const txtColor = t.rqd >= 75 ? '#fff' : '#14532d';
-        svg += `<rect x="${rqdX0}" y="${(ty - boundedH/2).toFixed(1)}" width="${bW.toFixed(1)}" height="${boundedH.toFixed(1)}" fill="${color}" opacity="0.9" rx="1.5"/>`;
-        svg += `<text x="${(rqdX0 + bW/2).toFixed(1)}" y="${(ty + 2.5).toFixed(1)}" font-size="6.5" font-weight="800" fill="${txtColor}" text-anchor="middle">${t.rqd}%</text>`;
+      const rqdVal = (t.rqd !== null && t.rqd !== undefined) ? t.rqd : ((t.cr !== null && t.cr !== undefined) ? t.cr : null);
+      if (rqdVal !== null) {
+        const bw = Math.min(rqdVal / 100, 1) * 60;
+        const th = Math.max((t.length || 0.6) * scale, 7);
+        svg += `<rect x="415" y="${ty.toFixed(1)}" width="${bw.toFixed(1)}" height="${th.toFixed(1)}" fill="#0284c7" fill-opacity="0.8" stroke="#0369a1" stroke-width="0.4" rx="1"/>`;
+        svg += `<text x="${(415+bw+3).toFixed(1)}" y="${(ty + th/2 + 2.5).toFixed(1)}" font-size="6.5" font-weight="700" fill="#0369a1">${Math.round(rqdVal)}%</text>`;
       }
     });
   }
 
-  // Termination line & summary text
-  const termRL = levels.elevation !== null ? (levels.elevation - effectiveTermDepth).toFixed(2) : '-';
-  svg += `<line x1="8" y1="${y0+colH}" x2="${svgW-10}" y2="${y0+colH}" stroke="#0f172a" stroke-width="1.1" stroke-dasharray="3,2"/>`;
-  svg += `<text x="${svgW/2}" y="${y0+colH+14}" font-size="7.5" font-weight="700" fill="#0f172a" text-anchor="middle">Terminated @ ${effectiveTermDepth.toFixed(2)}m (Reduced Level +${termRL}m MSL)</text>`;
-  
+  // Bottom Summary Text
+  const termRLStr = terminationLevel !== null ? ` (RL +${terminationLevel.toFixed(2)}m MSL)` : '';
+  svg += `<text x="${x0+colW+8}" y="${y0+colH+16}" font-size="9" font-weight="700" fill="#0f172a">Terminated @ ${effectiveTermDepth.toFixed(2)}m${termRLStr}</text>`;
   svg += `</svg>`;
   return svg;
 }
@@ -2837,35 +2744,46 @@ function buildLayerLegendHtml(layers, row){
     if (!info.isRock) seen[info.label] = info.color;
   });
   let html = Object.keys(seen).map(label =>
-    `<span style="display:inline-flex; align-items:center; gap:4px; margin-right:8px; font-size:9.5px; color:#475569;">
-      <span style="width:10px; height:8px; background:${seen[label]}; border:1px solid #94a3b8; display:inline-block; border-radius:2px;"></span>${label}
+    `<span style="display:inline-flex; align-items:center; gap:3px; margin-right:8px; font-size:10px; color:#6b6459;">
+      <span style="width:9px; height:9px; background:${seen[label]}; border:1px solid #999; display:inline-block; border-radius:2px;"></span>${label}
     </span>`
   ).join('');
-  
-  const hasRock = layers.some(l => getGraphicInfo(l.graphic).isRock);
-  if (hasRock) {
-    html += `<span style="display:inline-flex; align-items:center; gap:4px; margin-right:8px; font-size:9.5px; color:#475569;">
-      <span style="width:10px; height:8px; background:#8f8f95; border:1px solid #94a3b8; display:inline-block; border-radius:2px;"></span>Bedrock
-    </span>`;
+  const readings = row ? getBHWeathering(row) : null;
+  if (readings && readings.length) {
+    const POPUP_BEDROCK_COLOR = '#8f8f95';
+    html += WEATHERING_GRADE_ORDER.map(g => {
+      const col = colorAtFadePosition(WEATHERING_GRADE_FADE_POS[g], POPUP_BEDROCK_COLOR);
+      return `<span style="display:inline-flex; align-items:center; gap:3px; margin-right:8px; font-size:10px; color:#6b6459;">
+        <span style="width:9px; height:9px; background:${col}; border:1px solid #999; display:inline-block; border-radius:2px;"></span>${WEATHERING_GRADE_LABELS[g]}
+      </span>`;
+    }).join('');
+  } else {
+    const hasRock = layers.some(l => getGraphicInfo(l.graphic).isRock);
+    if (hasRock) {
+      html += `<span style="display:inline-flex; align-items:center; gap:3px; margin-right:8px; font-size:10px; color:#6b6459;">
+        <span style="width:9px; height:9px; background:#8f8f95; border:1px solid #999; display:inline-block; border-radius:2px;"></span>Bedrock
+      </span>`;
+    }
   }
-  html += `
-    <span style="display:inline-flex; align-items:center; gap:4px; margin-right:8px; font-size:9.5px; color:#475569;">
-      <span style="width:14px; height:3px; background:#2563eb; display:inline-block; border-radius:1px;"></span>GWT
-    </span>
-    <span style="display:inline-flex; align-items:center; gap:4px; margin-right:8px; font-size:9.5px; color:#475569;">
-      <span style="width:14px; height:3px; background:#b91c1c; display:inline-block; border-radius:1px;"></span>Rockhead
-    </span>
-    <span style="display:inline-flex; align-items:center; gap:4px; margin-right:8px; font-size:9.5px; color:#475569;">
-      <span style="width:8px; height:8px; background:#22c55e; display:inline-block; border-radius:1px;"></span>SPT N
-    </span>
-    <span style="display:inline-flex; align-items:center; gap:4px; margin-right:8px; font-size:9.5px; color:#475569;">
-      <span style="width:8px; height:8px; background:#ef4444; display:inline-block; border-radius:1px;"></span>Refusal (50★)
-    </span>
-    <span style="display:inline-flex; align-items:center; gap:4px; margin-right:8px; font-size:9.5px; color:#475569;">
-      <span style="width:8px; height:8px; background:#15803d; display:inline-block; border-radius:1px;"></span>RQD %
-    </span>
-  `;
   return html;
+}
+
+function buildBoreholeLogMarkup(levels, layers, row){
+  const svg = buildBoreholeLogSvg(levels, layers, row); if (!svg) return '';
+  const overburdenTxt = levels.overburden !== null ? ('Overburden: ' + levels.overburden.toFixed(2) + 'm') : '';
+  const rockTxt = levels.rockCoring !== null ? ('Rock Coring: ' + levels.rockCoring.toFixed(2) + 'm') : '';
+  const rlTxt = levels.elevation !== null ? ('GL ' + levels.elevation.toFixed(2) + 'm') : '';
+  const captionParts = [rlTxt, overburdenTxt, rockTxt].filter(Boolean).join(' &middot; ');
+  const legendHtml = buildLayerLegendHtml(layers, row);
+  const legendRow = legendHtml ? `<div style="margin-top:4px;">${legendHtml}</div>` : '';
+  
+  return `
+    <div class="bh-log-wrap">
+      <div style="font-size:10.5px; font-weight:800; text-transform:uppercase; color:#334155; margin-bottom:2px;">STRATIGRAPHIC &amp; GEOTECHNICAL LOG</div>
+      <div style="font-size:10px; color:#64748b; margin-bottom:6px;">${captionParts}</div>
+      <div class="bh-log-row" style="overflow-x:auto;">${svg}</div>
+      ${legendRow}
+    </div>`;
 }
 
 function popupHtml(row, rowIdx){
@@ -2883,51 +2801,29 @@ function popupHtml(row, rowIdx){
     ['Groundwater Level (m)', row['Groundwater Level']]
   ].filter(([k,v]) => v !== undefined && v !== null && String(v).trim() !== '');
   
-  const tableRows = rows.map(([k,v]) => `<tr><td class="k" style="padding:3.5px 6px 3.5px 0; border-bottom:1px solid #f1f5f9; font-size:11px; color:#64748b;">${k}</td><td style="padding:3.5px 0; border-bottom:1px solid #f1f5f9; font-size:11px; font-weight:600; color:#0f172a; text-align:right;">${v}</td></tr>`).join('');
-  const profileBtn = `<button onclick="toggleProfileSelection(${rowIdx})" style="width:100%; margin-top:10px; padding:7px 10px; background:linear-gradient(135deg, #2563eb, #1d4ed8); color:#fff; border:none; border-radius:5px; font-weight:700; font-size:11px; cursor:pointer; box-shadow:0 2px 4px rgba(37,99,235,0.2);">📐 Add / Remove from 2D Profile</button>`;
+  const tableRows = rows.map(([k,v]) => `<tr><td class="k">${k}</td><td>${v}</td></tr>`).join('');
+  const pdfUrl = (row['PDF Link'] || row['Log PDF'] || row['Borehole Log'] || '').trim();
+  const pdfButton = pdfUrl ? `<a href="${pdfUrl}" target="_blank" rel="noopener" class="pdf-link-btn" style="margin-top:6px;">📄 View Borehole Log PDF</a>` : '';
+  const profileBtn = `<button onclick="toggleProfileSelection(${rowIdx})" style="width:100%; margin-top:8px; padding:7px; background:linear-gradient(135deg, var(--accent), var(--accent-2)); color:#fff; border:none; border-radius:6px; font-weight:700; font-size:11px; cursor:pointer; box-shadow:0 1px 3px rgba(0,0,0,0.15);">📐 Add / Remove from 2D Profile</button>`;
   
-  const svg = buildBoreholeLogSvg(levels, getBHLayers(row), row);
-  const legendHtml = buildLayerLegendHtml(getBHLayers(row), row);
-  const legendBlock = legendHtml ? `<div style="margin-top:8px; padding-top:6px; border-top:1px solid #e2e8f0; display:flex; flex-wrap:wrap; gap:4px 10px;">${legendHtml}</div>` : '';
+  const logHtml = buildBoreholeLogMarkup(levels, getBHLayers(row), row);
   
-  const obStr = levels.overburden !== null ? `OB ${levels.overburden.toFixed(1)}M` : '';
-  const rkStr = levels.rockCoring !== null ? `ROCK ${levels.rockCoring.toFixed(1)}M` : '';
-  const glStr = levels.elevation !== null ? `GL ${levels.elevation.toFixed(1)}M` : '';
-  const topHeader = [glStr, obStr, rkStr].filter(Boolean).join(' &middot; ');
-
   return `
-    <div style="display:flex; gap:16px; width:790px; font-family:'Inter',sans-serif;">
-      
-      <!-- Left Column (Details) -->
-      <div style="flex:0 0 230px; display:flex; flex-direction:column; justify-content:space-between;">
+    <div class="bh-popup-grid">
+      <div class="bh-popup-left">
         <div>
-          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-            <div style="font-weight:800; font-size:14px; color:#0f172a;">${bhName}</div>
-            <span class="status-pill" style="background:${colorFor(row['Status'])}; font-size:9px; padding:2px 6px; border-radius:10px; font-weight:700;">${row['Status'] || 'Planned'}</span>
-          </div>
-          <table class="popup-table" style="width:100%; border-collapse:collapse;">
-            ${tableRows}
-          </table>
+          <div class="popup-title">${bhName} <span class="status-pill" style="background:${colorFor(row['Status'])}">${row['Status'] || 'Planned'}</span></div>
+          <table class="popup-table">${tableRows}</table>
         </div>
-        <div>
+        <div style="margin-top:10px;">
+          ${pdfButton}
           ${profileBtn}
         </div>
       </div>
-
-      <!-- Right Column (Schematic Log) -->
-      <div style="flex:1; background:#fafbfc; border:1px solid #e2e8f0; border-radius:6px; padding:10px; box-shadow:0 1px 3px rgba(0,0,0,0.03);">
-        <div style="display:flex; justify-content:space-between; align-items:flex-end; margin-bottom:6px; border-bottom:1px solid #e2e8f0; padding-bottom:4px;">
-          <div style="font-weight:800; font-size:11px; color:#0f172a; letter-spacing:.05em;">STRATIGRAPHIC &amp; GEOTECHNICAL LOG</div>
-          <div style="font-weight:600; font-size:8.5px; color:#64748b; text-transform:uppercase;">${topHeader}</div>
-        </div>
-        <div style="display:flex; justify-content:center; overflow:hidden;">
-          ${svg}
-        </div>
-        ${legendBlock}
+      <div class="bh-popup-right">
+        ${logHtml}
       </div>
-
-    </div>
-  `;
+    </div>`;
 }
 
 function populateSelect(id, vals){
@@ -2992,7 +2888,7 @@ function render(){
     const ll = convertToLatLon(e, n); if (!ll) return;
     
     const marker = L.marker([ll.lat, ll.lon], { icon: makeIcon(status, pkg) });
-    marker.bindPopup(popupHtml(row, rowIdx), { maxWidth: 840, minWidth: 800, className: 'wide-popup' });
+    marker.bindPopup(popupHtml(row, rowIdx), { maxWidth: 860, minWidth: 800, className: 'wide-popup' });
     marker.on('click', () => {
       if (profileSelectMode){
         toggleProfileSelection(rowIdx);
@@ -3045,8 +2941,19 @@ function loadRows(rows){
 }
 
 function fetchData(){
+  // 1. Immediately bootstrap with data_master.js if available
+  if (window.EMBEDDED_BOREHOLES_CSV && (!allRows || allRows.length === 0)) {
+    try {
+      Papa.parse(window.EMBEDDED_BOREHOLES_CSV, {
+        header: true, skipEmptyLines: true,
+        complete: (r) => { if (r.data && r.data.length) loadRows(r.data); }
+      });
+    } catch(e){}
+  }
+
+  // 2. Check offline mode
   if (!navigator.onLine) {
-    const localRowsData = localStorage.getItem('nbri_allrows_cache') || localStorage.getItem('nbri_allrows_cache_backup');
+    const localRowsData = localStorage.getItem('nbri_allrows_cache');
     const localDatesData = localStorage.getItem('nbri_dates_cache');
     const cacheStamp = localStorage.getItem('nbri_cache_timestamp');
     if (localRowsData) {
@@ -3054,68 +2961,47 @@ function fetchData(){
       allRows = JSON.parse(localRowsData);
       bhDatesLookup = localDatesData ? JSON.parse(localDatesData) : {};
       loadRows(allRows);
-      setStatus(`Offline Mode — Cached: ${formatDateDMY(cacheStamp)}`, 'ok');
+      setStatus(`Offline Mode — Cached: ${formatDateDMY(cacheStamp)}`, 'err');
       document.getElementById('dash-updated').textContent = "Offline Storage Mode";
       return;
     }
   }
 
+  // 3. Sync from Google Sheet with fallback
   if (SHEET_CSV_URL){
-    setStatus('Connecting to Google Sheet…');
+    setStatus('Refreshing from Google Sheet…');
     parseCsvWithProxy(SHEET_CSV_URL, (data) => {
       loadRows(data);
-      try {
-        localStorage.setItem('nbri_allrows_cache', JSON.stringify(data));
-        localStorage.setItem('nbri_cache_timestamp', new Date().toISOString());
-      } catch(e) {}
       setStatus('Live — synced ' + new Date().toLocaleTimeString(), 'ok');
       document.getElementById('dash-updated').textContent = formatDateDMY(new Date()) + ', ' + new Date().toLocaleTimeString();
     }, () => {
-      fetchLocalMasterCsv();
+      // Fallback: Local master CSV file
+      Papa.parse(LOCAL_BOREHOLES_CSV, {
+        download: true, header: true, skipEmptyLines: true,
+        complete: (r) => {
+          if (r.data && r.data.length > 0) {
+            loadRows(r.data);
+            setStatus('Loaded from Local Master File', 'ok');
+          } else {
+            fallbackToCacheOrSample();
+          }
+        },
+        error: () => fallbackToCacheOrSample()
+      });
     });
   } else {
-    fetchLocalMasterCsv();
+    fallbackToCacheOrSample();
   }
 
-  function fetchLocalMasterCsv() {
-    Papa.parse(getBustedUrl(LOCAL_BOREHOLES_CSV), {
-      download: true,
-      header: true,
-      skipEmptyLines: true,
-      complete: (results) => {
-        if (results && results.data && results.data.length > 0) {
-          loadRows(results.data);
-          try {
-            localStorage.setItem('nbri_allrows_cache', JSON.stringify(results.data));
-            localStorage.setItem('nbri_cache_timestamp', new Date().toISOString());
-          } catch(e) {}
-          setStatus(`Loaded from local master file (${results.data.length} BHs)`, 'ok');
-          document.getElementById('dash-updated').textContent = "Local File Sync: " + formatDateDMY(new Date());
-        } else {
-          fallbackToOfflineCacheOrSample();
-        }
-      },
-      error: () => {
-        fallbackToOfflineCacheOrSample();
-      }
-    });
-  }
-
-  function fallbackToOfflineCacheOrSample() {
+  function fallbackToCacheOrSample() {
     const cached = localStorage.getItem('nbri_allrows_cache') || localStorage.getItem('nbri_allrows_cache_backup');
     if (cached) {
-      try {
-        const parsed = JSON.parse(cached);
-        if (parsed && parsed.length > 0) {
-          loadRows(parsed);
-          setStatus('Offline Mode — Loaded from browser cache', 'ok');
-          document.getElementById('dash-updated').textContent = "Offline Cache";
-          return;
-        }
-      } catch(e) {}
+      loadRows(JSON.parse(cached));
+      setStatus('Using Local Cache Backup', 'ok');
+    } else {
+      setStatus('Could not reach sheet — showing sample data', 'err');
+      Papa.parse(SAMPLE_CSV, { header:true, skipEmptyLines:true, complete: r => loadRows(r.data) });
     }
-    setStatus('Could not reach online sheet — showing sample data', 'err');
-    Papa.parse(SAMPLE_CSV, { header:true, skipEmptyLines:true, complete: r => loadRows(r.data) });
   }
 }
 
@@ -3333,7 +3219,7 @@ const PERMANENT_OVERLAYS = [ { name: "CEP3 Road Corridor", url: "Polyline_cep32.
 let roadCorridorGeoJSON = null;
 function loadPermanentOverlays(){
   PERMANENT_OVERLAYS.forEach(o => {
-    fetch(getBustedUrl(o.url)).then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.arrayBuffer(); })
+    fetch(o.url).then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.arrayBuffer(); })
     .then(buf => shp(buf)).then(geojson => { roadCorridorGeoJSON = geojson; addOverlayLayer(o.name, geojson, false); })
     .catch(err => console.error('Could not load permanent overlay:', err));
   });
@@ -4660,14 +4546,7 @@ function buildProfileSvg(rows, options = {}, arg3 = null, arg4 = null) {
   }
 
   const dominantRockPerBH = rows.map((r, i) => getDominantRockType(rockLayersPerBH[i]));
-  const sectionRockTypes = new Set();
-  rockLayersPerBH.forEach(layers => {
-    if (layers && layers.length) {
-      layers.forEach(l => sectionRockTypes.add(l.rockType));
-    }
-  });
-  if (!sectionRockTypes.size) dominantRockPerBH.forEach(t => sectionRockTypes.add(t));
-  if (!sectionRockTypes.size) sectionRockTypes.add('Biotite Gneiss');
+  const sectionRockTypes = new Set(dominantRockPerBH);
 
   // ── CATEGORIZE LEGEND DATA INTO STRUCTURED SEMANTIC GROUPS ──
   // Group 1: Soil Stratigraphy (BS 5930)
@@ -5308,9 +5187,27 @@ function buildProfileSvg(rows, options = {}, arg3 = null, arg4 = null) {
   // STEP C3: Rock Lithology Standard Monochrome Hatches & Dipping Formation Boundaries
   if (opts.showRockLithology !== false && sectionRockTypes.size > 0) {
     svg += `<g clip-path="url(#${bedrockClipId})">`;
+    const masterRockList = Array.from(sectionRockTypes);
+
     // Apparent dip slope along section line (z change per meter of distance)
     const dirSign = appDip.directionStr === '← A' ? -1 : (appDip.directionStr === '→ B' ? 1 : 0);
     const dipSlope = Math.tan((appDip.angle * Math.PI) / 180) * dirSign;
+
+    // Helper: get dominant regional rock type of a borehole
+    function getDominantRockType(layers) {
+      if (!layers || !layers.length) return masterRockList[0] || 'Biotite Gneiss';
+      let bestType = layers[0].rockType, maxThick = -1;
+      layers.forEach(l => {
+        const thick = Math.abs(l.zTop - l.zBot);
+        if (thick > maxThick) {
+          maxThick = thick;
+          bestType = l.rockType;
+        }
+      });
+      return bestType;
+    }
+
+    const dominantRockPerBH = rows.map((r, i) => getDominantRockType(rockLayersPerBH[i]));
 
     // Helper to render a closed polygon from top and bottom points
     function renderRockPolygon(topPts, botPts, rockType) {
@@ -5323,227 +5220,103 @@ function buildProfileSvg(rows, options = {}, arg3 = null, arg4 = null) {
       return `<path d="${polyD}" fill="url(#${conf.patternId})" stroke="none"/>\n`;
     }
 
-    // 1. Extract all logged rock contacts across boreholes
-    const loggedContacts = []; // { bhIdx, dist, z, rockAbove, rockBelow, contactKey }
-    rows.forEach((r, i) => {
-      const layers = rockLayersPerBH[i];
-      if (!layers || layers.length < 2) return;
-      for (let k = 0; k < layers.length - 1; k++) {
-        const up = layers[k];
-        const dn = layers[k + 1];
-        if (up.rockType !== dn.rockType) {
-          loggedContacts.push({
-            bhIdx: i,
-            dist: distances[i],
-            z: up.zBot,
-            rockAbove: up.rockType,
-            rockBelow: dn.rockType,
-            contactKey: `${up.rockType}➔${dn.rockType}`
-          });
-        }
+    // 1. Left side extension (from distMin to distances[0])
+    if (distMin < distances[0] - 1e-4) {
+      const extDists = sampleDists.filter(d => d <= distances[0] + 1e-4);
+      if (extDists.length >= 2) {
+        const rockType0 = dominantRockPerBH[0];
+        const topPts = extDists.map(d => [xPos(d), yPos(getZRock(d))]);
+        const botPts = extDists.map(d => [xPos(d), yPos(minElev)]);
+        svg += `<!-- Rock Stratum Extension Left: ${rockType0} -->\n`;
+        svg += renderRockPolygon(topPts, botPts, rockType0);
       }
-    });
+    }
 
-    const contactGroups = {};
-    loggedContacts.forEach(c => {
-      if (!contactGroups[c.contactKey]) contactGroups[c.contactKey] = [];
-      contactGroups[c.contactKey].push(c);
-    });
+    // 2. Intermediate spans between boreholes (mutually exclusive, non-overlapping)
+    for (let j = 0; j < rows.length - 1; j++) {
+      const dStart = distances[j], dEnd = distances[j + 1];
+      const spanDists = sampleDists.filter(d => d >= dStart - 1e-4 && d <= dEnd + 1e-4);
+      if (spanDists.length < 2) continue;
 
-    const contactCurves = [];
-    Object.keys(contactGroups).forEach(ck => {
-      const pts = contactGroups[ck].slice().sort((a, b) => a.dist - b.dist);
-      contactCurves.push({
-        contactKey: ck,
-        rockAbove: pts[0].rockAbove,
-        rockBelow: pts[0].rockBelow,
-        pts: pts,
-        getZAt: function(d) {
-          if (pts.length === 1) {
-            return pts[0].z - dipSlope * (d - pts[0].dist);
+      const rockTypeA = dominantRockPerBH[j];
+      const rockTypeB = dominantRockPerBH[j + 1];
+
+      if (rockTypeA === rockTypeB) {
+        // Uniform rock formation across this span
+        const topPts = spanDists.map(d => [xPos(d), yPos(getZRock(d))]);
+        const botPts = spanDists.map(d => [xPos(d), yPos(minElev)]);
+        svg += `<!-- Rock Stratum Span ${j}-${j+1} Uniform: ${rockTypeA} -->\n`;
+        svg += renderRockPolygon(topPts, botPts, rockTypeA);
+      } else {
+        // Dipping geological formation contact along foliation
+        const dMid = (dStart + dEnd) / 2;
+        const zR_A = getZRock(dStart);
+        const zR_B = getZRock(dEnd);
+        const zMid = (zR_A + zR_B) / 2;
+
+        const upperTop = [], upperBot = [];
+        const lowerTop = [], lowerBot = [];
+
+        spanDists.forEach(d => {
+          const zRock = getZRock(d);
+          const zContact = zMid - dipSlope * (d - dMid);
+          const zClamped = Math.max(minElev, Math.min(zRock, zContact));
+          const x = xPos(d);
+
+          if (zRock > zClamped + 0.01) {
+            upperTop.push([x, yPos(zRock)]);
+            upperBot.push([x, yPos(zClamped)]);
           }
-          if (d <= pts[0].dist) {
-            return pts[0].z - dipSlope * (d - pts[0].dist);
+          if (zClamped > minElev + 0.01) {
+            lowerTop.push([x, yPos(zClamped)]);
+            lowerBot.push([x, yPos(minElev)]);
           }
-          if (d >= pts[pts.length - 1].dist) {
-            const last = pts[pts.length - 1];
-            return last.z - dipSlope * (d - last.dist);
-          }
-          for (let m = 0; m < pts.length - 1; m++) {
-            if (d >= pts[m].dist && d <= pts[m + 1].dist) {
-              const span = pts[m + 1].dist - pts[m].dist;
-              const frac = span > 1e-4 ? (d - pts[m].dist) / span : 0;
-              return pts[m].z + frac * (pts[m + 1].z - pts[m].z);
-            }
-          }
-          return pts[0].z;
-        }
-      });
-    });
-
-    if (contactCurves.length > 0) {
-      // Sort contact curves from highest elevation to lowest elevation
-      contactCurves.sort((a, b) => {
-        const midD = (distMin + distMax) / 2;
-        return b.getZAt(midD) - a.getZAt(midD);
-      });
-
-      // Upper rock layer (above topmost contact)
-      const topRock = contactCurves[0].rockAbove;
-      const topCurveTop = sampleDists.map(d => [xPos(d), yPos(getZRock(d))]);
-      const topCurveBot = sampleDists.map(d => {
-        const zR = getZRock(d);
-        const zC = Math.max(minElev, Math.min(zR, contactCurves[0].getZAt(d)));
-        return [xPos(d), yPos(zC)];
-      });
-      svg += `<!-- Stratified Rock Formation Upper: ${topRock} -->\n`;
-      svg += renderRockPolygon(topCurveTop, topCurveBot, topRock);
-
-      // Intermediate rock layers (between contacts)
-      for (let ci = 0; ci < contactCurves.length - 1; ci++) {
-        const cUpper = contactCurves[ci];
-        const cLower = contactCurves[ci + 1];
-        const midRock = cUpper.rockBelow || cLower.rockAbove;
-        const midCurveTop = sampleDists.map(d => {
-          const zR = getZRock(d);
-          const zC = Math.max(minElev, Math.min(zR, cUpper.getZAt(d)));
-          return [xPos(d), yPos(zC)];
         });
-        const midCurveBot = sampleDists.map(d => {
-          const zR = getZRock(d);
-          const zC = Math.max(minElev, Math.min(zR, cLower.getZAt(d)));
-          return [xPos(d), yPos(zC)];
-        });
-        svg += `<!-- Stratified Rock Formation Intermediate: ${midRock} -->\n`;
-        svg += renderRockPolygon(midCurveTop, midCurveBot, midRock);
+
+        const upperRock = dirSign >= 0 ? rockTypeB : rockTypeA;
+        const lowerRock = dirSign >= 0 ? rockTypeA : rockTypeB;
+
+        svg += `<!-- Rock Stratum Span ${j}-${j+1} Upper: ${upperRock} -->\n`;
+        svg += renderRockPolygon(upperTop, upperBot, upperRock);
+        svg += `<!-- Rock Stratum Span ${j}-${j+1} Lower: ${lowerRock} -->\n`;
+        svg += renderRockPolygon(lowerTop, lowerBot, lowerRock);
       }
+    }
 
-      // Lower rock layer (below bottommost contact)
-      const botRock = contactCurves[contactCurves.length - 1].rockBelow;
-      const botCurveTop = sampleDists.map(d => {
-        const zR = getZRock(d);
-        const zC = Math.max(minElev, Math.min(zR, contactCurves[contactCurves.length - 1].getZAt(d)));
-        return [xPos(d), yPos(zC)];
-      });
-      const botCurveBot = sampleDists.map(d => [xPos(d), yPos(minElev)]);
-      svg += `<!-- Stratified Rock Formation Lower: ${botRock} -->\n`;
-      svg += renderRockPolygon(botCurveTop, botCurveBot, botRock);
+    // 3. Right side extension (from distances[N-1] to distMax)
+    if (distMax > distances[distances.length - 1] + 1e-4) {
+      const extDists = sampleDists.filter(d => d >= distances[distances.length - 1] - 1e-4);
+      if (extDists.length >= 2) {
+        const rockTypeN = dominantRockPerBH[rows.length - 1];
+        const topPts = extDists.map(d => [xPos(d), yPos(getZRock(d))]);
+        const botPts = extDists.map(d => [xPos(d), yPos(minElev)]);
+        svg += `<!-- Rock Stratum Extension Right: ${rockTypeN} -->\n`;
+        svg += renderRockPolygon(topPts, botPts, rockTypeN);
+      }
+    }
 
-      // Draw continuous geological formation contact dashed lines (from rockhead to plot base / side margin)
-      contactCurves.forEach(curve => {
+    // Draw geological formation contact lines strictly in the transition spans
+    for (let j = 0; j < rows.length - 1; j++) {
+      const rockTypeA = dominantRockPerBH[j];
+      const rockTypeB = dominantRockPerBH[j + 1];
+      if (rockTypeA && rockTypeB && rockTypeA !== rockTypeB) {
+        const dMid = (distances[j] + distances[j + 1]) / 2;
+        const zR_A = getZRock(distances[j]);
+        const zR_B = getZRock(distances[j + 1]);
+        const zMid = (zR_A + zR_B) / 2;
         const run = [];
         sampleDists.forEach(d => {
-          const zR = getZRock(d);
-          const zC = curve.getZAt(d);
-          if (zC <= zR + 0.05 && zC >= minElev - 0.05) {
-            const zDraw = Math.max(minElev, Math.min(zR, zC));
-            run.push([xPos(d), yPos(zDraw)]);
+          if (d >= distances[j] - 1e-4 && d <= distances[j + 1] + 1e-4) {
+            const zRock = getZRock(d);
+            const zC = zMid - dipSlope * (d - dMid);
+            if (zC <= zRock && zC >= minElev) {
+              run.push([xPos(d), yPos(zC)]);
+            }
           }
         });
         if (run.length >= 2) {
           svg += `<!-- Geological Formation Contact Boundary (Dipping along foliation) -->
-          <path d="${ptsToCubicBezier(run, 0.55)}" fill="none" stroke="#1f2937" stroke-width="1.4" stroke-dasharray="6,3" opacity="0.95"/>\n`;
-        }
-      });
-    } else {
-      // If no intra-borehole contacts, partition lateral transitions between boreholes along dipping foliation
-      // 1. Left side extension (from distMin to distances[0])
-      if (distMin < distances[0] - 1e-4) {
-        const extDists = sampleDists.filter(d => d <= distances[0] + 1e-4);
-        if (extDists.length >= 2) {
-          const rockType0 = dominantRockPerBH[0];
-          const topPts = extDists.map(d => [xPos(d), yPos(getZRock(d))]);
-          const botPts = extDists.map(d => [xPos(d), yPos(minElev)]);
-          svg += `<!-- Rock Stratum Extension Left: ${rockType0} -->\n`;
-          svg += renderRockPolygon(topPts, botPts, rockType0);
-        }
-      }
-
-      // 2. Intermediate spans between boreholes (mutually exclusive, non-overlapping)
-      for (let j = 0; j < rows.length - 1; j++) {
-        const dStart = distances[j], dEnd = distances[j + 1];
-        const spanDists = sampleDists.filter(d => d >= dStart - 1e-4 && d <= dEnd + 1e-4);
-        if (spanDists.length < 2) continue;
-
-        const rockTypeA = dominantRockPerBH[j];
-        const rockTypeB = dominantRockPerBH[j + 1];
-
-        if (rockTypeA === rockTypeB) {
-          const topPts = spanDists.map(d => [xPos(d), yPos(getZRock(d))]);
-          const botPts = spanDists.map(d => [xPos(d), yPos(minElev)]);
-          svg += `<!-- Rock Stratum Span ${j}-${j+1} Uniform: ${rockTypeA} -->\n`;
-          svg += renderRockPolygon(topPts, botPts, rockTypeA);
-        } else {
-          const dMid = (dStart + dEnd) / 2;
-          const zR_A = getZRock(dStart);
-          const zR_B = getZRock(dEnd);
-          const zMid = (zR_A + zR_B) / 2;
-
-          const upperTop = [], upperBot = [];
-          const lowerTop = [], lowerBot = [];
-
-          spanDists.forEach(d => {
-            const zRock = getZRock(d);
-            const zContact = zMid - dipSlope * (d - dMid);
-            const zClamped = Math.max(minElev, Math.min(zRock, zContact));
-            const x = xPos(d);
-
-            if (zRock > zClamped + 0.01) {
-              upperTop.push([x, yPos(zRock)]);
-              upperBot.push([x, yPos(zClamped)]);
-            }
-            if (zClamped > minElev + 0.01) {
-              lowerTop.push([x, yPos(zClamped)]);
-              lowerBot.push([x, yPos(minElev)]);
-            }
-          });
-
-          const upperRock = dirSign >= 0 ? rockTypeB : rockTypeA;
-          const lowerRock = dirSign >= 0 ? rockTypeA : rockTypeB;
-
-          svg += `<!-- Rock Stratum Span ${j}-${j+1} Upper: ${upperRock} -->\n`;
-          svg += renderRockPolygon(upperTop, upperBot, upperRock);
-          svg += `<!-- Rock Stratum Span ${j}-${j+1} Lower: ${lowerRock} -->\n`;
-          svg += renderRockPolygon(lowerTop, lowerBot, lowerRock);
-        }
-      }
-
-      // 3. Right side extension (from distances[N-1] to distMax)
-      if (distMax > distances[distances.length - 1] + 1e-4) {
-        const extDists = sampleDists.filter(d => d >= distances[distances.length - 1] - 1e-4);
-        if (extDists.length >= 2) {
-          const rockTypeN = dominantRockPerBH[rows.length - 1];
-          const topPts = extDists.map(d => [xPos(d), yPos(getZRock(d))]);
-          const botPts = extDists.map(d => [xPos(d), yPos(minElev)]);
-          svg += `<!-- Rock Stratum Extension Right: ${rockTypeN} -->\n`;
-          svg += renderRockPolygon(topPts, botPts, rockTypeN);
-        }
-      }
-
-      // Draw geological formation contact lines strictly in the transition spans (from rockhead to base/side)
-      for (let j = 0; j < rows.length - 1; j++) {
-        const rockTypeA = dominantRockPerBH[j];
-        const rockTypeB = dominantRockPerBH[j + 1];
-        if (rockTypeA && rockTypeB && rockTypeA !== rockTypeB) {
-          const dMid = (distances[j] + distances[j + 1]) / 2;
-          const zR_A = getZRock(distances[j]);
-          const zR_B = getZRock(distances[j + 1]);
-          const zMid = (zR_A + zR_B) / 2;
-          const run = [];
-          sampleDists.forEach(d => {
-            if (d >= distances[j] - 1e-4 && d <= distances[j + 1] + 1e-4) {
-              const zRock = getZRock(d);
-              const zC = zMid - dipSlope * (d - dMid);
-              if (zC <= zRock + 0.05 && zC >= minElev - 0.05) {
-                const zDraw = Math.max(minElev, Math.min(zRock, zC));
-                run.push([xPos(d), yPos(zDraw)]);
-              }
-            }
-          });
-          if (run.length >= 2) {
-            svg += `<!-- Geological Formation Contact Boundary (Dipping along foliation) -->
-            <path d="${ptsToCubicBezier(run, 0.55)}" fill="none" stroke="#1f2937" stroke-width="1.4" stroke-dasharray="6,3" opacity="0.95"/>\n`;
-          }
+          <path d="${ptsToCubicBezier(run, 0.55)}" fill="none" stroke="#78828c" stroke-width="1.3" stroke-dasharray="7,5" opacity="0.95"/>\n`;
         }
       }
     }
@@ -6084,88 +5857,6 @@ function autoDetectAzimuth() {
   }
 }
 
-// Infer best matching foliation plane from observed rock contacts across boreholes
-function inferBestFoliationFromContacts(rows, distances, sectionAz) {
-  if (!rows || rows.length < 2 || !distances || distances.length < 2) return null;
-  const levelsArr = rows.map(computeBHLevels);
-  const rockLayersPerBH = rows.map((r, i) => {
-    const raw = getBHWeathering(r);
-    const zG = levelsArr[i].elevation !== null ? levelsArr[i].elevation : 100;
-    const dRock = (levelsArr[i].overburden !== null) ? levelsArr[i].overburden : 5;
-    if (!raw || !raw.length) return [];
-    const sorted = raw.slice().filter(cur => !isBoulderCode(cur.rockType) && !isBoulderCode(cur.grade)).sort((a, b) => a.depth - b.depth);
-    const layers = [];
-    for (let k = 0; k < sorted.length; k++) {
-      const cur = sorted[k];
-      const topD = Math.max(cur.depth, dRock);
-      const nextDepth = k < sorted.length - 1 ? sorted[k+1].depth : topD + 10;
-      const botD = Math.max(nextDepth, topD);
-      if (topD < botD) layers.push({ zTop: zG - topD, zBot: zG - botD, rockType: normalizeRockType(cur.rockType) });
-    }
-    return layers;
-  });
-
-  const slopes = [];
-  for (let i = 0; i < rows.length - 1; i++) {
-    const lA = rockLayersPerBH[i];
-    const lB = rockLayersPerBH[i + 1];
-    if (!lA || !lB || !lA.length || !lB.length) continue;
-    const dSpan = distances[i + 1] - distances[i];
-    if (dSpan <= 0.1) continue;
-
-    for (let ka = 0; ka < lA.length - 1; ka++) {
-      const topA = lA[ka].rockType, botA = lA[ka + 1].rockType;
-      for (let kb = 0; kb < lB.length - 1; kb++) {
-        const topB = lB[kb].rockType, botB = lB[kb + 1].rockType;
-        if (topA === topB && botA === botB) {
-          const zContactA = lA[ka].zBot;
-          const zContactB = lB[kb].zBot;
-          const dz = zContactB - zContactA;
-          const slope = dz / dSpan; // negative = dips towards B, positive = dips towards A
-          slopes.push({ slope, weight: dSpan });
-        }
-      }
-    }
-  }
-
-  if (!slopes.length) return null;
-  const totalW = slopes.reduce((acc, s) => acc + s.weight, 0);
-  const avgSlope = slopes.reduce((acc, s) => acc + s.slope * s.weight, 0) / (totalW || 1);
-  const appAngle = Math.atan(Math.abs(avgSlope)) * 180 / Math.PI;
-
-  const trueDipDir = avgSlope < 0 ? ((sectionAz % 360) + 360) % 360 : (((sectionAz + 180) % 360) + 360) % 360;
-  const trueDipAngle = Math.min(Math.max(appAngle, 5), 85);
-
-  return {
-    trueDipDir,
-    trueDipAngle,
-    apparentAngle: appAngle,
-    slope: avgSlope
-  };
-}
-
-// User Action: Auto-Suggest best foliation plane from observed rock contacts
-function autoSuggestFoliation() {
-  if (!currentProfileRows || currentProfileRows.length < 2) return;
-  const sAz = parseFloat(document.getElementById('az-input')?.value) || detectBHTrendAzimuth(currentProfileRows);
-  const orderedRows = sectionMethod === 'projection' ? projectBoreholes(currentProfileRows, sAz).map(t => t.row) : sortBoreholesByMapPosition(currentProfileRows);
-  const dists = sectionMethod === 'projection' ? computeProjectedDistances(projectBoreholes(currentProfileRows, sAz)) : computeProfilePositions(orderedRows);
-
-  const inferred = inferBestFoliationFromContacts(orderedRows, dists, sAz);
-  if (inferred) {
-    const dirInput = document.getElementById('dip-dir-input');
-    const angInput = document.getElementById('dip-ang-input');
-    if (dirInput && angInput) {
-      dirInput.value = Math.round(inferred.trueDipDir);
-      angInput.value = Math.round(inferred.trueDipAngle);
-      updateApparentDipDisplay();
-      recreateProfile();
-    }
-  } else {
-    alert('No multi-borehole matching rock contacts found in the current selection. You can manually adjust the Foliation Dip Dir and Dip Angle inputs.');
-  }
-}
-
 // ── PROJECT BHs ONTO SECTION LINE ──────────────────────────────────────────
 function projectBoreholes(rows, azDeg) {
   const azRad = (azDeg * Math.PI) / 180;
@@ -6406,22 +6097,6 @@ function showProfileModal(rows){
   }
 
   autoDetectAzimuth();
-
-  const orderedRows = sortBoreholesByMapPosition(rows);
-  const dists = computeProfilePositions(orderedRows);
-  const inferred = inferBestFoliationFromContacts(orderedRows, dists, sectionAzimuth);
-  if (inferred) {
-    const dirInput = document.getElementById('dip-dir-input');
-    const angInput = document.getElementById('dip-ang-input');
-    if (dirInput && angInput) {
-      dirInput.value = Math.round(inferred.trueDipDir);
-      angInput.value = Math.round(inferred.trueDipAngle);
-      foliationDipDir = Math.round(inferred.trueDipDir);
-      foliationDipAngle = Math.round(inferred.trueDipAngle);
-    }
-  }
-  updateApparentDipDisplay();
-
   recreateProfile();
   document.getElementById('profile-modal-backdrop').classList.add('open');
 }
