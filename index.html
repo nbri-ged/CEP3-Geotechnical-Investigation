@@ -5846,18 +5846,22 @@ function buildProfileSvg(rows, options = {}, arg3 = null, arg4 = null) {
   </g>
   `;
 
-  // Grid Lines & Y Axis — use a "nice" integer step so labels read as whole metres
+  // Grid Lines & Dual Y-Axes (Left & Right)
   const targetElevStep = elevRange / 6;
   const elevStep = niceScaleMeters(Math.max(targetElevStep, 1));
   const gridStartElev = Math.ceil(minElev / elevStep) * elevStep;
   for (let elev = gridStartElev; elev <= maxElev + 0.001; elev += elevStep) {
     const y = yPos(elev);
     svg += `<line x1="${padLeft}" y1="${y.toFixed(1)}" x2="${padLeft + plotW}" y2="${y.toFixed(1)}" stroke="#e5e0d3" stroke-width="1"/>`;
+    // Left Y-Axis elevation label
     svg += `<text x="${padLeft - 8}" y="${(y + 3.5).toFixed(1)}" font-size="10" fill="#6b6459" text-anchor="end" font-weight="600">${Math.round(elev)}</text>`;
+    // Right Y-Axis elevation label
+    svg += `<text x="${padLeft + plotW + 8}" y="${(y + 3.5).toFixed(1)}" font-size="10" fill="#6b6459" text-anchor="start" font-weight="600">${Math.round(elev)}</text>`;
   }
 
-  // Axis Titles
+  // Axis Titles (Left & Right Elevation + Bottom Distance)
   svg += `<text x="22" y="${(padTop + plotH / 2).toFixed(1)}" font-size="11" fill="#1c2b2a" font-weight="700" transform="rotate(-90 22 ${(padTop + plotH / 2).toFixed(1)})" text-anchor="middle">Elevation (m, RL)</text>`;
+  svg += `<text x="${(padLeft + plotW + 36).toFixed(1)}" y="${(padTop + plotH / 2).toFixed(1)}" font-size="11" fill="#1c2b2a" font-weight="700" transform="rotate(90 ${(padLeft + plotW + 36).toFixed(1)} ${(padTop + plotH / 2).toFixed(1)})" text-anchor="middle">Elevation (m, RL)</text>`;
   svg += `<text x="${(padLeft + plotW / 2).toFixed(1)}" y="${(axisY + 34).toFixed(1)}" font-size="11" fill="#1c2b2a" font-weight="700" text-anchor="middle">Distance along section (m)</text>`;
 
   // Distance Axis Ticks & Axis Line
@@ -6330,7 +6334,7 @@ function buildProfileSvg(rows, options = {}, arg3 = null, arg4 = null) {
     svg += `</g>`;
   }
 
-  // STEP C3: Rock Lithology Standard Monochrome Hatches & Dipping Formation Boundaries
+  // STEP C3: Continuous Apparent-Dip Bedrock Stratum Horizons & Dipping Formation Boundaries
   if (opts.showRockLithology !== false && sectionRockTypes.size > 0) {
     svg += `<g clip-path="url(#${bedrockClipId})">`;
     const masterRockList = Array.from(sectionRockTypes);
@@ -6355,114 +6359,162 @@ function buildProfileSvg(rows, options = {}, arg3 = null, arg4 = null) {
 
     const dominantRockPerBH = rows.map((r, i) => getDominantRockType(rockLayersPerBH[i]));
 
-    // Helper to render a closed polygon from top and bottom points
-    function renderRockPolygon(topPts, botPts, rockType) {
-      if (!topPts || topPts.length < 2 || !botPts || botPts.length < 2) return '';
-      const conf = ROCK_LITHOLOGY_CONFIG[rockType] || ROCK_LITHOLOGY_CONFIG['Biotite Gneiss'];
-      let polyD = `M ${topPts[0][0].toFixed(1)},${topPts[0][1].toFixed(1)}`;
-      for (let k = 1; k < topPts.length; k++) polyD += ` L ${topPts[k][0].toFixed(1)},${topPts[k][1].toFixed(1)}`;
-      for (let k = botPts.length - 1; k >= 0; k--) polyD += ` L ${botPts[k][0].toFixed(1)},${botPts[k][1].toFixed(1)}`;
-      polyD += ' Z';
-      return `<path d="${polyD}" fill="url(#${conf.patternId})" stroke="none"/>\n`;
-    }
-
-    // 1. Left side extension (from distMin to distances[0])
-    if (distMin < distances[0] - 1e-4) {
-      const extDists = sampleDists.filter(d => d <= distances[0] + 1e-4);
-      if (extDists.length >= 2) {
-        const rockType0 = dominantRockPerBH[0];
-        const topPts = extDists.map(d => [xPos(d), yPos(getZRock(d))]);
-        const botPts = extDists.map(d => [xPos(d), yPos(minElev)]);
-        svg += `<!-- Rock Stratum Extension Left: ${rockType0} -->\n`;
-        svg += renderRockPolygon(topPts, botPts, rockType0);
-      }
-    }
-
-    // 2. Intermediate spans between boreholes (mutually exclusive, non-overlapping)
-    for (let j = 0; j < rows.length - 1; j++) {
-      const dStart = distances[j], dEnd = distances[j + 1];
-      const spanDists = sampleDists.filter(d => d >= dStart - 1e-4 && d <= dEnd + 1e-4);
-      if (spanDists.length < 2) continue;
-
-      const rockTypeA = dominantRockPerBH[j];
-      const rockTypeB = dominantRockPerBH[j + 1];
-
-      if (rockTypeA === rockTypeB) {
-        // Uniform rock formation across this span
-        const topPts = spanDists.map(d => [xPos(d), yPos(getZRock(d))]);
-        const botPts = spanDists.map(d => [xPos(d), yPos(minElev)]);
-        svg += `<!-- Rock Stratum Span ${j}-${j+1} Uniform: ${rockTypeA} -->\n`;
-        svg += renderRockPolygon(topPts, botPts, rockTypeA);
-      } else {
-        // Dipping geological formation contact along foliation
-        const dMid = (dStart + dEnd) / 2;
-        const zR_A = getZRock(dStart);
-        const zR_B = getZRock(dEnd);
-        const zMid = (zR_A + zR_B) / 2;
-
-        const upperTop = [], upperBot = [];
-        const lowerTop = [], lowerBot = [];
-
-        spanDists.forEach(d => {
-          const zRock = getZRock(d);
-          const zContact = zMid - dipSlope * (d - dMid);
-          const zClamped = Math.max(minElev, Math.min(zRock, zContact));
-          const x = xPos(d);
-
-          if (zRock > zClamped + 0.01) {
-            upperTop.push([x, yPos(zRock)]);
-            upperBot.push([x, yPos(zClamped)]);
-          }
-          if (zClamped > minElev + 0.01) {
-            lowerTop.push([x, yPos(zClamped)]);
-            lowerBot.push([x, yPos(minElev)]);
-          }
+    // ── DIP-ORIENTED BEDROCK FORMATION HORIZON ENGINE ──
+    // Map all logged rock layers into Apparent-Dip Structural Horizon coordinates: H = z + dipSlope * d
+    // At any distance d, the elevation on a dipping plane is z(d) = H - dipSlope * d.
+    const bhIntervals = []; // list of { H_top, H_bot, rockType, bhIdx, zTop, zBot }
+    rows.forEach((r, i) => {
+      const d = distances[i];
+      const layers = rockLayersPerBH[i];
+      if (layers && layers.length) {
+        layers.forEach(l => {
+          const H_top = l.zTop + dipSlope * d;
+          const H_bot = l.zBot + dipSlope * d;
+          bhIntervals.push({
+            H_top: Math.max(H_top, H_bot),
+            H_bot: Math.min(H_top, H_bot),
+            rockType: l.rockType,
+            bhIdx: i,
+            zTop: l.zTop,
+            zBot: l.zBot
+          });
         });
-
-        const upperRock = dirSign >= 0 ? rockTypeB : rockTypeA;
-        const lowerRock = dirSign >= 0 ? rockTypeA : rockTypeB;
-
-        svg += `<!-- Rock Stratum Span ${j}-${j+1} Upper: ${upperRock} -->\n`;
-        svg += renderRockPolygon(upperTop, upperBot, upperRock);
-        svg += `<!-- Rock Stratum Span ${j}-${j+1} Lower: ${lowerRock} -->\n`;
-        svg += renderRockPolygon(lowerTop, lowerBot, lowerRock);
       }
-    }
+    });
 
-    // 3. Right side extension (from distances[N-1] to distMax)
-    if (distMax > distances[distances.length - 1] + 1e-4) {
-      const extDists = sampleDists.filter(d => d >= distances[distances.length - 1] - 1e-4);
-      if (extDists.length >= 2) {
-        const rockTypeN = dominantRockPerBH[rows.length - 1];
-        const topPts = extDists.map(d => [xPos(d), yPos(getZRock(d))]);
-        const botPts = extDists.map(d => [xPos(d), yPos(minElev)]);
-        svg += `<!-- Rock Stratum Extension Right: ${rockTypeN} -->\n`;
-        svg += renderRockPolygon(topPts, botPts, rockTypeN);
-      }
-    }
+    // Collect candidate contact horizons
+    const contactHSet = new Set();
+    bhIntervals.forEach(inv => {
+      contactHSet.add(inv.H_top);
+      contactHSet.add(inv.H_bot);
+    });
 
-    // Draw geological formation contact lines strictly in the transition spans
+    // Also check inter-borehole transition midpoints if rock types change between adjacent boreholes
     for (let j = 0; j < rows.length - 1; j++) {
-      const rockTypeA = dominantRockPerBH[j];
-      const rockTypeB = dominantRockPerBH[j + 1];
-      if (rockTypeA && rockTypeB && rockTypeA !== rockTypeB) {
+      const rA = dominantRockPerBH[j];
+      const rB = dominantRockPerBH[j + 1];
+      if (rA !== rB) {
         const dMid = (distances[j] + distances[j + 1]) / 2;
-        const zR_A = getZRock(distances[j]);
-        const zR_B = getZRock(distances[j + 1]);
-        const zMid = (zR_A + zR_B) / 2;
-        const run = [];
-        sampleDists.forEach(d => {
-          if (d >= distances[j] - 1e-4 && d <= distances[j + 1] + 1e-4) {
-            const zRock = getZRock(d);
-            const zC = zMid - dipSlope * (d - dMid);
-            if (zC <= zRock && zC >= minElev) {
-              run.push([xPos(d), yPos(zC)]);
-            }
+        const zMid = (getZRock(distances[j]) + getZRock(distances[j + 1])) / 2;
+        const H_trans = zMid + dipSlope * dMid;
+        contactHSet.add(H_trans);
+      }
+    }
+
+    // Sort contact horizons descending (highest structural level to lowest)
+    const sortedH = Array.from(contactHSet).sort((a, b) => b - a);
+
+    // Group into meaningful strata intervals (merging very close horizons < 0.6m)
+    const mergedH = [];
+    sortedH.forEach(h => {
+      if (!mergedH.length || Math.abs(mergedH[mergedH.length - 1] - h) >= 0.6) {
+        mergedH.push(h);
+      }
+    });
+
+    // Construct strata layers between horizons [H_{k-1}, H_k]
+    const horizonBounds = [Infinity, ...mergedH, -Infinity];
+    const strataList = [];
+
+    for (let k = 0; k < horizonBounds.length - 1; k++) {
+      const H_upper = horizonBounds[k];
+      const H_lower = horizonBounds[k + 1];
+      const H_mid = (isFinite(H_upper) && isFinite(H_lower)) ? (H_upper + H_lower) / 2
+                  : (isFinite(H_upper) ? H_upper - 5 : (isFinite(H_lower) ? H_lower + 5 : 0));
+
+      // Determine rock type for this structural interval based on overlapping logged intervals
+      const typeWeights = {};
+      bhIntervals.forEach(inv => {
+        const oTop = Math.min(isFinite(H_upper) ? H_upper : inv.H_top + 10, inv.H_top);
+        const oBot = Math.max(isFinite(H_lower) ? H_lower : inv.H_bot - 10, inv.H_bot);
+        if (oTop > oBot) {
+          const overlap = oTop - oBot;
+          typeWeights[inv.rockType] = (typeWeights[inv.rockType] || 0) + overlap;
+        }
+      });
+
+      let bestType = dominantRockPerBH[0] || 'Biotite Gneiss';
+      let maxWeight = -1;
+      Object.keys(typeWeights).forEach(t => {
+        if (typeWeights[t] > maxWeight) {
+          maxWeight = typeWeights[t];
+          bestType = t;
+        }
+      });
+
+      // Fallback: if no direct overlap, use borehole nearest to this H-plane intersection
+      if (maxWeight <= 0) {
+        let bestDist = Infinity;
+        rows.forEach((r, i) => {
+          const d = distances[i];
+          const zR = getZRock(d);
+          const zAtD = H_mid - dipSlope * d;
+          const diff = Math.abs(zAtD - zR);
+          if (diff < bestDist) {
+            bestDist = diff;
+            bestType = dominantRockPerBH[i];
           }
         });
-        if (run.length >= 2) {
-          svg += `<!-- Geological Formation Contact Boundary (Dipping along foliation) -->
-          <path d="${ptsToCubicBezier(run, 0.55)}" fill="none" stroke="#78828c" stroke-width="1.3" stroke-dasharray="7,5" opacity="0.95"/>\n`;
+      }
+
+      strataList.push({ H_upper, H_lower, rockType: bestType });
+    }
+
+    // Merge contiguous strata intervals that share the same rock type
+    const mergedStrata = [];
+    strataList.forEach(st => {
+      const last = mergedStrata[mergedStrata.length - 1];
+      if (last && last.rockType === st.rockType) {
+        last.H_lower = st.H_lower;
+      } else {
+        mergedStrata.push({ ...st });
+      }
+    });
+
+    // Render each dipping bedrock stratum formation across the full cross-section width
+    mergedStrata.forEach((stratum, sIdx) => {
+      const topPts = [];
+      const botPts = [];
+      let hasArea = false;
+
+      sampleDists.forEach(d => {
+        const x = xPos(d);
+        const zRock = getZRock(d);
+        const zUpper = isFinite(stratum.H_upper) ? (stratum.H_upper - dipSlope * d) : zRock;
+        const zLower = isFinite(stratum.H_lower) ? (stratum.H_lower - dipSlope * d) : minElev;
+
+        let zTop = Math.min(zRock, Math.max(minElev, zUpper));
+        let zBot = Math.min(zRock, Math.max(minElev, zLower));
+        if (zBot > zTop) zBot = zTop;
+
+        topPts.push([x, yPos(zTop)]);
+        botPts.push([x, yPos(zBot)]);
+        if (zTop - zBot > 0.05) hasArea = true;
+      });
+
+      if (hasArea && topPts.length >= 2) {
+        const conf = ROCK_LITHOLOGY_CONFIG[stratum.rockType] || ROCK_LITHOLOGY_CONFIG['Biotite Gneiss'];
+        const polyD = closedLayerPath(topPts, botPts);
+        svg += `<!-- Dipping Bedrock Stratum Horizon: ${stratum.rockType} (Apparent Dip ${appDip.angle.toFixed(1)}° ${appDip.directionStr}) -->\n`;
+        svg += `<path d="${polyD}" fill="url(#${conf.patternId})" stroke="none"/>\n`;
+      }
+    });
+
+    // Draw continuous geological formation contact lines along the dipping contact horizons
+    for (let k = 0; k < mergedStrata.length - 1; k++) {
+      const contactH = mergedStrata[k].H_lower;
+      if (isFinite(contactH)) {
+        const linePts = [];
+        sampleDists.forEach(d => {
+          const zC = contactH - dipSlope * d;
+          const zRock = getZRock(d);
+          if (zC <= zRock && zC >= minElev) {
+            linePts.push([xPos(d), yPos(zC)]);
+          }
+        });
+        if (linePts.length >= 2) {
+          svg += `<!-- Geological Formation Contact Boundary (Dipping continuous foliation plane) -->\n`;
+          svg += `<path d="${ptsToCubicBezier(linePts, 0.4)}" fill="none" stroke="#78828c" stroke-width="1.3" stroke-dasharray="7,5" opacity="0.95"/>\n`;
         }
       }
     }
@@ -6607,70 +6659,93 @@ function buildProfileSvg(rows, options = {}, arg3 = null, arg4 = null) {
     // ── IN-SITU TESTING & ROCK QUALITY DATA (SPT N-VALUES & RQD BARS) ──
     const tests = getBHTests(r);
     if (tests && tests.length) {
-      let lastRqdY = -999;
+      const sptTests = [];
+      const rqdTests = [];
+
       tests.forEach(t => {
+        if (opts.showSPT && t.nVal !== null && (t.type === 'SPT' || t.nVal > 0)) {
+          sptTests.push(t);
+        }
+        if (opts.showRQD && (t.rqd !== null || t.cr !== null) && t.type !== 'SPT') {
+          rqdTests.push(t);
+        }
+      });
+
+      // 1. SPT N-VALUE CALLOUT (Left side of borehole pillar with Anti-Collision & Translucent Glass Pill)
+      let lastSptY = -999;
+      sptTests.sort((a, b) => a.depth - b.depth).forEach(t => {
         const yTop = yPos(zG - t.depth);
         const yBot = yPos(zG - (t.depth + (t.length || 0.45)));
         const h = Math.max(Math.abs(yBot - yTop), 3.5);
+        const nVal = t.nVal;
+        const isRefusal = nVal >= 50;
+        const nTxt = isRefusal ? '50+' : String(Math.round(nVal));
+        const barW = Math.min(Math.max((nVal / 50) * 16, 4), 20);
+        const barX = x - colW / 2 - 2 - barW;
+        const barY = yTop;
+        // Standard soil density/consistency color-coding
+        const barColor = isRefusal ? '#a82c2c' : (nVal >= 30 ? '#c97a2b' : (nVal >= 10 ? '#2e7d32' : '#2563eb'));
+        const calloutTxt = `N=${nTxt}`;
+        const pillW = calloutTxt.length * 5.2 + 8;
+        const pillH = 11;
+        const pillX = barX - 2 - pillW;
+        let pillY = barY + Math.max(h, 4) / 2 - pillH / 2;
 
-        // 1. SPT N-VALUE CALLOUT (Left side of borehole pillar with High-Contrast Pill)
-        if (opts.showSPT && t.nVal !== null && (t.type === 'SPT' || t.nVal > 0)) {
-          const nVal = t.nVal;
-          const isRefusal = nVal >= 50;
-          const nTxt = isRefusal ? '50+' : String(Math.round(nVal));
-          const barW = Math.min(Math.max((nVal / 50) * 16, 4), 20);
-          const barX = x - colW / 2 - 2 - barW;
-          const barY = yTop;
-          // Standard soil density/consistency color-coding
-          const barColor = isRefusal ? '#a82c2c' : (nVal >= 30 ? '#c97a2b' : (nVal >= 10 ? '#2e7d32' : '#2563eb'));
-          const calloutTxt = `N=${nTxt}`;
-          const pillW = calloutTxt.length * 5.2 + 8;
-          const pillH = 11;
-          const pillX = barX - 2 - pillW;
-          const pillY = barY + Math.max(h, 4) / 2 - pillH / 2;
-
-          svg += `<rect x="${barX.toFixed(1)}" y="${barY.toFixed(1)}" width="${barW.toFixed(1)}" height="${Math.max(h, 4).toFixed(1)}" fill="${barColor}" opacity="0.85" rx="1"/>`;
-          svg += `<rect x="${pillX.toFixed(1)}" y="${pillY.toFixed(1)}" width="${pillW.toFixed(1)}" height="${pillH}" fill="rgba(255,255,255,0.92)" stroke="${barColor}" stroke-width="0.7" rx="2.5"/>`;
-          svg += `<text x="${(pillX + pillW / 2).toFixed(1)}" y="${(pillY + 8).toFixed(1)}" font-size="7.5" fill="${barColor}" font-weight="800" text-anchor="middle">${calloutTxt}</text>`;
+        // Anti-collision staggering: ensure at least (pillH + 1.5) clearance from previous pill
+        if (pillY < lastSptY + pillH + 1.5) {
+          pillY = lastSptY + pillH + 1.5;
         }
+        lastSptY = pillY;
 
-        // 2. RQD & CORE RECOVERY (CR) BARS (Right side of borehole pillar in rock zone with High-Contrast Pill)
-        if (opts.showRQD && (t.rqd !== null || t.cr !== null) && t.type !== 'SPT') {
-          const rqdVal = t.rqd !== null ? t.rqd : 0;
-          const crVal = t.cr !== null ? t.cr : 0;
-          const maxTrackW = 20; // 0 to 20px
-          const rqdW = Math.min(Math.max((rqdVal / 100) * maxTrackW, 0), maxTrackW);
-          const crW = Math.min(Math.max((crVal / 100) * maxTrackW, 0), maxTrackW);
-          const trackX = x + colW / 2 + 2;
-          const barY = yTop;
+        svg += `<rect x="${barX.toFixed(1)}" y="${barY.toFixed(1)}" width="${barW.toFixed(1)}" height="${Math.max(h, 4).toFixed(1)}" fill="${barColor}" opacity="0.80" rx="1"/>`;
+        // Translucent pill container so underlying stratigraphy/textures show through
+        svg += `<rect x="${pillX.toFixed(1)}" y="${pillY.toFixed(1)}" width="${pillW.toFixed(1)}" height="${pillH}" fill="rgba(255,255,255,0.70)" stroke="${barColor}" stroke-width="0.75" rx="2.5"/>`;
+        svg += `<text x="${(pillX + pillW / 2).toFixed(1)}" y="${(pillY + 8).toFixed(1)}" font-size="7.5" fill="${barColor}" font-weight="800" text-anchor="middle">${calloutTxt}</text>`;
+      });
 
-          // RQD Color classification (ISRM / ASTM D6032)
-          let rqdColor = '#d9534f'; // <25% Very Poor (Red)
-          if (rqdVal >= 90) rqdColor = '#1b5e20'; // 90-100% Excellent (Dark Green)
-          else if (rqdVal >= 75) rqdColor = '#2e7d32'; // 75-90% Good (Green)
-          else if (rqdVal >= 50) rqdColor = '#b45309'; // 50-75% Fair (Amber)
-          else if (rqdVal >= 25) rqdColor = '#d97706'; // 25-50% Poor (Orange)
+      // 2. RQD & CORE RECOVERY (CR) BARS (Right side of borehole pillar with Anti-Collision & Translucent Glass Pill)
+      let lastRqdY = -999;
+      rqdTests.sort((a, b) => a.depth - b.depth).forEach(t => {
+        const yTop = yPos(zG - t.depth);
+        const yBot = yPos(zG - (t.depth + (t.length || 0.45)));
+        const h = Math.max(Math.abs(yBot - yTop), 3.5);
+        const rqdVal = t.rqd !== null ? t.rqd : 0;
+        const crVal = t.cr !== null ? t.cr : 0;
+        const maxTrackW = 20; // 0 to 20px
+        const rqdW = Math.min(Math.max((rqdVal / 100) * maxTrackW, 0), maxTrackW);
+        const crW = Math.min(Math.max((crVal / 100) * maxTrackW, 0), maxTrackW);
+        const trackX = x + colW / 2 + 2;
+        const barY = yTop;
 
-          // Background Core Recovery (CR) track
-          if (crVal > 0) {
-            svg += `<rect x="${trackX.toFixed(1)}" y="${barY.toFixed(1)}" width="${crW.toFixed(1)}" height="${Math.max(h, 4).toFixed(1)}" fill="#cbd5e1" stroke="#94a3b8" stroke-width="0.4" opacity="0.7" rx="1"/>`;
-          }
-          // Foreground RQD track
-          if (rqdVal > 0) {
-            svg += `<rect x="${trackX.toFixed(1)}" y="${barY.toFixed(1)}" width="${rqdW.toFixed(1)}" height="${Math.max(h, 4).toFixed(1)}" fill="${rqdColor}" opacity="0.9" rx="1"/>`;
-          }
-          // Text pill label (with vertical spacing check to avoid overlap)
-          const rqdTxt = `RQD:${Math.round(rqdVal)}%`;
-          const pillW = rqdTxt.length * 4.6 + 6;
-          const pillH = 10;
-          const pillX = trackX + Math.max(crW, rqdW) + 2;
-          let pillY = barY + Math.max(h, 4) / 2 - pillH / 2;
-          if (pillY < lastRqdY + 9) pillY = lastRqdY + 9;
-          lastRqdY = pillY;
+        // RQD Color classification (ISRM / ASTM D6032)
+        let rqdColor = '#d9534f'; // <25% Very Poor (Red)
+        if (rqdVal >= 90) rqdColor = '#1b5e20'; // 90-100% Excellent (Dark Green)
+        else if (rqdVal >= 75) rqdColor = '#2e7d32'; // 75-90% Good (Green)
+        else if (rqdVal >= 50) rqdColor = '#b45309'; // 50-75% Fair (Amber)
+        else if (rqdVal >= 25) rqdColor = '#d97706'; // 25-50% Poor (Orange)
 
-          svg += `<rect x="${pillX.toFixed(1)}" y="${pillY.toFixed(1)}" width="${pillW.toFixed(1)}" height="${pillH}" fill="rgba(255,255,255,0.92)" stroke="#cbd5e1" stroke-width="0.6" rx="2"/>`;
-          svg += `<text x="${(pillX + pillW / 2).toFixed(1)}" y="${(pillY + 7.5).toFixed(1)}" font-size="7" fill="${rqdVal > 0 ? rqdColor : '#64748b'}" font-weight="700" text-anchor="middle">${rqdTxt}</text>`;
+        // Background Core Recovery (CR) track with translucency
+        if (crVal > 0) {
+          svg += `<rect x="${trackX.toFixed(1)}" y="${barY.toFixed(1)}" width="${crW.toFixed(1)}" height="${Math.max(h, 4).toFixed(1)}" fill="#cbd5e1" stroke="#94a3b8" stroke-width="0.4" opacity="0.65" rx="1"/>`;
         }
+        // Foreground RQD track with translucency
+        if (rqdVal > 0) {
+          svg += `<rect x="${trackX.toFixed(1)}" y="${barY.toFixed(1)}" width="${rqdW.toFixed(1)}" height="${Math.max(h, 4).toFixed(1)}" fill="${rqdColor}" opacity="0.80" rx="1"/>`;
+        }
+        // Text pill label (with guaranteed clearance)
+        const rqdTxt = `RQD:${Math.round(rqdVal)}%`;
+        const pillW = rqdTxt.length * 4.6 + 6;
+        const pillH = 10;
+        const pillX = trackX + Math.max(crW, rqdW) + 2;
+        let pillY = barY + Math.max(h, 4) / 2 - pillH / 2;
+        if (pillY < lastRqdY + pillH + 1.5) {
+          pillY = lastRqdY + pillH + 1.5;
+        }
+        lastRqdY = pillY;
+
+        // Translucent pill container so underlying bedrock mass shows through
+        svg += `<rect x="${pillX.toFixed(1)}" y="${pillY.toFixed(1)}" width="${pillW.toFixed(1)}" height="${pillH}" fill="rgba(255,255,255,0.70)" stroke="#cbd5e1" stroke-width="0.6" rx="2"/>`;
+        svg += `<text x="${(pillX + pillW / 2).toFixed(1)}" y="${(pillY + 7.5).toFixed(1)}" font-size="7" fill="${rqdVal > 0 ? rqdColor : '#64748b'}" font-weight="700" text-anchor="middle">${rqdTxt}</text>`;
       });
     }
 
