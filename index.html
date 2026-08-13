@@ -729,6 +729,415 @@
     overflow:auto;
     background:#fafaf7;
   }
+
+  /* ============================================================
+     VERSION BADGE, SYSTEM HUB MODAL & TOAST NOTIFICATIONS
+     ============================================================ */
+  .version-badge-btn {
+    background: rgba(255, 255, 255, 0.12);
+    border: 1px solid rgba(255, 255, 255, 0.28);
+    color: #ffffff;
+    font-size: 11.5px;
+    font-weight: 700;
+    padding: 3px 10px;
+    border-radius: 20px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    box-shadow: 0 1px 4px rgba(0,0,0,0.15);
+    user-select: none;
+    font-family: 'Inter', sans-serif;
+    margin-left: 6px;
+  }
+  .version-badge-btn:hover {
+    background: rgba(255, 255, 255, 0.24);
+    border-color: rgba(255, 255, 255, 0.55);
+    transform: translateY(-1px);
+    box-shadow: 0 3px 10px rgba(0,0,0,0.25);
+  }
+  .version-badge-btn:active {
+    transform: translateY(0);
+  }
+  .version-pulse-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #4ade80;
+    box-shadow: 0 0 6px #4ade80;
+    display: inline-block;
+    animation: versionPulse 2.2s infinite ease-in-out;
+  }
+  @keyframes versionPulse {
+    0%, 100% { opacity: 1; transform: scale(1); box-shadow: 0 0 6px #4ade80; }
+    50% { opacity: 0.45; transform: scale(0.8); box-shadow: 0 0 2px #4ade80; }
+  }
+  .version-pill-btn {
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 12px;
+    padding: 3px 8px;
+    font-size: 10.5px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.15s ease, transform 0.1s ease;
+  }
+  .version-pill-btn:hover {
+    background: var(--accent-dark);
+    transform: translateY(-1px);
+  }
+
+  /* Version Modal Backdrop & Container */
+  #version-modal-backdrop {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.65);
+    backdrop-filter: blur(5px);
+    z-index: 3000;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    animation: fadeInModal 0.2s ease-out;
+  }
+  #version-modal-backdrop.open {
+    display: flex;
+  }
+  @keyframes fadeInModal {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  #version-modal {
+    background: #ffffff;
+    border-radius: 14px;
+    width: 880px;
+    max-width: 95vw;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 25px 60px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(0, 0, 0, 0.05);
+    overflow: hidden;
+    color: #1e293b;
+    font-family: 'Inter', sans-serif;
+    animation: scaleInModal 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  @keyframes scaleInModal {
+    from { transform: scale(0.96) translateY(8px); opacity: 0.7; }
+    to { transform: scale(1) translateY(0); opacity: 1; }
+  }
+  .vmodal-header {
+    background: linear-gradient(135deg, #1c2b2a 0%, #253d39 100%);
+    color: #ffffff;
+    padding: 14px 18px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 2px solid var(--accent-2);
+  }
+  .vmodal-title-wrap h3 {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .vmodal-title-wrap .vmodal-sub {
+    font-size: 11px;
+    color: #b0c2bc;
+    margin-top: 2px;
+  }
+  .vmodal-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .vmodal-btn {
+    background: rgba(255, 255, 255, 0.12);
+    border: 1px solid rgba(255, 255, 255, 0.24);
+    color: #ffffff;
+    border-radius: 6px;
+    padding: 5px 12px;
+    font-size: 11.5px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+  }
+  .vmodal-btn:hover {
+    background: rgba(255, 255, 255, 0.24);
+  }
+  .vmodal-close-btn {
+    background: #ef4444 !important;
+    border: none !important;
+    color: #fff !important;
+    font-size: 16px !important;
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    line-height: 1;
+    padding: 0 !important;
+  }
+  .vmodal-close-btn:hover {
+    background: #dc2626 !important;
+  }
+
+  /* Top Quick Summary Bar */
+  .vmodal-hero {
+    background: #f8fafc;
+    border-bottom: 1px solid #e2e8f0;
+    padding: 12px 20px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .vmodal-hero-badge {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .vmodal-version-tag {
+    background: linear-gradient(135deg, #1d4ed8, #2563eb);
+    color: #fff;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 12.5px;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+    box-shadow: 0 2px 6px rgba(37,99,235,0.25);
+  }
+  .vmodal-release-date {
+    font-size: 11.5px;
+    color: #64748b;
+    font-weight: 600;
+  }
+  .vmodal-hero-author {
+    font-size: 12px;
+    color: #334155;
+  }
+  .vmodal-hero-author strong {
+    color: #0f172a;
+  }
+
+  /* Tabs */
+  .vmodal-tabs {
+    display: flex;
+    background: #edf2f7;
+    border-bottom: 1px solid #cbd5e1;
+    padding: 0 16px;
+    gap: 4px;
+    overflow-x: auto;
+  }
+  .vmodal-tab-btn {
+    padding: 10px 16px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #475569;
+    background: transparent;
+    border: none;
+    border-bottom: 2.5px solid transparent;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    white-space: nowrap;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .vmodal-tab-btn:hover {
+    color: #0f172a;
+    background: rgba(255, 255, 255, 0.5);
+  }
+  .vmodal-tab-btn.active {
+    color: #0f172a;
+    border-bottom-color: #2563eb;
+    background: #ffffff;
+    font-weight: 700;
+  }
+
+  /* Body Content */
+  .vmodal-body {
+    padding: 18px 20px;
+    overflow-y: auto;
+    max-height: calc(90vh - 200px);
+    background: #ffffff;
+  }
+  .vmodal-tab-pane {
+    display: none;
+  }
+  .vmodal-tab-pane.active {
+    display: block;
+  }
+
+  /* Changelog Timeline Cards */
+  .changelog-card {
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    margin-bottom: 14px;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+  }
+  .changelog-card-header {
+    background: #f8fafc;
+    padding: 9px 14px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid #e2e8f0;
+  }
+  .changelog-ver-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: #0f172a;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .changelog-pill {
+    font-size: 10px;
+    font-weight: 700;
+    padding: 2px 7px;
+    border-radius: 12px;
+    text-transform: uppercase;
+  }
+  .changelog-pill.latest { background: #dcfce7; color: #15803d; border: 1px solid #86efac; }
+  .changelog-pill.stable { background: #e0f2fe; color: #0369a1; }
+  .changelog-pill.archived { background: #f1f5f9; color: #64748b; }
+  .changelog-body {
+    padding: 12px 16px;
+    font-size: 12px;
+    line-height: 1.6;
+    color: #334155;
+  }
+  .changelog-body ul {
+    margin: 6px 0 0 0;
+    padding-left: 18px;
+  }
+  .changelog-body li {
+    margin-bottom: 4px;
+  }
+  .changelog-body strong {
+    color: #0f172a;
+  }
+
+  /* Rules Grid */
+  .rules-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+  .rule-card {
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 11px 14px;
+    background: #fafafa;
+    transition: all 0.15s ease;
+  }
+  .rule-card:hover {
+    border-color: #cbd5e1;
+    background: #ffffff;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+  }
+  .rule-title {
+    font-size: 12px;
+    font-weight: 700;
+    color: #1e293b;
+    margin-bottom: 4px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .rule-desc {
+    font-size: 11.5px;
+    color: #475569;
+    line-height: 1.5;
+  }
+
+  /* Copyright Card */
+  .copyright-box {
+    background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+    border: 1px solid #cbd5e1;
+    border-radius: 10px;
+    padding: 16px 20px;
+    margin-bottom: 14px;
+  }
+  .copyright-lead {
+    font-size: 13.5px;
+    font-weight: 700;
+    color: #0f172a;
+    margin-bottom: 6px;
+  }
+  .copyright-text {
+    font-size: 12px;
+    color: #334155;
+    line-height: 1.55;
+  }
+
+  /* Diagnostics cards */
+  .diag-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 10px;
+    margin-bottom: 16px;
+  }
+  .diag-card {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 10px 14px;
+  }
+  .diag-label {
+    font-size: 11px;
+    color: #64748b;
+    font-weight: 600;
+    text-transform: uppercase;
+  }
+  .diag-val {
+    font-size: 14px;
+    font-weight: 700;
+    color: #0f172a;
+    margin-top: 2px;
+  }
+
+  /* Toast Notification Container */
+  #app-toast-container {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    pointer-events: none;
+  }
+  .app-toast {
+    pointer-events: auto;
+    background: #0f172a;
+    color: #ffffff;
+    padding: 14px 18px;
+    border-radius: 10px;
+    box-shadow: 0 12px 35px rgba(0,0,0,0.35);
+    border-left: 4px solid #2563eb;
+    font-family: 'Inter', sans-serif;
+    max-width: 380px;
+    animation: slideInToast 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .app-toast.success { border-left-color: #10b981; }
+  .app-toast.warning { border-left-color: #f59e0b; }
+  @keyframes slideInToast {
+    from { transform: translateX(50px); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+  }
 </style>
 </head>
 <body>
@@ -740,6 +1149,10 @@
   <div id="status-line">
     <button id="refresh-btn" title="Refresh data now">&#8635;</button>
     <span id="status-dot"></span><span id="status-text">Loading data&hellip;</span>
+    <button id="version-badge-btn" class="version-badge-btn" onclick="openVersionModal()" title="View Version v2.5.0, Changelog, Active Rules &amp; Copyright Details">
+      <span class="version-pulse-dot"></span>
+      <span class="version-tag">v2.5.0</span>
+    </button>
   </div>
 </header>
 
@@ -863,12 +1276,19 @@
         from the layer switcher on the map.
       </div>
     </div>
-    <div class="block">
-      <h2>&copy; National Building Research Institute</h2>
-      <div id="config-note">
-        For internal / project use only &mdash; Geotechnical Engineering Division.<br>
-        Map developed by Ranjan, NBRI.<br>
-        Connected to the live NBRI Google Sheet; re-fetches automatically every 5 minutes.
+    <div class="block copyright-block" style="background:#f8f9fa; border-radius:8px; margin: 10px 14px; padding: 12px 14px; border: 1px solid var(--line);">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+        <h2 style="margin:0; font-size:11.5px; color:var(--ink); font-weight:700;">&copy; NBRI &mdash; CEP 3</h2>
+        <button onclick="openVersionModal('changelog')" class="version-pill-btn" title="View Version & Updates">v2.5.0</button>
+      </div>
+      <div id="config-note" style="font-size:11.5px; color:var(--muted); line-height:1.45;">
+        <strong>Geotechnical Engineering Division</strong><br>
+        Developed &amp; Engineered by <strong>Ranjan</strong>, NBRI.<br>
+        Central Expressway Project &bull; Rambukkana to Galagedara.<br>
+        <div style="margin-top:6px; display:flex; gap:8px; flex-wrap:wrap;">
+          <a href="javascript:void(0)" onclick="openVersionModal('rules')" style="color:var(--accent); text-decoration:underline; font-weight:600; font-size:11px;">📐 Geological Rules</a>
+          <a href="javascript:void(0)" onclick="openVersionModal('copyright')" style="color:var(--accent); text-decoration:underline; font-weight:600; font-size:11px;">🛡️ Copyright &amp; Details</a>
+        </div>
       </div>
     </div>
   </div>
@@ -986,6 +1406,335 @@
   </div>
 </div>
 
+<!-- ── VERSION, CHANGELOG, RULES & COPYRIGHT HUB MODAL ── -->
+<div id="version-modal-backdrop" onclick="if(event.target===this) closeVersionModal()">
+  <div id="version-modal" role="dialog" aria-modal="true" aria-labelledby="vmodal-title">
+    <div class="vmodal-header">
+      <div class="vmodal-title-wrap">
+        <h3 id="vmodal-title">🏛️ NBRI Geotechnical Information System &mdash; System Hub</h3>
+        <div class="vmodal-sub">Central Expressway Project Section 3 (CEP3) &bull; Rambukkana to Galagedara</div>
+      </div>
+      <div class="vmodal-header-actions">
+        <button class="vmodal-btn" onclick="copySystemInfo()" title="Copy system summary and copyright to clipboard">📋 Copy Info</button>
+        <button class="vmodal-close-btn" onclick="closeVersionModal()" title="Close">&times;</button>
+      </div>
+    </div>
+
+    <!-- Quick Info Top Banner -->
+    <div class="vmodal-hero">
+      <div class="vmodal-hero-badge">
+        <span class="vmodal-version-tag">🚀 v2.5.0</span>
+        <span class="vmodal-release-date">Build: August 2026 &bull; Status: <span style="color:#16a34a; font-weight:700;">Active &amp; Synced</span></span>
+      </div>
+      <div class="vmodal-hero-author">
+        Engineered &amp; Developed by <strong>Ranjan</strong> &bull; <span>NBRI Geotechnical Engineering Division</span>
+      </div>
+    </div>
+
+    <!-- Navigation Tabs -->
+    <div class="vmodal-tabs">
+      <button class="vmodal-tab-btn active" id="vbtn-changelog" onclick="switchVersionTab('changelog')">
+        📜 Updates &amp; Changelog
+      </button>
+      <button class="vmodal-tab-btn" id="vbtn-rules" onclick="switchVersionTab('rules')">
+        📐 Active Geotechnical Rules (1&ndash;19)
+      </button>
+      <button class="vmodal-tab-btn" id="vbtn-copyright" onclick="switchVersionTab('copyright')">
+        🛡️ Copyright &amp; Attribution
+      </button>
+      <button class="vmodal-tab-btn" id="vbtn-diagnostics" onclick="switchVersionTab('diagnostics')">
+        ⚙️ Diagnostics &amp; Cache
+      </button>
+    </div>
+
+    <!-- Modal Content Panes -->
+    <div class="vmodal-body">
+      
+      <!-- TAB 1: UPDATES & CHANGELOG -->
+      <div class="vmodal-tab-pane active" id="vtab-changelog">
+        
+        <!-- v2.5.0 Latest -->
+        <div class="changelog-card" style="border-left:4px solid #2563eb;">
+          <div class="changelog-card-header">
+            <div class="changelog-ver-title">
+              <span>Version 2.5.0 &mdash; Foliation Projection &amp; Engineering Rules Registry</span>
+            </div>
+            <span class="changelog-pill latest">Current Master</span>
+          </div>
+          <div class="changelog-body">
+            <strong>Key Upgrades &amp; Structural Geology Integrations:</strong>
+            <ul>
+              <li><strong>Structural Foliation Projection Engine:</strong> Dynamic apparent dip calculation along section azimuth: <code>tan(&alpha;<sub>app</sub>) = tan(&alpha;<sub>true</sub>) &times; |cos(&theta;<sub>sec</sub> - &theta;<sub>dip</sub>)|</code>. Foliation textures and rockhead contacts dynamically align to true dip directions.</li>
+              <li><strong>Geotechnical Rules Catalog (Rules 1&ndash;19):</strong> Codified and registered full geotechnical rules including soil origin hierarchy, BSCS letter code expansion, CWR sub-range hatching, and lens geometry.</li>
+              <li><strong>System Hub &amp; Interactive Version Badge:</strong> Real-time version tracking in header with detailed changelogs, copyright management, active rule inspector, and cache controls.</li>
+              <li><strong>Automated Cache Sync &amp; Update Alerts:</strong> Instant toast notifications when new builds or dataset syncs occur, paired with one-click hard refresh.</li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- v2.4.0 -->
+        <div class="changelog-card">
+          <div class="changelog-card-header">
+            <div class="changelog-ver-title">
+              <span>Version 2.4.0 &mdash; Wide Stratigraphic Log Dashboard &amp; Multi-Tier Data Pipeline</span>
+            </div>
+            <span class="changelog-pill stable">Stable Release</span>
+          </div>
+          <div class="changelog-body">
+            <strong>Key Features:</strong>
+            <ul>
+              <li><strong>Wide Geotechnical Log Dashboard (820px):</strong> Dual-panel popup featuring a comprehensive borehole metadata card alongside an SVG stratigraphic core column.</li>
+              <li><strong>Synchronized SPT &amp; RQD Columns:</strong> Bar charts for SPT N-values (0&ndash;50+ with refusal badges) and RQD % (0&ndash;100% recovery) linked to exact depth intervals.</li>
+              <li><strong>Multi-Tiered Data Pipeline:</strong> 4-tier data resilience fallback (Live Google Sheets &rarr; Multi-CORS Proxies &rarr; Local Master CSV &rarr; Embedded Backup).</li>
+              <li><strong>Leader Line Collision Avoidance:</strong> Automated leader-line stagger preventing overlapping strata descriptions.</li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- v2.3.0 -->
+        <div class="changelog-card">
+          <div class="changelog-card-header">
+            <div class="changelog-ver-title">
+              <span>Version 2.3.0 &mdash; 2D Geological Cross-Section CAD DXF &amp; PDF Exporter</span>
+            </div>
+            <span class="changelog-pill archived">Archived</span>
+          </div>
+          <div class="changelog-body">
+            <ul>
+              <li>Full AutoCAD DXF vector export of 2D engineering geological cross-sections with layered strata and borehole contact markers.</li>
+              <li>Multi-format exports: PNG, SVG, Landscape A4 &amp; A3 PDF with geological title blocks and scale indicators.</li>
+              <li>Natural ground and rough foliation rockhead surface generators.</li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- v2.2.0 -->
+        <div class="changelog-card">
+          <div class="changelog-card-header">
+            <div class="changelog-ver-title">
+              <span>Version 2.2.0 &mdash; Sri Lanka Coordinate Transform (EPSG:5235) &amp; Progress Tracker</span>
+            </div>
+            <span class="changelog-pill archived">Archived</span>
+          </div>
+          <div class="changelog-body">
+            <ul>
+              <li>Real-time Proj4 projection conversion from Sri Lanka National Grid (EPSG:5235 SLD99 / Kandawala datum) to WGS84 GPS.</li>
+              <li>Dynamic package and lot filtering with instant map layer synchronization.</li>
+              <li>Drilling progress dashboard tracking completed, ongoing, and planned boreholes.</li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- v2.1.0 & v2.0.0 -->
+        <div class="changelog-card">
+          <div class="changelog-card-header">
+            <div class="changelog-ver-title">
+              <span>Version 2.0.0 &ndash; 2.1.0 &mdash; Interactive Mapping &amp; Vector Overlay Engine</span>
+            </div>
+            <span class="changelog-pill archived">Archived</span>
+          </div>
+          <div class="changelog-body">
+            <ul>
+              <li>Core Leaflet map integration with high-resolution satellite, hybrid, and topographic basemaps.</li>
+              <li>Vector layer importing supporting KML, GeoJSON, and zipped ESRI Shapefiles (.shp/.dbf/.shx/.prj).</li>
+              <li>Geodesic distance and area measurement tools.</li>
+            </ul>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- TAB 2: ACTIVE GEOTECHNICAL RULES (1-19) -->
+      <div class="vmodal-tab-pane" id="vtab-rules">
+        <div style="font-size:12px; color:#64748b; margin-bottom:12px; line-height:1.4;">
+          The system strictly enforces 19 verified engineering geology and algorithmic modeling rules for stratigraphic interpolation, classification, and visualization:
+        </div>
+        <div class="rules-grid">
+          
+          <div class="rule-card">
+            <div class="rule-title"><span>Rule 1:</span> Soil Origin Primary Partitioning</div>
+            <div class="rule-desc">Soil layers interpolate across neighboring boreholes ONLY if they share the same depositional Origin Family. BSCS grain-size codes operate strictly within origin families.</div>
+          </div>
+
+          <div class="rule-card">
+            <div class="rule-title"><span>Rule 2:</span> Origin Family Groupings</div>
+            <div class="rule-desc">Residual Soil &amp; Completely Weathered Rock (CWR) form one continuous genetic in-situ weathering family. Alluvium, Colluvium, and Made Ground are treated as isolated or bounded units.</div>
+          </div>
+
+          <div class="rule-card">
+            <div class="rule-title"><span>Rule 3:</span> Transported Deposit Lens Geometry</div>
+            <div class="rule-desc">Alluvium/Colluvium deposits with matching neighbors interpolate continuously; unmatched occurrences taper into isolated parabolic lenses capped at a 15m half-width.</div>
+          </div>
+
+          <div class="rule-card">
+            <div class="rule-title"><span>Rule 4:</span> Bedrock Weathering Grade Continuous Fade</div>
+            <div class="rule-desc">Rock weathering grades (I to IV) render with continuous opacity fading, anchoring Fresh Bedrock (Grade I) to the solid geological lithology fill.</div>
+          </div>
+
+          <div class="rule-card">
+            <div class="rule-title"><span>Rule 5:</span> Conservative Pairing Simplification</div>
+            <div class="rule-desc">Neighboring layers sharing Origin and BSCS codes are linked assuming deposit continuity without requiring manual deposit sequence IDs.</div>
+          </div>
+
+          <div class="rule-card">
+            <div class="rule-title"><span>Rule 6:</span> Distinct Soil Origin Hatch Patterns</div>
+            <div class="rule-desc">Independent visual textures per origin (Alluvium waves, Colluvium triangles, Residual ticks, CWR cross-ticks) overlaid on top of BS 5930 soil color fills.</div>
+          </div>
+
+          <div class="rule-card">
+            <div class="rule-title"><span>Rule 7:</span> Contiguous Same-Origin Layer Merging</div>
+            <div class="rule-desc">Contiguous sub-layers within one origin unit collapse into a unified deposit block keyed to the thickest representative BSCS constituent.</div>
+          </div>
+
+          <div class="rule-card">
+            <div class="rule-title"><span>Rule 8:</span> Rendered Legend Completeness Check</div>
+            <div class="rule-desc">Dynamic legends inspect actual rendered SVG geometry to ensure every drawn soil, rock, and hatch unit is accurately represented without phantom entries.</div>
+          </div>
+
+          <div class="rule-card">
+            <div class="rule-title"><span>Rule 9:</span> Geologically-Constrained Stacking Hierarchy</div>
+            <div class="rule-desc">Enforces natural stratigraphic superposition: Made Ground &rarr; Alluvium/Colluvium &rarr; Residual Soil &rarr; CWR &rarr; Bedrock. Surface deposits never stack below residual soil.</div>
+          </div>
+
+          <div class="rule-card">
+            <div class="rule-title"><span>Rule 10:</span> Multi-Origin Unit Internal Sub-Layering</div>
+            <div class="rule-desc">Connected soil blocks preserve distinct grain-size sub-layer pinch-outs rather than artificially homogenizing into single-color blocks.</div>
+          </div>
+
+          <div class="rule-card">
+            <div class="rule-title"><span>Rule 11:</span> CWR Sub-Range Depth Hatch Overlay</div>
+            <div class="rule-desc">Completely Weathered Rock depth sub-ranges are extracted from raw logging intervals and rendered with dedicated CWR texture clipped strictly to the parent unit.</div>
+          </div>
+
+          <div class="rule-card">
+            <div class="rule-title"><span>Rule 12:</span> Termination Label Stagger &amp; Collision Avoidance</div>
+            <div class="rule-desc">Borehole termination depth labels ('Term X.Xm') pass through a vertical collision-avoidance check that staggers overlapping text downward.</div>
+          </div>
+
+          <div class="rule-card">
+            <div class="rule-title"><span>Rule 13:</span> Full BS 5930 Soil Classification Codebook</div>
+            <div class="rule-desc">Complete support for British Standard BS 5930 fine-grained plasticity qualifiers (CL, CI, CH, CV, CE) and coarse-grained constituents (SC, SM, GC, GM, CS, MG).</div>
+          </div>
+
+          <div class="rule-card">
+            <div class="rule-title"><span>Rule 14:</span> Lens Anchoring to Local Ground Surface</div>
+            <div class="rule-desc">Transported lens shapes taper relative to local ground surface elevation rather than absolute datum, preventing lenses from artificially plunging into rockhead.</div>
+          </div>
+
+          <div class="rule-card">
+            <div class="rule-title"><span>Rule 15:</span> Soil Origin Boundary Transition Lines</div>
+            <div class="rule-desc">Crisp dashed contact lines delineate genetic origin transitions (e.g. Alluvium to Residual), distinguishing genetic shifts from routine grain-size contacts.</div>
+          </div>
+
+          <div class="rule-card">
+            <div class="rule-title"><span>Rule 16:</span> Foliation Projection &amp; Apparent Dip Engine</div>
+            <div class="rule-desc">Apparent dip along cross-section lines is mathematically computed from true foliation strike/dip. Gneissic rock textures and formation boundaries rotate to match apparent dip.</div>
+          </div>
+
+          <div class="rule-card">
+            <div class="rule-title"><span>Rule 17:</span> Geotechnical Borehole Dashboard Multi-Column Standard</div>
+            <div class="rule-desc">Standardized multi-column exploratory borehole schematic: Depth Scale &rarr; Core Column &rarr; Strata Descriptions &rarr; SPT N-Value Bar Chart (0-50+) &rarr; RQD % (0-100%).</div>
+          </div>
+
+          <div class="rule-card">
+            <div class="rule-title"><span>Rule 18:</span> 4-Tier Data Resilience &amp; Offline Architecture</div>
+            <div class="rule-desc">Multi-tiered data fetching pipeline (Live Google Sheets &rarr; CORS Proxies &rarr; Local Master CSV &rarr; Embedded Dataset) prevents map loading failure in any network state.</div>
+          </div>
+
+          <div class="rule-card">
+            <div class="rule-title"><span>Rule 19:</span> Version Tracking &amp; Cache Purge Lifecycle</div>
+            <div class="rule-desc">Version-driven cache invalidation clears obsolete browser storage while preserving user offline backups, coupled with automated update notifications.</div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- TAB 3: COPYRIGHT & ATTRIBUTION -->
+      <div class="vmodal-tab-pane" id="vtab-copyright">
+        
+        <div class="copyright-box">
+          <div class="copyright-lead">🏛️ National Building Research Institute (NBRI)</div>
+          <div class="copyright-text">
+            <strong>Geotechnical Engineering Division</strong><br>
+            Central Expressway Project &mdash; Section 3 (CEP3)<br>
+            Rambukkana to Galagedara Section &bull; Sri Lanka
+          </div>
+        </div>
+
+        <div class="copyright-box" style="border-left:4px solid #2f6f5e;">
+          <div class="copyright-lead">👨‍💻 Author &amp; Engineering Lead</div>
+          <div class="copyright-text">
+            <strong>Developed &amp; Engineered by: Ranjan</strong><br>
+            National Building Research Institute (NBRI), Sri Lanka.
+          </div>
+        </div>
+
+        <div style="font-size:12px; color:#334155; line-height:1.6; margin-bottom:14px; padding:0 4px;">
+          <h4 style="margin:0 0 6px 0; font-size:13px; color:#0f172a;">Legal Copyright Notice</h4>
+          <p style="margin:0 0 10px 0;">
+            &copy; 2026 <strong>National Building Research Institute (NBRI) &amp; Ranjan</strong>. All Rights Reserved.
+          </p>
+          <p style="margin:0 0 10px 0;">
+            This software application, stratigraphic rendering algorithms, cross-section interpolation pipelines, SVG visualization shaders, and integrated project databases were conceptualized, programmed, and calibrated by <strong>Ranjan</strong> for the NBRI Geotechnical Engineering Division.
+          </p>
+
+          <h4 style="margin:14px 0 6px 0; font-size:13px; color:#0f172a;">Confidentiality &amp; Project Use</h4>
+          <p style="margin:0 0 10px 0;">
+            This system and its associated borehole log datasets are proprietary and confidential. Access is restricted to authorized geotechnical engineers, geologists, and project management personnel affiliated with the <strong>National Building Research Institute (NBRI)</strong> and the <strong>Road Development Authority (RDA)</strong>. Unauthorized reproduction, reverse engineering, external redistribution, or deployment is strictly prohibited.
+          </p>
+
+          <h4 style="margin:14px 0 6px 0; font-size:13px; color:#0f172a;">Engineering &amp; Geotechnical Disclaimer</h4>
+          <p style="margin:0;">
+            2D geological cross-sections, foliation boundary projections, soil origin boundaries, and 3D interpolations generated by this tool are computational representations derived from discrete borehole data points. While algorithms adhere to standard BS 5930 and structural geology principles, subsurface conditions between boreholes may vary. All cross-sections and strata interpretations must be reviewed and certified by a qualified Geotechnical Engineer before final foundation, slope stability, or structural design execution.
+          </p>
+        </div>
+
+      </div>
+
+      <!-- TAB 4: DIAGNOSTICS & CACHE -->
+      <div class="vmodal-tab-pane" id="vtab-diagnostics">
+        <div class="diag-grid">
+          <div class="diag-card">
+            <div class="diag-label">App Version</div>
+            <div class="diag-val" id="diag-app-version">v2.5.0</div>
+          </div>
+          <div class="diag-card">
+            <div class="diag-label">Network Status</div>
+            <div class="diag-val" id="diag-net-status" style="color:#16a34a;">Online</div>
+          </div>
+          <div class="diag-card">
+            <div class="diag-label">Stored Cache Version</div>
+            <div class="diag-val" id="diag-cache-ver">&mdash;</div>
+          </div>
+          <div class="diag-card">
+            <div class="diag-label">Embedded Dataset</div>
+            <div class="diag-val" id="diag-embedded-status" style="color:#2563eb;">Available</div>
+          </div>
+        </div>
+
+        <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:14px; margin-bottom:16px;">
+          <h4 style="margin:0 0 8px 0; font-size:12.5px; color:#0f172a;">Cache &amp; Synchronization Controls</h4>
+          <div style="font-size:11.5px; color:#64748b; line-height:1.5; margin-bottom:12px;">
+            If you suspect stale data or want to force synchronization with the latest NBRI Google Sheets database, use the controls below:
+          </div>
+          <div style="display:flex; gap:8px; flex-wrap:wrap;">
+            <button onclick="checkForAppUpdates(true)" class="kml-btn" style="background:#2563eb; color:#fff; font-weight:700; padding:6px 14px;">
+              🔄 Check for Updates Now
+            </button>
+            <button onclick="forceHardRefreshAndPurge()" class="kml-btn" style="background:#dc2626; color:#fff; font-weight:700; padding:6px 14px;">
+              🧹 Clear All Cache &amp; Hard Reload
+            </button>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- Dynamic Toast Container -->
+<div id="app-toast-container"></div>
+
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
@@ -1001,7 +1750,7 @@
 /* ============================================================
    APPLICATION VERSION & CACHE MANAGEMENT
    ============================================================ */
-const APP_VERSION = "2.4.0"; // Major: Stratigraphic Log Dashboards & Geotechnical Engine
+const APP_VERSION = "2.5.0"; // Major: Foliation Structural Projection, Geotechnical Rules Registry, System Hub & Version Center
 const LOCAL_BOREHOLES_CSV = "CEP 3  Rambukkana-Galagedara - BoreholesDetails (2).csv";
 
 function getBustedUrl(url) {
@@ -1010,6 +1759,123 @@ function getBustedUrl(url) {
   return `${url}${sep}_v=${APP_VERSION}_t=${Date.now()}`;
 }
 
+/* ── VERSION MODAL & SYSTEM HUB CONTROLLERS ── */
+function openVersionModal(defaultTab = 'changelog') {
+  const backdrop = document.getElementById('version-modal-backdrop');
+  if (!backdrop) return;
+  switchVersionTab(defaultTab);
+  updateDiagnosticsTab();
+  backdrop.classList.add('open');
+}
+
+function closeVersionModal() {
+  const backdrop = document.getElementById('version-modal-backdrop');
+  if (backdrop) backdrop.classList.remove('open');
+}
+
+function switchVersionTab(tabId) {
+  const tabs = ['changelog', 'rules', 'copyright', 'diagnostics'];
+  tabs.forEach(t => {
+    const btn = document.getElementById(`vbtn-${t}`);
+    const pane = document.getElementById(`vtab-${t}`);
+    if (btn) {
+      if (t === tabId) btn.classList.add('active');
+      else btn.classList.remove('active');
+    }
+    if (pane) {
+      if (t === tabId) pane.classList.add('active');
+      else pane.classList.remove('active');
+    }
+  });
+}
+
+function updateDiagnosticsTab() {
+  const vEl = document.getElementById('diag-app-version');
+  const netEl = document.getElementById('diag-net-status');
+  const cacheEl = document.getElementById('diag-cache-ver');
+  const embedEl = document.getElementById('diag-embedded-status');
+  
+  if (vEl) vEl.textContent = `v${APP_VERSION}`;
+  if (netEl) {
+    const isOnline = navigator.onLine;
+    netEl.textContent = isOnline ? 'Online (Connected)' : 'Offline (Local Mode)';
+    netEl.style.color = isOnline ? '#16a34a' : '#dc2626';
+  }
+  if (cacheEl) {
+    const stored = localStorage.getItem('nbri_app_version') || 'None';
+    cacheEl.textContent = stored === APP_VERSION ? `v${stored} (Synchronized)` : `v${stored} (Outdated)`;
+    cacheEl.style.color = stored === APP_VERSION ? '#16a34a' : '#d97706';
+  }
+  if (embedEl) {
+    const hasData = (typeof window.EMBEDDED_BOREHOLES_CSV === 'string' && window.EMBEDDED_BOREHOLES_CSV.length > 50);
+    embedEl.textContent = hasData ? 'Ready (data_master.js loaded)' : 'Master File Absent';
+    embedEl.style.color = hasData ? '#2563eb' : '#dc2626';
+  }
+}
+
+function copySystemInfo() {
+  const infoText = `NBRI Geotechnical Information System — CEP3
+Application Version: v${APP_VERSION} (Release: August 2026)
+Engineered & Developed by: Ranjan (Geotechnical Engineering Division, NBRI)
+Project: Central Expressway Project Section 3 (Rambukkana to Galagedara)
+Institutional Owner: National Building Research Institute (NBRI), Sri Lanka
+Copyright: © 2026 National Building Research Institute (NBRI). All Rights Reserved.
+Status: Operational with 19 Active Geotechnical Modeling Rules.`;
+
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(infoText).then(() => {
+      showAppToast('📋 System Details Copied', 'Copyright and version information copied to clipboard.', 'success');
+    }).catch(() => {
+      fallbackCopyText(infoText);
+    });
+  } else {
+    fallbackCopyText(infoText);
+  }
+}
+
+function fallbackCopyText(text) {
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.position = 'fixed';
+  ta.style.opacity = '0';
+  document.body.appendChild(ta);
+  ta.select();
+  try {
+    document.execCommand('copy');
+    showAppToast('📋 System Details Copied', 'Copyright and version information copied to clipboard.', 'success');
+  } catch(e) {
+    showAppToast('⚠️ Copy Notice', 'Please manually select and copy system information.', 'warning');
+  }
+  document.body.removeChild(ta);
+}
+
+function showAppToast(title, message, type = 'info', duration = 4500) {
+  const container = document.getElementById('app-toast-container');
+  if (!container) return;
+  const toast = document.createElement('div');
+  toast.className = `app-toast ${type}`;
+  toast.innerHTML = `
+    <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:3px;">
+      <strong style="font-size:12.5px; color:#fff;">${title}</strong>
+      <button onclick="this.parentElement.parentElement.remove()" style="background:none; border:none; color:#94a3b8; font-size:15px; cursor:pointer; padding:0 3px; line-height:1;">&times;</button>
+    </div>
+    <div style="font-size:11px; color:#cbd5e1; line-height:1.4;">${message}</div>
+  `;
+  container.appendChild(toast);
+  setTimeout(() => {
+    if (toast.parentElement) toast.remove();
+  }, duration);
+}
+
+function checkForAppUpdates(manual = false) {
+  const storedVer = localStorage.getItem('nbri_app_version');
+  updateDiagnosticsTab();
+  if (manual) {
+    showAppToast('🔄 System Check Complete', `You are running the latest version v${APP_VERSION}. All geotechnical models and dataset caches are up to date.`, 'success');
+  }
+}
+
+/* ── VERSION CHECK & CACHE PURGE ENGINE ── */
 function checkAppVersionAndClearCache() {
   const storedVer = localStorage.getItem('nbri_app_version');
   if (storedVer !== APP_VERSION) {
@@ -1040,22 +1906,12 @@ function checkAppVersionAndClearCache() {
 }
 
 function showVersionUpdateNotice(oldVer, newVer) {
-  const div = document.createElement('div');
-  div.id = 'version-update-modal';
-  div.style.cssText = 'position:fixed; bottom:24px; right:24px; z-index:9999; background:#0f172a; color:#fff; padding:16px 20px; border-radius:10px; box-shadow:0 10px 25px rgba(0,0,0,0.3); border-left:4px solid #2563eb; font-family:"Inter",sans-serif; max-width:360px; animation:slideIn 0.3s ease;';
-  div.innerHTML = `
-    <div style="font-weight:700; font-size:13px; margin-bottom:4px; display:flex; justify-content:space-between; align-items:center;">
-      <span>🚀 Dashboard Updated (v${newVer})</span>
-      <button onclick="document.getElementById('version-update-modal').remove()" style="background:none; border:none; color:#94a3b8; font-size:16px; cursor:pointer; padding:0 4px;">&times;</button>
-    </div>
-    <div style="font-size:11.5px; color:#cbd5e1; line-height:1.4; margin-bottom:10px;">
-      The borehole data engine has loaded the latest geotechnical master dataset and refreshed cache memory.
-    </div>
-    <button onclick="forceHardRefreshAndPurge()" style="background:#2563eb; color:#fff; border:none; padding:6px 12px; border-radius:5px; font-weight:600; font-size:11px; cursor:pointer; width:100%;">
-      🔄 Reload Latest System State
-    </button>
-  `;
-  document.body.appendChild(div);
+  showAppToast(
+    `🚀 System Updated (v${newVer})`,
+    `Foliation structural projection engine, updated geotechnical rules, and master datasets are ready. <a href="javascript:void(0)" onclick="openVersionModal('changelog')" style="color:#60a5fa; font-weight:700; text-decoration:underline;">View What's New &rarr;</a>`,
+    'success',
+    9000
+  );
 }
 
 function forceHardRefreshAndPurge() {
@@ -1063,7 +1919,10 @@ function forceHardRefreshAndPurge() {
     localStorage.clear();
     sessionStorage.clear();
   } catch(e){}
-  window.location.reload(true);
+  showAppToast('🧹 Purging Cache...', 'Reloading latest system state from server.', 'info');
+  setTimeout(() => {
+    window.location.reload(true);
+  }, 400);
 }
 
 checkAppVersionAndClearCache();
@@ -1963,6 +2822,57 @@ async function parseCsvWithProxy(url, onComplete, onError) {
       matching the generic contact-line threshold elsewhere) — this is
       a second, independent draw site for the identical visual
       treatment, not a variant of it.
+
+   16. FOLIATION-BASED BEDROCK BOUNDARY PROJECTION & APPARENT DIP ENGINE:
+       In 2D Geological Cross-Sections, structural rock formation contacts
+       and lithological foliation patterns must adhere to true bedrock dip
+       direction (θ_dip) and true dip angle (α_true) projected along the
+       cross-section line bearing/azimuth (θ_section).
+       The apparent dip is calculated via the structural geology equation:
+         tan(α_apparent) = tan(α_true) * |cos(θ_section - θ_dip)|
+       The apparent dip direction is oriented toward profile point B if
+       cos(θ_section - θ_dip) >= 0 (labeled "→ B"), otherwise toward point A
+       (labeled "← A"). SVG foliation hatches for Gneissic lithologies
+       (Biotite Gneiss, Garnet Biotite Gneiss, Quartzofeldspathic Gneiss,
+       Granitic Gneiss, Charnockite, etc.) dynamically rotate to this
+       apparent dip angle to visualize true geological structural fabric.
+       An "Auto-Suggest" feature computes the best-fitting planar strike/dip
+       from observed rock layer contact elevations across all boreholes.
+
+   17. MULTI-COLUMN GEOTECHNICAL BOREHOLE LOG SCHEMATIC DASHBOARD:
+       Borehole popups open a wide-format geotechnical log dashboard (820px)
+       complying with standard exploratory borehole visualization guidelines:
+       (a) Depth Scale Axis with discrete tick marks at every layer contact.
+       (b) Core Stratigraphy Column rendered with institutional soil colors
+           and lithology hatch patterns.
+       (c) Lithology & Strata Descriptions with collision-avoiding leader
+           lines connecting each callout to its stratum midpoint.
+       (d) Dedicated SPT N-value Column: Horizontal bar chart on a 0-50+ scale
+           with color-coded refusal badges ('50★').
+       (e) Dedicated RQD % Column: Color-graded recovery bars (0-100%)
+           displaying rock quality designation intervals.
+       (f) Distinct dashed Groundwater Table (GWT) and Rockhead interface lines.
+
+   18. RESILIENT MULTI-TIER DATA PIPELINE & OFFLINE ENGINE:
+       Borehole metadata, progress stats, and stratigraphic logging data
+       are fetched through a hardened multi-tiered pipeline:
+       (a) Primary: Live Google Sheets CSV feed with anti-cache query params.
+       (b) Secondary: Multi-CORS proxy fallbacks (AllOrigins, CodeTabs,
+           CorsProxy) with 4-second timeout protection.
+       (c) Tertiary: Direct local master CSV files (Borehole Details & BH Profile).
+       (d) Quaternary: Standalone embedded master dataset (data_master.js)
+           and localStorage offline cache backups.
+       This architecture guarantees the map and borehole logs render
+       seamlessly in any offline or restricted network environment.
+
+   19. VERSION LIFECYCLE, ANTI-CACHE BUSTING & USER UPDATE NOTIFICATIONS:
+       Single source of truth APP_VERSION tracks software releases.
+       All fetch requests append unique version and timestamp query params
+       via getBustedUrl(). On version upgrades, outdated cache records are
+       automatically purged while preserving user offline backups. An
+       interactive Version Badge in the header and an automated floating
+       Update Notification Center alert users when new features or data
+       revisions are available, with one-click instant hard reload.
    ============================================================ */
 
 const LENS_MAX_HALF_WIDTH_M = 15; // rule 3: fixed max lateral half-width for lens-type origins
@@ -2186,13 +3096,15 @@ function processBHProfileData(data) {
       if (p2 && d2 !== null && (w2 || r2)) {
         const grade = normalizeWeatheringGrade(w2);
         const rockType = normalizeRockType(r2);
+        const rawRockType = r2;
+        const entry = { depth: d2, grade, rockType, rawRockType, rawGrade: w2 };
         const wRawKey = p2;
         const wNormKey = cleanBHKey(p2);
         if (!weatherGrouped[wRawKey]) weatherGrouped[wRawKey] = [];
-        weatherGrouped[wRawKey].push({ depth: d2, grade, rockType });
+        weatherGrouped[wRawKey].push(entry);
         if (wNormKey && wNormKey !== wRawKey) {
           if (!weatherGrouped[wNormKey]) weatherGrouped[wNormKey] = [];
-          weatherGrouped[wNormKey].push({ depth: d2, grade, rockType });
+          weatherGrouped[wNormKey].push(entry);
         }
       }
 
@@ -2240,15 +3152,18 @@ function processBHProfileData(data) {
       const graphic = (rowNorm['Graphic'] || '').trim();
 
       const weatherRaw = rowNorm['Primary Weathering'];
-      if (pointId && depth !== null && weatherRaw !== undefined && String(weatherRaw).trim() !== '') {
+      const rockTypeRaw = (rowNorm['Rock Type Name'] || rowNorm['Rock Type'] || rowNorm['Lithology'] || '').trim();
+      if (pointId && depth !== null && ((weatherRaw !== undefined && String(weatherRaw).trim() !== '') || rockTypeRaw)) {
         const grade = normalizeWeatheringGrade(weatherRaw);
+        const rockType = normalizeRockType(rockTypeRaw);
+        const entry = { depth, grade, rockType, rawRockType: rockTypeRaw, rawGrade: weatherRaw };
         const wRawKey = pointId;
         const wNormKey = cleanBHKey(pointId);
         if (!weatherGrouped[wRawKey]) weatherGrouped[wRawKey] = [];
-        weatherGrouped[wRawKey].push({ depth, grade });
+        weatherGrouped[wRawKey].push(entry);
         if (wNormKey && wNormKey !== wRawKey) {
           if (!weatherGrouped[wNormKey]) weatherGrouped[wNormKey] = [];
-          weatherGrouped[wNormKey].push({ depth, grade });
+          weatherGrouped[wNormKey].push(entry);
         }
       }
 
@@ -2303,19 +3218,35 @@ function processBHProfileData(data) {
   Object.keys(originGrouped).forEach(k => originGrouped[k].sort((a,b) => a.depth - b.depth));
   Object.keys(testsGrouped).forEach(k => testsGrouped[k].sort((a,b) => a.depth - b.depth));
 
-  // Attach origin/consistency to each graphic layer by nearest top-depth match
+  // Attach origin/consistency and rockType/weathering to each layer
   Object.keys(grouped).forEach(k => {
     const origins = originGrouped[k];
-    if (!origins || !origins.length) return;
+    const weathers = weatherGrouped[k];
     grouped[k].forEach(layer => {
-      let best = null, bestDist = Infinity;
-      origins.forEach(o => {
-        const d = Math.abs(o.depth - layer.depth);
-        if (d < bestDist) { bestDist = d; best = o; }
-      });
-      if (best && bestDist <= 0.51) {
-        layer.origin = best.origin;
-        layer.consistency = best.consistency;
+      const isRock = isRockCode(layer.graphic);
+      if (origins && origins.length) {
+        let best = null, bestDist = Infinity;
+        origins.forEach(o => {
+          const d = Math.abs(o.depth - layer.depth);
+          if (d < bestDist) { bestDist = d; best = o; }
+        });
+        if (best && bestDist <= 0.8) {
+          layer.origin = best.origin;
+          layer.consistency = best.consistency;
+        }
+      }
+      if (weathers && weathers.length) {
+        let bestW = null, bestDistW = Infinity;
+        weathers.forEach(w => {
+          const d = Math.abs(w.depth - layer.depth);
+          if (d < bestDistW) { bestDistW = d; bestW = w; }
+        });
+        if (bestW && (bestDistW <= 1.2 || isRock)) {
+          layer.rockType = bestW.rockType;
+          layer.rawRockType = bestW.rawRockType || bestW.rockType;
+          layer.grade = bestW.grade;
+          layer.rawGrade = bestW.rawGrade;
+        }
       }
     });
   });
@@ -2520,6 +3451,72 @@ function rockLevelDisplay(levels){
   return `Depth ${levels.overburden.toFixed(2)} m`;
 }
 
+function formatTitleCase(str) {
+  if (!str) return '';
+  return str.trim().split(/\s+/).map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+}
+
+function formatWeatheringGradeLabel(gradeRaw) {
+  if (!gradeRaw) return '';
+  const clean = gradeRaw.trim().toLowerCase();
+  if (clean.includes('fresh')) return 'Fresh';
+  if (clean.includes('slightly') || clean === 'slw') return 'Slightly Weathered';
+  if (clean.includes('moderately') || clean === 'mw') return 'Moderately Weathered';
+  if (clean.includes('highly') || clean === 'hw') return 'Highly Weathered';
+  if (clean.includes('completely') || clean === 'cwr') return 'Completely Weathered';
+  return formatTitleCase(gradeRaw);
+}
+
+function formatSoilLayerDisplay(layer) {
+  const code = (layer.graphic || '').trim().toUpperCase();
+  const bscsEntry = GRAPHIC_CODE_INFO[code];
+  let baseLabel = bscsEntry ? bscsEntry.label : (code ? code : 'Soil Layer');
+  const consistency = layer.consistency ? formatTitleCase(layer.consistency) : '';
+  let title = baseLabel;
+  if (consistency) {
+    title = `${consistency} ${baseLabel}`;
+  }
+  if (code && !title.includes(`(${code})`) && !title.endsWith(code)) {
+    title = `${title} (${code})`;
+  }
+  const origin = layer.origin ? formatTitleCase(layer.origin) : 'Soil Horizon';
+  const subtitle = `${origin} (${layer.depth.toFixed(2)}–${layer.bottom.toFixed(2)}m)`;
+  return { title, subtitle };
+}
+
+function formatRockLayerDisplay(layer, bhRow, allWeatherReadings) {
+  let rockName = layer.rawRockType || layer.rockType;
+  let grade = layer.grade || layer.rawGrade;
+  
+  if (!rockName && allWeatherReadings && allWeatherReadings.length) {
+    let best = null, bestDist = Infinity;
+    allWeatherReadings.forEach(w => {
+      const d = Math.abs(w.depth - layer.depth);
+      if (d < bestDist) { bestDist = d; best = w; }
+    });
+    if (best) {
+      rockName = best.rawRockType || best.rockType;
+      if (!grade) grade = best.grade || best.rawGrade;
+    }
+  }
+  
+  if (!rockName && bhRow) {
+    rockName = bhRow['Rock Type Name'] || bhRow['Rock Type'] || bhRow['Lithology'] || bhRow['Bedrock Lithology'];
+  }
+  
+  rockName = rockName ? formatTitleCase(rockName) : 'Bedrock';
+  const gradeLabel = formatWeatheringGradeLabel(grade);
+  let title = rockName;
+  if (gradeLabel) {
+    if (!rockName.toLowerCase().includes(gradeLabel.toLowerCase())) {
+      title = `${gradeLabel} ${rockName}`;
+    }
+  }
+  
+  const subtitle = `Bedrock Core (${layer.depth.toFixed(2)}–${layer.bottom.toFixed(2)}m)`;
+  return { title, subtitle };
+}
+
 function buildBoreholeLogSvg(levels, layers, row){
   const { elevation, termDepth, overburden, gwDepth, rockLevel, terminationLevel, gwLevel } = levels;
   const effectiveTermDepth = (layers && layers.length)
@@ -2527,7 +3524,7 @@ function buildBoreholeLogSvg(levels, layers, row){
     : (termDepth || 15);
   if (effectiveTermDepth === null || effectiveTermDepth <= 0) return '';
 
-  const colH = 310, colW = 26, x0 = 52, y0 = 25;
+  const colH = 310, colW = 26, x0 = 50, y0 = 25;
   const scale = colH / effectiveTermDepth;
   const gwPx = (gwDepth !== null) ? Math.min(Math.max(gwDepth * scale, 0), colH) : null;
   const rkPx = (overburden !== null) ? Math.min(Math.max(overburden * scale, 0), colH) : null;
@@ -2535,8 +3532,9 @@ function buildBoreholeLogSvg(levels, layers, row){
   const POPUP_BEDROCK_COLOR = '#8f8f95';
   let fadeProfile = null;
   let rockDepthTopForFade = null;
+  let readings = null;
   if (row) {
-    const readings = getBHWeathering(row);
+    readings = getBHWeathering(row);
     if (readings && readings.length) {
       const rockLayer = (layers && layers.length) ? layers.find(l => getGraphicInfo(l.graphic).isRock) : null;
       rockDepthTopForFade = rockLayer ? rockLayer.depth : (overburden !== null ? overburden : 0);
@@ -2544,7 +3542,11 @@ function buildBoreholeLogSvg(levels, layers, row){
     }
   }
 
-  let svg = `<svg width="530" height="${colH + 45}" viewBox="0 0 530 ${colH + 45}" xmlns="http://www.w3.org/2000/svg">
+  // Unified single column bounds for tests (SPT N & RQD / Core Recovery)
+  const testColLeft = 320, testColWidth = 100, testColRight = testColLeft + testColWidth;
+  const testColMid = testColLeft + testColWidth / 2;
+
+  let svg = `<svg width="455" height="${colH + 45}" viewBox="0 0 455 ${colH + 45}" xmlns="http://www.w3.org/2000/svg">
     <defs>
       <!-- Geological Patterns matching Profile -->
       <pattern id="pat-alluvium" width="20" height="10" patternUnits="userSpaceOnUse">
@@ -2567,32 +3569,21 @@ function buildBoreholeLogSvg(levels, layers, row){
     </defs>
 
     <!-- COLUMN HEADERS -->
-    <text x="35" y="14" font-size="7.5" font-weight="700" fill="#475569" text-anchor="middle">DEPTH (m)</text>
-    <text x="65" y="14" font-size="7.5" font-weight="700" fill="#475569" text-anchor="middle">COLUMN</text>
-    <text x="185" y="14" font-size="7.5" font-weight="700" fill="#475569" text-anchor="middle">LITHOLOGY &amp; STRATA</text>
+    <text x="32" y="14" font-size="7.5" font-weight="700" fill="#475569" text-anchor="middle">DEPTH (m)</text>
+    <text x="63" y="14" font-size="7.5" font-weight="700" fill="#475569" text-anchor="middle">COLUMN</text>
+    <text x="180" y="14" font-size="7.5" font-weight="700" fill="#475569" text-anchor="middle">LITHOLOGY &amp; STRATA</text>
 
-    <!-- SPT Header -->
-    <text x="330" y="10" font-size="7.5" font-weight="700" fill="#dc2626" text-anchor="middle">SPT N-VALUE</text>
-    <line x1="300" y1="13" x2="360" y2="13" stroke="#cbd5e1" stroke-width="0.8"/>
-    <text x="300" y="22" font-size="6.5" fill="#64748b" text-anchor="middle">0</text>
-    <text x="330" y="22" font-size="6.5" fill="#64748b" text-anchor="middle">25</text>
-    <text x="360" y="22" font-size="6.5" fill="#64748b" text-anchor="middle">50+</text>
+    <!-- Unified Single Column Header for SPT & RQD/Recovery -->
+    <text x="${testColMid}" y="10" font-size="7.5" font-weight="700" fill="#0f172a" text-anchor="middle">FIELD TESTS &amp; RQD %</text>
+    <line x1="${testColLeft}" y1="13" x2="${testColRight}" y2="13" stroke="#cbd5e1" stroke-width="0.8"/>
+    <text x="${testColLeft}" y="21" font-size="6" font-weight="700" fill="#dc2626" text-anchor="start">0</text>
+    <text x="${testColMid}" y="21" font-size="6" font-weight="600" fill="#64748b" text-anchor="middle">25 | 50%</text>
+    <text x="${testColRight}" y="21" font-size="6" font-weight="700" fill="#0284c7" text-anchor="end">50+ | 100%</text>
 
-    <!-- RQD Header -->
-    <text x="445" y="10" font-size="7.5" font-weight="700" fill="#15803d" text-anchor="middle">RQD % / RECOVERY</text>
-    <line x1="415" y1="13" x2="475" y2="13" stroke="#cbd5e1" stroke-width="0.8"/>
-    <text x="415" y="22" font-size="6.5" fill="#64748b" text-anchor="middle">0%</text>
-    <text x="445" y="22" font-size="6.5" fill="#64748b" text-anchor="middle">50%</text>
-    <text x="475" y="22" font-size="6.5" fill="#64748b" text-anchor="middle">100%</text>
-
-    <!-- Vertical Grid Lines -->
-    <line x1="300" y1="24" x2="300" y2="${y0+colH}" stroke="#f1f5f9" stroke-width="1"/>
-    <line x1="330" y1="24" x2="330" y2="${y0+colH}" stroke="#f1f5f9" stroke-width="1" stroke-dasharray="2,2"/>
-    <line x1="360" y1="24" x2="360" y2="${y0+colH}" stroke="#f1f5f9" stroke-width="1"/>
-
-    <line x1="415" y1="24" x2="415" y2="${y0+colH}" stroke="#f1f5f9" stroke-width="1"/>
-    <line x1="445" y1="24" x2="445" y2="${y0+colH}" stroke="#f1f5f9" stroke-width="1" stroke-dasharray="2,2"/>
-    <line x1="475" y1="24" x2="475" y2="${y0+colH}" stroke="#f1f5f9" stroke-width="1"/>
+    <!-- Vertical Grid Lines for Merged Column -->
+    <line x1="${testColLeft}" y1="23" x2="${testColLeft}" y2="${y0+colH}" stroke="#e2e8f0" stroke-width="1"/>
+    <line x1="${testColMid}" y1="23" x2="${testColMid}" y2="${y0+colH}" stroke="#f1f5f9" stroke-width="1" stroke-dasharray="2,2"/>
+    <line x1="${testColRight}" y1="23" x2="${testColRight}" y2="${y0+colH}" stroke="#e2e8f0" stroke-width="1"/>
   `;
 
   // Depth Axis Ticks
@@ -2609,8 +3600,8 @@ function buildBoreholeLogSvg(levels, layers, row){
     const isRockHead = (overburden !== null && Math.abs(d - overburden) < 0.05);
     const strokeCol = isTerm ? '#0f172a' : (isRockHead ? '#b91c1c' : '#64748b');
     const strokeW = (isTerm || isRockHead) ? 1.2 : 0.8;
-    svg += `<line x1="44" y1="${y.toFixed(1)}" x2="52" y2="${y.toFixed(1)}" stroke="${strokeCol}" stroke-width="${strokeW}"/>`;
-    svg += `<text x="41" y="${(y + 2.8).toFixed(1)}" font-size="7.5" font-weight="${(isTerm||isRockHead)?'800':'600'}" fill="${strokeCol}" text-anchor="end">${d.toFixed(1)}</text>`;
+    svg += `<line x1="42" y1="${y.toFixed(1)}" x2="50" y2="${y.toFixed(1)}" stroke="${strokeCol}" stroke-width="${strokeW}"/>`;
+    svg += `<text x="39" y="${(y + 2.8).toFixed(1)}" font-size="7.5" font-weight="${(isTerm||isRockHead)?'800':'600'}" fill="${strokeCol}" text-anchor="end">${d.toFixed(1)}</text>`;
   });
 
   // GWT Indicator Line
@@ -2630,17 +3621,18 @@ function buildBoreholeLogSvg(levels, layers, row){
     svg += `<text x="18" y="${(rkY+4).toFixed(1)}" font-size="6.5" font-weight="800" fill="#b91c1c" text-anchor="end">HEAD</text>`;
   }
 
-  // Borehole Column Stratigraphy & Non-overlapping Labels
+  // Borehole Column Stratigraphy & Dynamic Detailed Lithology Labels
   if (layers && layers.length) {
     let lastLabelBot = y0 - 10;
     layers.forEach(layer => {
       const info = getGraphicInfo(layer.graphic);
+      const isRock = info.isRock || isRockCode(layer.graphic);
       const yTop = y0 + Math.min(layer.depth * scale, colH);
       const yBot = y0 + Math.min(layer.bottom * scale, colH);
       const h = Math.max(yBot - yTop, 0.5);
       let fillColor = info.color;
 
-      if (info.isRock) {
+      if (isRock) {
         if (fadeProfile) {
           const midDepth = (layer.depth + layer.bottom) / 2;
           const fade = evalSingleBHFade(fadeProfile, midDepth - rockDepthTopForFade);
@@ -2661,29 +3653,32 @@ function buildBoreholeLogSvg(levels, layers, row){
         svg += `<rect x="${x0}" y="${yTop.toFixed(1)}" width="${colW}" height="${h.toFixed(1)}" fill="url(#pat-residual)" stroke="none"/>`;
       } else if (hKey === 'completely_weathered_rock' || hKey === 'cwr') {
         svg += `<rect x="${x0}" y="${yTop.toFixed(1)}" width="${colW}" height="${h.toFixed(1)}" fill="url(#pat-cwr)" stroke="none"/>`;
-      } else if (info.isRock) {
+      } else if (isRock) {
         svg += `<rect x="${x0}" y="${yTop.toFixed(1)}" width="${colW}" height="${h.toFixed(1)}" fill="url(#pat-rock)" stroke="none"/>`;
       }
 
       // Foliation lines in rock
-      if (info.isRock) {
+      if (isRock) {
         for (let hy = yTop + 6; hy < yBot - 2; hy += 10) {
           svg += `<line x1="${x0}" y1="${hy.toFixed(1)}" x2="${x0+colW}" y2="${hy.toFixed(1)}" stroke="#1e293b" stroke-width="0.4" opacity="0.35"/>`;
         }
       }
+
+      // Format layer label dynamically using Google Sheet lithology / soil metadata
+      const formatted = isRock
+        ? formatRockLayerDisplay(layer, row, readings)
+        : formatSoilLayerDisplay(layer);
 
       // Label with leader line
       const midY = (yTop + yBot) / 2;
       let labelY = Math.max(midY, lastLabelBot + 14);
       lastLabelBot = labelY + 12;
 
-      svg += `<line x1="${x0+colW}" y1="${midY.toFixed(1)}" x2="${x0+colW+10}" y2="${labelY.toFixed(1)}" stroke="#94a3b8" stroke-width="0.7"/>`;
+      svg += `<line x1="${x0+colW}" y1="${midY.toFixed(1)}" x2="${x0+colW+8}" y2="${labelY.toFixed(1)}" stroke="#94a3b8" stroke-width="0.7"/>`;
       svg += `<circle cx="${x0+colW}" cy="${midY.toFixed(1)}" r="1.5" fill="#475569"/>`;
       
-      const layerTitle = info.label;
-      const originDesc = layer.origin ? `${layer.origin} (${layer.depth.toFixed(2)}–${layer.bottom.toFixed(2)}m)` : `(${layer.depth.toFixed(2)}–${layer.bottom.toFixed(2)}m)`;
-      svg += `<text x="${x0+colW+14}" y="${(labelY-2).toFixed(1)}" font-size="8.5" font-weight="700" fill="#0f172a">${layerTitle}</text>`;
-      svg += `<text x="${x0+colW+14}" y="${(labelY+7).toFixed(1)}" font-size="7.5" font-weight="500" fill="#64748b">${originDesc}</text>`;
+      svg += `<text x="${x0+colW+12}" y="${(labelY-2).toFixed(1)}" font-size="8" font-weight="700" fill="#0f172a">${formatted.title}</text>`;
+      svg += `<text x="${x0+colW+12}" y="${(labelY+7).toFixed(1)}" font-size="7" font-weight="500" fill="#64748b">${formatted.subtitle}</text>`;
     });
   } else {
     // Simple Overburden + Bedrock model
@@ -2695,36 +3690,63 @@ function buildBoreholeLogSvg(levels, layers, row){
       svg += `<rect x="${x0}" y="${(y0+overburdenPx).toFixed(1)}" width="${colW}" height="${rockPx.toFixed(1)}" fill="${POPUP_BEDROCK_COLOR}" stroke="#574c38" stroke-width="0.4"/>`;
       svg += `<rect x="${x0}" y="${(y0+overburdenPx).toFixed(1)}" width="${colW}" height="${rockPx.toFixed(1)}" fill="url(#pat-rock)" stroke="none"/>`;
     }
-    svg += `<text x="${x0+colW+14}" y="${y0+15}" font-size="8.5" font-weight="700" fill="#0f172a">Soil Overburden</text>`;
-    svg += `<text x="${x0+colW+14}" y="${y0+24}" font-size="7.5" font-weight="500" fill="#64748b">Thickness ${overburden !== null ? overburden.toFixed(2)+'m' : '—'}</text>`;
+    svg += `<text x="${x0+colW+12}" y="${y0+15}" font-size="8" font-weight="700" fill="#0f172a">Soil Overburden</text>`;
+    svg += `<text x="${x0+colW+12}" y="${y0+24}" font-size="7" font-weight="500" fill="#64748b">Thickness ${overburden !== null ? overburden.toFixed(2)+'m' : '—'}</text>`;
     if (rockPx > 0.3) {
-      svg += `<text x="${x0+colW+14}" y="${(y0+overburdenPx+18).toFixed(1)}" font-size="8.5" font-weight="700" fill="#0f172a">Bedrock</text>`;
-      svg += `<text x="${x0+colW+14}" y="${(y0+overburdenPx+27).toFixed(1)}" font-size="7.5" font-weight="500" fill="#64748b">Cored ${levels.rockCoring !== null ? levels.rockCoring.toFixed(2)+'m' : '—'}</text>`;
+      let rockName = 'Bedrock';
+      if (row) {
+        const rawName = row['Rock Type Name'] || row['Rock Type'] || row['Lithology'];
+        if (rawName) rockName = formatTitleCase(rawName);
+      }
+      svg += `<text x="${x0+colW+12}" y="${(y0+overburdenPx+18).toFixed(1)}" font-size="8" font-weight="700" fill="#0f172a">${rockName}</text>`;
+      svg += `<text x="${x0+colW+12}" y="${(y0+overburdenPx+27).toFixed(1)}" font-size="7" font-weight="500" fill="#64748b">Cored ${levels.rockCoring !== null ? levels.rockCoring.toFixed(2)+'m' : '—'}</text>`;
     }
   }
 
   // Column outer border
   svg += `<rect x="${x0}" y="${y0}" width="${colW}" height="${colH.toFixed(1)}" fill="none" stroke="#0f172a" stroke-width="1.3"/>`;
 
-  // Plot SPT Tests & RQD Tests
+  // Plot SPT Tests & RQD/CR Tests in Consolidated Single Column
   const tests = row ? getBHTests(row) : [];
   if (tests && tests.length) {
     tests.forEach(t => {
       const ty = y0 + Math.min(t.depth * scale, colH);
+      
+      // SPT Test rendering
       if (t.nVal !== null && t.nVal !== undefined) {
         const val = t.nVal;
-        const bw = Math.min(val / 50, 1) * 60;
+        const bw = Math.min(val / 50, 1) * testColWidth;
         const isRefusal = val >= 50;
         const barFill = isRefusal ? '#ef4444' : (val > 25 ? '#f59e0b' : '#10b981');
-        svg += `<rect x="300" y="${(ty-3.5).toFixed(1)}" width="${bw.toFixed(1)}" height="7" fill="${barFill}" rx="1"/>`;
-        svg += `<text x="${(300+bw+3).toFixed(1)}" y="${(ty+2.5).toFixed(1)}" font-size="7" font-weight="700" fill="${isRefusal?'#b91c1c':'#1e293b'}">${isRefusal ? '50★' : val}</text>`;
+        svg += `<rect x="${testColLeft}" y="${(ty-3.5).toFixed(1)}" width="${bw.toFixed(1)}" height="7" fill="${barFill}" rx="1"/>`;
+        svg += `<text x="${(testColLeft+bw+3).toFixed(1)}" y="${(ty+2.2).toFixed(1)}" font-size="6.8" font-weight="800" fill="${isRefusal?'#b91c1c':'#1e293b'}">${isRefusal ? '50★' : 'N=' + val}</text>`;
       }
-      const rqdVal = (t.rqd !== null && t.rqd !== undefined) ? t.rqd : ((t.cr !== null && t.cr !== undefined) ? t.cr : null);
-      if (rqdVal !== null) {
-        const bw = Math.min(rqdVal / 100, 1) * 60;
-        const th = Math.max((t.length || 0.6) * scale, 7);
-        svg += `<rect x="415" y="${ty.toFixed(1)}" width="${bw.toFixed(1)}" height="${th.toFixed(1)}" fill="#0284c7" fill-opacity="0.8" stroke="#0369a1" stroke-width="0.4" rx="1"/>`;
-        svg += `<text x="${(415+bw+3).toFixed(1)}" y="${(ty + th/2 + 2.5).toFixed(1)}" font-size="6.5" font-weight="700" fill="#0369a1">${Math.round(rqdVal)}%</text>`;
+      
+      // Rock Coring / RQD Test rendering
+      if (t.rqd !== null || t.cr !== null) {
+        const th = Math.max((t.length || 1.0) * scale, 7.5);
+        if (t.cr !== null && t.cr !== undefined) {
+          const crW = Math.min(t.cr / 100, 1) * testColWidth;
+          svg += `<rect x="${testColLeft}" y="${ty.toFixed(1)}" width="${crW.toFixed(1)}" height="${th.toFixed(1)}" fill="#e0f2fe" stroke="#38bdf8" stroke-width="0.4" opacity="0.9" rx="1"/>`;
+        }
+        if (t.rqd !== null && t.rqd !== undefined) {
+          const rqdW = Math.min(t.rqd / 100, 1) * testColWidth;
+          svg += `<rect x="${testColLeft}" y="${ty.toFixed(1)}" width="${rqdW.toFixed(1)}" height="${th.toFixed(1)}" fill="#0284c7" fill-opacity="0.85" stroke="#0369a1" stroke-width="0.4" rx="1"/>`;
+        }
+        
+        let lbl = '';
+        if (t.rqd !== null && t.cr !== null) {
+          lbl = `RQD ${Math.round(t.rqd)}% (CR ${Math.round(t.cr)}%)`;
+        } else if (t.rqd !== null) {
+          lbl = `RQD ${Math.round(t.rqd)}%`;
+        } else if (t.cr !== null) {
+          lbl = `CR ${Math.round(t.cr)}%`;
+        }
+        
+        if (lbl) {
+          const textColor = (t.rqd && t.rqd > 35) ? '#ffffff' : '#0369a1';
+          svg += `<text x="${testColLeft + 3}" y="${(ty + th/2 + 2.2).toFixed(1)}" font-size="6.2" font-weight="700" fill="${textColor}">${lbl}</text>`;
+        }
       }
     });
   }
@@ -2748,6 +3770,7 @@ function buildLayerLegendHtml(layers, row){
       <span style="width:9px; height:9px; background:${seen[label]}; border:1px solid #999; display:inline-block; border-radius:2px;"></span>${label}
     </span>`
   ).join('');
+  
   const readings = row ? getBHWeathering(row) : null;
   if (readings && readings.length) {
     const POPUP_BEDROCK_COLOR = '#8f8f95';
@@ -2760,11 +3783,30 @@ function buildLayerLegendHtml(layers, row){
   } else {
     const hasRock = layers.some(l => getGraphicInfo(l.graphic).isRock);
     if (hasRock) {
+      let rockLabel = 'Bedrock';
+      if (row) {
+        const rawName = row['Rock Type Name'] || row['Rock Type'] || row['Lithology'];
+        if (rawName) rockLabel = formatTitleCase(rawName);
+      }
       html += `<span style="display:inline-flex; align-items:center; gap:3px; margin-right:8px; font-size:10px; color:#6b6459;">
-        <span style="width:9px; height:9px; background:#8f8f95; border:1px solid #999; display:inline-block; border-radius:2px;"></span>Bedrock
+        <span style="width:9px; height:9px; background:#8f8f95; border:1px solid #999; display:inline-block; border-radius:2px;"></span>${rockLabel}
       </span>`;
     }
   }
+
+  // Add field test indicators in legend
+  html += `
+    <span style="display:inline-flex; align-items:center; gap:3px; margin-right:8px; font-size:10px; color:#6b6459;">
+      <span style="width:9px; height:7px; background:#10b981; border-radius:1px; display:inline-block;"></span>SPT N
+    </span>
+    <span style="display:inline-flex; align-items:center; gap:3px; margin-right:8px; font-size:10px; color:#6b6459;">
+      <span style="width:9px; height:7px; background:#ef4444; border-radius:1px; display:inline-block;"></span>N=50★ (Refusal)
+    </span>
+    <span style="display:inline-flex; align-items:center; gap:3px; margin-right:8px; font-size:10px; color:#6b6459;">
+      <span style="width:9px; height:7px; background:#0284c7; border-radius:1px; display:inline-block;"></span>RQD %
+    </span>
+  `;
+
   return html;
 }
 
