@@ -4789,9 +4789,8 @@ function buildProfileSvg(rows, options = {}, arg3 = null, arg4 = null) {
 
   const totalDist = Math.max(distances[distances.length - 1], 1);
   const padLeft = 85, padRight = 45, padTop = 140;
-  // sideExt: generous extension beyond first/last BH for a natural geological margin on both sides
-  const sideExtFraction = 0.08; // 8% of total distance on each side (minimum 10m)
-  const sideExt = Math.max(totalDist * sideExtFraction, 10);
+  // sideExt: dynamically proportional extension beyond first/last BH for balanced geological margins
+  const sideExt = Math.min(Math.max(totalDist * 0.12, 1.8), Math.max(totalDist * 0.08, 15));
   // distMin / distMax define the geological extent (with side extensions)
   const distMin = 0 - sideExt;
   const distMax = totalDist + sideExt;
@@ -5875,16 +5874,16 @@ function buildProfileSvg(rows, options = {}, arg3 = null, arg4 = null) {
   }
 
   // ── GRAPHIC SCALE BAR & SCALE REFERENCE (Engineering standard) ──
-  const scaleBarH_m = distSpan >= 200 ? 50 : (distSpan >= 80 ? 20 : 10);
+  const scaleBarH_m = distSpan >= 200 ? 50 : (distSpan >= 80 ? 20 : (distSpan >= 25 ? 10 : (distSpan >= 8 ? 5 : 2)));
   const scaleBarH_px = scaleBarH_m * ((xFrameRight - xFrameLeft) / distSpan);
   const scaleBarV_m = elevRange >= 40 ? 10 : (elevRange >= 20 ? 5 : 2);
   const scaleBarV_px = scaleBarV_m * (plotH / elevRange);
   const sbX = padLeft + 12;
   const sbY = padTop + plotH - 12;
 
-  svg += `<!-- Engineering Graphic Scale Bar -->
-  <g class="graphic-scale-bar" opacity="0.92">
-    <rect x="${sbX - 6}" y="${sbY - 26}" width="${Math.max(scaleBarH_px + 76, 120)}" height="32" fill="rgba(255,255,255,0.92)" stroke="#cbd5e1" stroke-width="0.8" rx="3"/>
+  const graphicScaleBarSvg = `<!-- Engineering Graphic Scale Bar (Top Overlay) -->
+  <g class="graphic-scale-bar" opacity="0.95">
+    <rect x="${sbX - 6}" y="${sbY - 26}" width="${Math.max(scaleBarH_px + 76, 120)}" height="32" fill="rgba(255,255,255,0.95)" stroke="#cbd5e1" stroke-width="0.8" rx="3"/>
     <!-- Horizontal scale bar -->
     <rect x="${sbX}" y="${sbY - 6}" width="${(scaleBarH_px / 2).toFixed(1)}" height="4.5" fill="#1e293b"/>
     <rect x="${(sbX + scaleBarH_px / 2).toFixed(1)}" y="${sbY - 6}" width="${(scaleBarH_px / 2).toFixed(1)}" height="4.5" fill="#f1f5f9" stroke="#1e293b" stroke-width="0.5"/>
@@ -6895,6 +6894,11 @@ function buildProfileSvg(rows, options = {}, arg3 = null, arg4 = null) {
       svg += `<rect x="${(cx - boxW / 2).toFixed(1)}" y="${yTop.toFixed(1)}" width="${boxW.toFixed(1)}" height="${boxH}" fill="rgba(255, 255, 255, 0.90)" stroke="#b8b2a2" stroke-width="1" rx="3"/>`;
       svg += `<text x="${cx.toFixed(1)}" y="${(yTop + 10.5).toFixed(1)}" font-size="8.5" font-weight="600" fill="#444444" text-anchor="middle">${termText}</text>`;
     });
+  }
+
+  // ── GRAPHIC SCALE BAR (Top overlay pass — floats above bedrock and strata) ──
+  if (typeof graphicScaleBarSvg !== 'undefined') {
+    svg += graphicScaleBarSvg;
   }
 
   // ── RENDER STRUCTURED MODULAR GEOLOGICAL & GEOTECHNICAL LEGEND ──
