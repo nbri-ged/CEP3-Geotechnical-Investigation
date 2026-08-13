@@ -3040,11 +3040,15 @@ function buildOriginHatchDefs() {
 
 const ORIGIN_FAMILY_MAP = {
   'residual': 'residual',
+  'residual soil': 'residual',
+  'soil': 'residual',
+  'soil horizon': 'residual',
   'completely weathered rock': 'residual',
   'alluvium': 'alluvium',
   'colluvium': 'colluvium',
   'made ground': 'made_ground',
   'engineered fill': 'made_ground',
+  'fill': 'made_ground',
 };
 // Origins whose family uses LENS geometry (rule 3) instead of ordinary
 // tabular pinch-out interpolation.
@@ -4708,17 +4712,11 @@ function buildProfileSvg(rows, options = {}, arg3 = null, arg4 = null) {
   const bhNames = rows.map(r => (r['BH Name'] || '').trim());
   const rawLayersArr = rows.map(r => getBHLayers(r) || null);
 
-  // Collapse contiguous same-Origin-family runs of layers into ONE merged
-  // block per run (rule 7 below), rather than rendering every BSCS grain-
-  // size sub-layer within a single Origin deposit as its own separate
-  // polygon. A borehole logging "Alluvium: MS/MH/SC" across 0-6m is ONE
-  // deposit with internal grain-size variation, not three stacked deposits
-  // — fragmenting it visually misrepresents how the log is actually read
-  // and also produces one master-unit slot per fragment (rule 1), which
-  // both clutters the legend and multiplies unrelated lens shapes. The
-  // merged block's representative BSCS/graphic is whichever sub-layer is
-  // THICKEST (best single visual proxy for "what this deposit mostly is");
-  // rock layers are left completely untouched (they're never collapsed).
+  // Only merge CONTIGUOUS layers that share BOTH the same Origin Family AND
+  // the same BSCS / graphic code (e.g. two consecutive 1.5m SM readings merge
+  // into one 3.0m SM layer). Distinct lithology layers (e.g. SM, MG, CS, MS,
+  // SC, CL, BOULDER) are individually preserved with their true logged depths
+  // and elevations, ensuring high-fidelity stratigraphic representation.
   const layersArr = rawLayersArr.map(layers => {
     if (!layers || !layers.length) return layers;
     const merged = [];
@@ -4726,25 +4724,9 @@ function buildProfileSvg(rows, options = {}, arg3 = null, arg4 = null) {
       const info = getGraphicInfo(l.graphic);
       const fam = info.isRock ? null : originFamilyOf(l.origin);
       const last = merged[merged.length - 1];
-      if (!info.isRock && last && !last.isRockBlock && last.originFamily === fam && Math.abs(last.bottom - l.depth) < 0.01) {
-        // Extend the current merged block; representative graphic/BSCS is
-        // whichever CODE has the greatest TOTAL thickness summed across all
-        // its sub-layer occurrences (not the single thickest individual
-        // reading — three separate 1.5m CS readings collectively outweigh
-        // one 2.1m SM reading and should win, which a per-reading max would
-        // miss).
+      if (!info.isRock && last && !last.isRockBlock && last.originFamily === fam && (last.graphic || '').trim() === (l.graphic || '').trim() && Math.abs(last.bottom - l.depth) < 0.01) {
         last.bottom = l.bottom;
         last.subLayers.push(l);
-        const thicknessByCode = {};
-        last.subLayers.forEach(sl => {
-          const g = (sl.graphic || '').trim();
-          thicknessByCode[g] = (thicknessByCode[g] || 0) + (sl.bottom - sl.depth);
-        });
-        let bestCode = last.graphic, bestThickness = -1;
-        Object.keys(thicknessByCode).forEach(g => {
-          if (thicknessByCode[g] > bestThickness) { bestThickness = thicknessByCode[g]; bestCode = g; }
-        });
-        last.graphic = bestCode;
       } else {
         merged.push({
           depth: l.depth,
@@ -4755,18 +4737,22 @@ function buildProfileSvg(rows, options = {}, arg3 = null, arg4 = null) {
           originFamily: fam,
           isRockBlock: info.isRock,
           subLayers: [l]
-          // NOTE: `origin` above is frozen at whichever sub-layer started
-          // this merged run — subLayers retains the full depth-ordered list
-          // so a later origin (e.g. Completely Weathered Rock appearing
-          // after Residual within one contiguous run) can still be found
-          // and hatch-textured over its own actual sub-range; see the
-          // per-origin hatch overlay pass in the fill-rendering loop, which
-          // walks subLayers rather than trusting the single frozen `origin`
-          // field for anything beyond stacking/connectivity purposes.
         });
       }
     });
     return merged;
+  });
+
+  // Track layer occurrence index for non-contiguous repeats (e.g. Upper SM vs Lower SM)
+  layersArr.forEach(layers => {
+    if (!layers) return;
+    const seenCount = {};
+    layers.forEach(l => {
+      if (l.isRockBlock) return;
+      const baseKey = (l.originFamily || 'residual') + '||' + (l.graphic || '').trim();
+      seenCount[baseKey] = (seenCount[baseKey] || 0) + 1;
+      l.occIndex = seenCount[baseKey];
+    });
   });
 
   const effectiveRockLevel = levelsArr.map((lv, i) => {
@@ -4876,8 +4862,9 @@ function buildProfileSvg(rows, options = {}, arg3 = null, arg4 = null) {
   // borehole was invisible, absorbed into a neighbour's colour — and has
   // been reverted in favour of this simpler, Residual-consistent approach.)
   function unitKey(layerLike, originFamily) {
-    const graphic = typeof layerLike === 'string' ? layerLike : layerLike.graphic;
-    return originFamily + '||' + (graphic || '').trim();
+    const graphic = typeof layerLike === 'string' ? layerLike : (layerLike ? layerLike.graphic : '');
+    const occ = (layerLike && layerLike.occIndex && layerLike.occIndex > 1) ? `#${layerLike.occIndex}` : '';
+    return originFamily + '||' + (graphic || '').trim() + occ;
   }
 
   // ---- CONNECTIVITY CHECK (corrected rule 3, refined per rule 7b below): a
@@ -4926,8 +4913,11 @@ function buildProfileSvg(rows, options = {}, arg3 = null, arg4 = null) {
   // and handled by the separate lens pass below.
   const soilUnitKeySet = new Set();
   const soilUnitMeta = {}; // unitKey -> { graphic, originFamily }
+  const unitDepths = {}; // unitKey -> [normalizedTopDepth]
   layersArr.forEach((layers) => {
     if (layers && layers.length) {
+      const nonRock = layers.filter(l => !l.isRockBlock);
+      const totalSoil = nonRock.length ? Math.max(...nonRock.map(l => l.bottom)) : 10;
       layers.forEach(l => {
         if (l.isRockBlock) return;
         if (l.isLens) return; // handled by lens pass, not tabular
@@ -4938,11 +4928,14 @@ function buildProfileSvg(rows, options = {}, arg3 = null, arg4 = null) {
         // groups blocks that may have different representative graphics
         // across boreholes, so this is necessarily just one illustrative pick.
         if (!soilUnitMeta[key]) soilUnitMeta[key] = { graphic: (l.graphic || '').trim(), originFamily: l.originFamily, origin: l.origin };
+        if (!unitDepths[key]) unitDepths[key] = [];
+        unitDepths[key].push(l.depth / (totalSoil || 1));
       });
     } else {
       const key = unitKey('Overburden (soil)', 'unknown');
       soilUnitKeySet.add(key);
       soilUnitMeta[key] = { graphic: 'Overburden (soil)', originFamily: 'unknown', origin: '' };
+      unitDepths[key] = [0];
     }
   });
 
@@ -4975,6 +4968,14 @@ function buildProfileSvg(rows, options = {}, arg3 = null, arg4 = null) {
     const famA = originFamilyStackPriority(soilUnitMeta[a].originFamily);
     const famB = originFamilyStackPriority(soilUnitMeta[b].originFamily);
     if (famA !== famB) return famA - famB;
+    const depthsA = unitDepths[a] || [0];
+    const depthsB = unitDepths[b] || [0];
+    const minA = Math.min(...depthsA);
+    const minB = Math.min(...depthsB);
+    if (Math.abs(minA - minB) > 0.01) return minA - minB;
+    const avgA = depthsA.reduce((x, y) => x + y, 0) / depthsA.length;
+    const avgB = depthsB.reduce((x, y) => x + y, 0) / depthsB.length;
+    if (Math.abs(avgA - avgB) > 0.01) return avgA - avgB;
     return getGraphicRank(soilUnitMeta[a].graphic) - getGraphicRank(soilUnitMeta[b].graphic);
   });
   if (masterSoilUnits.length === 0) {
@@ -5873,25 +5874,7 @@ function buildProfileSvg(rows, options = {}, arg3 = null, arg4 = null) {
     svg += `<text x="${x.toFixed(1)}" y="${(axisY + 17).toFixed(1)}" font-size="9" fill="#6b6459" font-weight="500" text-anchor="middle">${Math.round(d)}</text>`;
   }
 
-  // ── GRAPHIC SCALE BAR & SCALE REFERENCE (Engineering standard) ──
-  const scaleBarH_m = distSpan >= 200 ? 50 : (distSpan >= 80 ? 20 : (distSpan >= 25 ? 10 : (distSpan >= 8 ? 5 : 2)));
-  const scaleBarH_px = scaleBarH_m * ((xFrameRight - xFrameLeft) / distSpan);
-  const scaleBarV_m = elevRange >= 40 ? 10 : (elevRange >= 20 ? 5 : 2);
-  const scaleBarV_px = scaleBarV_m * (plotH / elevRange);
-  const sbX = padLeft + 12;
-  const sbY = padTop + plotH - 12;
 
-  const graphicScaleBarSvg = `<!-- Engineering Graphic Scale Bar (Top Overlay) -->
-  <g class="graphic-scale-bar" opacity="0.95">
-    <rect x="${sbX - 6}" y="${sbY - 26}" width="${Math.max(scaleBarH_px + 76, 120)}" height="32" fill="rgba(255,255,255,0.95)" stroke="#cbd5e1" stroke-width="0.8" rx="3"/>
-    <!-- Horizontal scale bar -->
-    <rect x="${sbX}" y="${sbY - 6}" width="${(scaleBarH_px / 2).toFixed(1)}" height="4.5" fill="#1e293b"/>
-    <rect x="${(sbX + scaleBarH_px / 2).toFixed(1)}" y="${sbY - 6}" width="${(scaleBarH_px / 2).toFixed(1)}" height="4.5" fill="#f1f5f9" stroke="#1e293b" stroke-width="0.5"/>
-    <text x="${sbX}" y="${sbY - 10}" font-size="7" font-weight="700" fill="#334155">0</text>
-    <text x="${(sbX + scaleBarH_px).toFixed(1)}" y="${sbY - 10}" font-size="7" font-weight="700" fill="#334155">${scaleBarH_m}m (H)</text>
-    <!-- Vertical scale note -->
-    <text x="${sbX + scaleBarH_px + 8}" y="${sbY - 6}" font-size="6.8" font-weight="700" fill="#0f766e">V: ${scaleBarV_m}m | V.E. ${vertExag.toFixed(1)}×</text>
-  </g>`;
 
   // RENDERING ORDER (Geologically correct, back-to-front painter's algorithm):
   // Step A: Overburden base fill (ground surface down to rockhead) — fills the entire soil zone
@@ -6896,10 +6879,7 @@ function buildProfileSvg(rows, options = {}, arg3 = null, arg4 = null) {
     });
   }
 
-  // ── GRAPHIC SCALE BAR (Top overlay pass — floats above bedrock and strata) ──
-  if (typeof graphicScaleBarSvg !== 'undefined') {
-    svg += graphicScaleBarSvg;
-  }
+
 
   // ── RENDER STRUCTURED MODULAR GEOLOGICAL & GEOTECHNICAL LEGEND ──
   const legStartY = axisY + 80;
