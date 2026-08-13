@@ -5780,7 +5780,7 @@ function buildProfileSvg(rows, options = {}, arg3 = null, arg4 = null) {
   const testCardH = inSituItems.length ? 50 : 0;
 
   const totalLegendH = 36 + topCardH + (originCardH ? originCardH + 12 : 0) + (testCardH ? testCardH + 12 : 0) + 52;
-  const padBottom = 85 + totalLegendH + 60;
+  const padBottom = 100 + totalLegendH + 50;
   const svgH = plotH + padTop + padBottom;
   const axisY = padTop + plotH;
 
@@ -5997,38 +5997,36 @@ function buildProfileSvg(rows, options = {}, arg3 = null, arg4 = null) {
       else if (uUp === 'CL' || uUp === 'CH' || uUp === 'CI' || uUp.includes('CLAY')) patternUrl = 'url(#pat-clay)';
       else if (uUp === 'GM' || uUp === 'GC' || uUp.includes('GRAVEL')) patternUrl = 'url(#pat-gravel)';
 
+      const isCwrLayer = originHatchKeyOf(meta.origin) === 'completely_weathered_rock';
+      let layerCwrGradId = '';
+      if (isCwrLayer) {
+        layerCwrGradId = 'grad-layer-cwr-' + uIdx + '-' + Math.random().toString(36).slice(2, 7);
+        svg += `<defs>
+          <linearGradient id="${layerCwrGradId}" x1="0" y1="1" x2="0" y2="0">
+            <stop offset="0%" stop-color="#6b441e" stop-opacity="0.55"/>
+            <stop offset="25%" stop-color="#8c5d2b" stop-opacity="0.40"/>
+            <stop offset="55%" stop-color="#b38446" stop-opacity="0.22"/>
+            <stop offset="80%" stop-color="#d6b074" stop-opacity="0.09"/>
+            <stop offset="100%" stop-color="#edd5ae" stop-opacity="0.0"/>
+          </linearGradient>
+        </defs>`;
+      }
       svg += `<!-- Stratigraphic Layer: ${info.label} (origin family: ${meta.originFamily}) -->
       <path d="${layerD}" fill="${info.color}" stroke="${info.color}" stroke-width="0.5"/>`;
+      if (layerCwrGradId) svg += `<path d="${layerD}" fill="url(#${layerCwrGradId})" stroke="none"/>`;
       if (patternUrl) svg += `<path d="${layerD}" fill="${patternUrl}" stroke="none"/>`;
       const originHatch = ORIGIN_HATCH_INFO[originHatchKeyOf(meta.origin)];
       if (originHatch) svg += `<path d="${layerD}" fill="url(#${originHatch.patternId})" stroke="none"/>`;
 
-      // CWR SUB-RANGE HATCH OVERLAY (fixes a real bug): when this master
-      // unit belongs to the 'residual' family, the merged block feeding it
-      // at each borehole may ALSO contain a Completely Weathered Rock
-      // sub-layer merged in alongside Residual (they're one connectivity
-      // family — rule 1/2 — so they merge into the same contiguous run).
-      // The merge step freezes the block's single `origin` field at
-      // whichever sub-layer started the run (almost always "Residual", since
-      // CWR is consistently the LAST sub-layer before rock in this data) —
-      // so CWR's own distinct texture (rule 6) can never be reached via
-      // meta.origin alone. Instead, walk each borehole's own subLayers to
-      // find its actual CWR depth range (if any), convert to the SAME
-      // fraction-of-overburden system the main fill uses, and draw a
-      // separate polygon scoped to just that inner portion, textured with
-      // CWR's own pattern. Boreholes with no CWR sub-layer contribute
-      // nothing here (their portion of the interpolation naturally has no
-      // CWR overlay).
+      // CWR SUB-RANGE HATCH OVERLAY & VERTICAL FADING:
+      // Completely Weathered Rock (Grade V) transitions from bedrock below up towards residual soil above.
+      // 1. Color gradient fades from richer/darker weathered tone at bottom (rockhead) to lighter at top.
+      // 2. Pinch-out closure is strictly anchored to the rockhead boundary (zR), never closing from surface.
       if (soilUnitMeta[u].originFamily === 'residual' && ORIGIN_HATCH_INFO['completely_weathered_rock']) {
         const cwrTopPts = [], cwrBotPts = [];
         let cwrHasArea = false;
         sampleDists.forEach(d => {
           const x = xPos(d);
-          // Find bracketing boreholes the same way the main fill does, then
-          // find each one's OWN CWR sub-layer fraction (relative to ground),
-          // and linearly interpolate between them exactly like the main
-          // cumulative boundary system does — CWR only needs a slice of the
-          // SAME unit polygon we already computed above, so we reuse zG/zR.
           const zG = getZGround(d);
           const zR = getZRock(d);
           const overburdenAtD = Math.max(zG - zR, 0.1);
@@ -6039,16 +6037,6 @@ function buildProfileSvg(rows, options = {}, arg3 = null, arg4 = null) {
             const zGi = levelsArr[i].elevation !== null ? levelsArr[i].elevation : maxElev;
             const zRi = effectiveRockLevel[i] !== null ? effectiveRockLevel[i] : zGi - 5;
             const overburdenI = Math.max(zGi - zRi, 0.1);
-            // MUST normalize against the SAME reference the main tabular fill
-            // uses for this borehole (totalSoilDepth = max bottom depth of all
-            // non-rock layers, which includes the CWR reading itself) — NOT
-            // against overburdenI (ground-to-rockhead only). Those are
-            // different depth references whenever CWR's logged depth extends
-            // beyond the nominal rockhead depth, which is the normal case.
-            // Using the wrong reference here was a real, confirmed bug: it
-            // misaligned the CWR overlay against the Residual band it's
-            // supposed to sit inside, so CWR could render shifted/oversized
-            // relative to Residual instead of correctly nested below it.
             const allNonRockI = layers.filter(l => !l.isRockBlock);
             const totalSoilDepthI = allNonRockI.length ? Math.max(...allNonRockI.map(l => l.bottom)) : overburdenI;
             let cwrTopDepth = null, cwrBotDepth = null;
@@ -6086,29 +6074,40 @@ function buildProfileSvg(rows, options = {}, arg3 = null, arg4 = null) {
           const fracL = cwrFracForBH(iLeft);
           const fracR = iLeft === iRight ? fracL : cwrFracForBH(iRight);
 
-          // Same lateral interpolation of the scale reference itself, so
-          // fTop/fBot (fractions of totalSoilDepth) convert back to elevation
-          // using a totalSoilDepth that's ALSO been interpolated to position
-          // d — matching how the main fill's overburdenAtD is itself an
-          // interpolated quantity, not a fixed per-borehole value reused
-          // verbatim at every sample point.
           const tsdL = totalSoilDepthForBH(iLeft);
           const tsdR = iLeft === iRight ? tsdL : totalSoilDepthForBH(iRight);
 
           let zTopC = null, zBotC = null;
-          if (fracL && fracR) {
-            const t = (iLeft === iRight || distances[iRight] === distances[iLeft]) ? 0 : (d - distances[iLeft]) / (distances[iRight] - distances[iLeft]);
-            const fTop = fracL.fTop + (fracR.fTop - fracL.fTop) * t;
-            const fBot = fracL.fBot + (fracR.fBot - fracL.fBot) * t;
-            const tsdAtD = tsdL + (tsdR - tsdL) * t;
-            zTopC = zG - fTop * tsdAtD;
-            zBotC = zG - fBot * tsdAtD;
-          } else if (fracL && d <= distances[iLeft]) {
-            zTopC = zG - fracL.fTop * tsdL;
-            zBotC = zG - fracL.fBot * tsdL;
-          } else if (fracR && d >= distances[iRight]) {
-            zTopC = zG - fracR.fTop * tsdR;
-            zBotC = zG - fracR.fBot * tsdR;
+          if (d < distances[0]) {
+            const frac0 = cwrFracForBH(0);
+            if (frac0) {
+              const tsd0 = totalSoilDepthForBH(0);
+              zTopC = zG - frac0.fTop * tsd0;
+              zBotC = zG - frac0.fBot * tsd0;
+            }
+          } else if (d > distances[distances.length - 1]) {
+            const lastIdx = rows.length - 1;
+            const fracN = cwrFracForBH(lastIdx);
+            if (fracN) {
+              const tsdN = totalSoilDepthForBH(lastIdx);
+              zTopC = zG - fracN.fTop * tsdN;
+              zBotC = zG - fracN.fBot * tsdN;
+            }
+          } else {
+            // Inside borehole span:
+            if (fracL || fracR) {
+              // PINCH-OUT TO ROCKHEAD CONTACT (Rule: CWR never pinches out to surface; it collapses onto the rock boundary)
+              // If a borehole has no CWR, its CWR slot is collapsed at the bottom of the soil overburden (fTop = 1.0, fBot = 1.0)
+              const effFracL = fracL || { fTop: 1.0, fBot: 1.0 };
+              const effFracR = fracR || { fTop: 1.0, fBot: 1.0 };
+              const spanDist = distances[iRight] - distances[iLeft];
+              const t = (iLeft === iRight || spanDist <= 1e-6) ? 0 : (d - distances[iLeft]) / spanDist;
+              const fTop = effFracL.fTop + (effFracR.fTop - effFracL.fTop) * t;
+              const fBot = effFracL.fBot + (effFracR.fBot - effFracL.fBot) * t;
+              const tsdAtD = tsdL + (tsdR - tsdL) * t;
+              zTopC = zG - fTop * tsdAtD;
+              zBotC = zG - fBot * tsdAtD;
+            }
           }
 
           if (zTopC !== null) {
@@ -6120,22 +6119,48 @@ function buildProfileSvg(rows, options = {}, arg3 = null, arg4 = null) {
             if (zTopC - zBotC > 0.01) cwrHasArea = true;
           }
         });
+
         if (cwrHasArea && cwrTopPts.length >= 2) {
           const cwrD = closedLayerPath(cwrTopPts, cwrBotPts);
           const cwrHatch = ORIGIN_HATCH_INFO['completely_weathered_rock'];
-          // Clip to THIS unit's own polygon (layerD) — without this, the CWR
-          // overlay is computed globally across the whole section (its own
-          // iLeft/iRight bracketing scans ALL boreholes, not just the ones
-          // contributing to this specific master unit), so it could bleed
-          // into x/z territory this particular unit doesn't occupy at all, or
-          // draw a duplicate full-section band once per residual-family unit.
-          // That's a real, confirmed bug — visually it could make CWR appear
-          // detached from, or not correctly nested below, the Residual layer
-          // it belongs to.
           const cwrClipId = 'clip-cwr-' + uIdx + '-' + Math.random().toString(36).slice(2, 7);
-          svg += `<defs><clipPath id="${cwrClipId}"><path d="${layerD}"/></clipPath></defs>`;
-          svg += `<!-- CWR sub-range hatch overlay within ${info.label} (residual family), clipped to parent unit -->
-          <g clip-path="url(#${cwrClipId})"><path d="${cwrD}" fill="url(#${cwrHatch.patternId})" stroke="none"/></g>`;
+          const cwrGradId = 'grad-cwr-fade-' + uIdx + '-' + Math.random().toString(36).slice(2, 7);
+
+          svg += `<defs>
+            <linearGradient id="${cwrGradId}" x1="0" y1="1" x2="0" y2="0">
+              <stop offset="0%" stop-color="#6b441e" stop-opacity="0.55"/>
+              <stop offset="25%" stop-color="#8c5d2b" stop-opacity="0.40"/>
+              <stop offset="55%" stop-color="#b38446" stop-opacity="0.22"/>
+              <stop offset="80%" stop-color="#d6b074" stop-opacity="0.09"/>
+              <stop offset="100%" stop-color="#edd5ae" stop-opacity="0.0"/>
+            </linearGradient>
+            <clipPath id="${cwrClipId}"><path d="${layerD}"/></clipPath>
+          </defs>`;
+          
+          svg += `<!-- CWR sub-range hatch overlay with vertical fading (darker at rockhead -> lighter at top), clipped to parent unit -->
+          <g clip-path="url(#${cwrClipId})">
+            <path d="${cwrD}" fill="url(#${cwrGradId})" stroke="none"/>
+            <path d="${cwrD}" fill="url(#${cwrHatch.patternId})" stroke="none"/>
+          </g>`;
+
+          // Draw subtle dashed boundary along top contact of CWR sub-range where thickness >= 2px
+          const cwrContactRuns = [];
+          let currentCwrRun = [];
+          cwrTopPts.forEach((p, j) => {
+            const thick = Math.abs(p[1] - cwrBotPts[j][1]) >= 2.0;
+            if (thick) {
+              currentCwrRun.push(p);
+            } else if (currentCwrRun.length) {
+              cwrContactRuns.push(currentCwrRun);
+              currentCwrRun = [];
+            }
+          });
+          if (currentCwrRun.length) cwrContactRuns.push(currentCwrRun);
+          cwrContactRuns.forEach(run => {
+            if (run.length >= 2) {
+              svg += `<g clip-path="url(#${cwrClipId})"><path d="${ptsToCubicBezier(run)}" fill="none" stroke="#5a3d20" stroke-width="0.85" stroke-dasharray="4,3" opacity="0.55"/></g>`;
+            }
+          });
         }
       }
 
@@ -6910,10 +6935,10 @@ function buildProfileSvg(rows, options = {}, arg3 = null, arg4 = null) {
 
 
   // ── RENDER STRUCTURED MODULAR GEOLOGICAL & GEOTECHNICAL LEGEND ──
-  const legStartY = axisY + 80;
+  const legStartY = axisY + 95;
   
   svg += `<g id="legend-modular" font-family="Inter, sans-serif">`;
-  svg += `<text x="${padLeft}" y="${axisY + 64}" font-size="11" font-weight="800" fill="#1c2b2a" letter-spacing="0.04em">ENGINEERING GEOLOGY STRATIGRAPHIC &amp; GEOTECHNICAL LEGEND</text>`;
+  svg += `<text x="${padLeft}" y="${axisY + 76}" font-size="11" font-weight="800" fill="#1c2b2a" letter-spacing="0.04em">ENGINEERING GEOLOGY STRATIGRAPHIC &amp; GEOTECHNICAL LEGEND</text>`;
   
   // Section 1: 4-Column Top Grid (Soil Stratigraphy, Bedrock & Weathering, Contacts & Hydrology, Plan View Map)
   const card1X = padLeft;
