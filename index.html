@@ -5740,21 +5740,41 @@ function buildProfileSvg(rows, options = {}, arg3 = null, arg4 = null) {
     inSituItems.push({ label: 'Core Recovery (CR %)', color: '#c2cbd0', isCr: true });
   }
 
-  // Calculate exact modular dimensions for 4-card top row
+  // ── DYNAMIC & FLEXIBLE CARD SIZING ("FLEXIBLE CAGES") ──
   const legW = plotW;
   const colGap = 10;
-  const col1W = Math.round(legW * 0.29); // Soil Stratigraphy
-  const col2W = Math.round(legW * 0.27); // Bedrock Lithology & Weathering
-  const col3W = Math.round(legW * 0.20); // Contacts & Hydrology
-  const col4W = legW - col1W - col2W - col3W - (colGap * 3); // Plan View Map Card (~24%)
+  const availW = legW - (colGap * 3);
 
-  const soilCols = col1W > 240 ? 2 : 1;
+  // Determine whether Card 1 should use 1 or 2 columns based on available space
+  // Only use 2 columns if total width is wide (>= 1100px)
+  const use2SoilCols = (availW >= 1050 && soilItems.length > 5);
+  const soilCols = use2SoilCols ? 2 : 1;
   const soilRows = Math.ceil(soilItems.length / soilCols);
-  const soilColH = 38 + soilRows * 26;
+  const soilColH = 38 + soilRows * 24;
+
+  // Balanced flexible cage widths:
+  // Card 4 (Plan View Map): ~24% (min 180px)
+  let col4W = Math.max(Math.round(availW * 0.24), 180);
+  // Card 3 (Contacts & Features): ~22% (min 175px)
+  let col3W = Math.max(Math.round(availW * 0.22), 175);
+  // Card 2 (Bedrock Lithology & Weathering): ~24% (min 185px)
+  let col2W = Math.max(Math.round(availW * 0.24), 185);
+  // Card 1 (Soil Stratigraphy): Gets the remaining width (~30%, min 220px)
+  let col1W = availW - col2W - col3W - col4W;
+
+  // If col1W is below minimum, redistribute smoothly
+  if (col1W < 220) {
+    const deficit = 220 - col1W;
+    col4W = Math.max(col4W - Math.round(deficit * 0.35), 170);
+    col2W = Math.max(col2W - Math.round(deficit * 0.35), 170);
+    col3W = Math.max(col3W - Math.round(deficit * 0.30), 160);
+    col1W = availW - col2W - col3W - col4W;
+  }
+
   const rockColH = 38 + rockLithoItems.length * 28 + (weatherGradeItems.length ? Math.ceil(weatherGradeItems.length / 2) * 22 + 24 : 0);
-  const lineColH = 38 + lineItems.length * 26;
+  const lineColH = 38 + lineItems.length * 24;
   const planCardH = 135;
-  const topCardH = Math.max(soilColH, rockColH, lineColH, planCardH, 110);
+  const topCardH = Math.max(soilColH, rockColH, lineColH, planCardH, 115);
 
   const originCardH = originItems.length ? 50 : 0;
   const testCardH = inSituItems.length ? 50 : 0;
@@ -6905,40 +6925,45 @@ function buildProfileSvg(rows, options = {}, arg3 = null, arg4 = null) {
   svg += `<rect x="${card1X}" y="${legStartY}" width="${col1W}" height="${topCardH}" fill="#faf9f6" stroke="#e0dbce" stroke-width="1" rx="5"/>`;
   svg += `<rect x="${card1X}" y="${legStartY}" width="${col1W}" height="24" fill="#eeebe2" stroke="#e0dbce" stroke-width="1" rx="5"/>`;
   svg += `<rect x="${card1X}" y="${legStartY + 18}" width="${col1W}" height="6" fill="#eeebe2" stroke="none"/>`;
-  svg += `<text x="${card1X + 10}" y="${legStartY + 16}" font-size="9.5" font-weight="700" fill="#2c3e50" letter-spacing="0.02em">SOIL STRATIGRAPHY (BS 5930)</text>`;
+  svg += `<text x="${card1X + 10}" y="${legStartY + 16}" font-size="9" font-weight="700" fill="#2c3e50" letter-spacing="0.01em">SOIL STRATIGRAPHY (BS 5930)</text>`;
   
+  const colSlotW = (col1W - 20) / soilCols;
   soilItems.forEach((it, idx) => {
     const c = idx % soilCols;
     const r = Math.floor(idx / soilCols);
-    const itX = card1X + 10 + c * (col1W / soilCols);
-    const itY = legStartY + 38 + r * 26;
-    const swW = 22, swH = 14;
+    const itX = card1X + 10 + c * colSlotW;
+    const itY = legStartY + 38 + r * 24;
+    const swW = 20, swH = 13;
     const clipId = `clip-soil-${idx}`;
-    svg += `<defs><clipPath id="${clipId}"><rect x="${itX}" y="${itY - 10}" width="${swW}" height="${swH}" rx="2"/></clipPath></defs>`;
-    svg += `<rect x="${itX}" y="${itY - 10}" width="${swW}" height="${swH}" fill="${it.color}" stroke="#666" stroke-width="0.7" rx="2"/>`;
-    if (it.patternId) svg += `<rect x="${itX}" y="${itY - 10}" width="${swW}" height="${swH}" fill="url(#${it.patternId})" clip-path="url(#${clipId})" stroke="none" rx="2"/>`;
-    if (it.originPatternId) svg += `<rect x="${itX}" y="${itY - 10}" width="${swW}" height="${swH}" fill="url(#${it.originPatternId})" clip-path="url(#${clipId})" stroke="none" rx="2"/>`;
-    const labelTxt = it.originName ? `${it.label} (${it.originName})` : it.label;
-    svg += `<text x="${itX + swW + 6}" y="${itY}" font-size="8.5" fill="#333333" font-weight="500">${labelTxt}</text>`;
+    svg += `<defs><clipPath id="${clipId}"><rect x="${itX}" y="${itY - 9.5}" width="${swW}" height="${swH}" rx="2"/></clipPath></defs>`;
+    svg += `<rect x="${itX}" y="${itY - 9.5}" width="${swW}" height="${swH}" fill="${it.color}" stroke="#666" stroke-width="0.7" rx="2"/>`;
+    if (it.patternId) svg += `<rect x="${itX}" y="${itY - 9.5}" width="${swW}" height="${swH}" fill="url(#${it.patternId})" clip-path="url(#${clipId})" stroke="none" rx="2"/>`;
+    if (it.originPatternId) svg += `<rect x="${itX}" y="${itY - 9.5}" width="${swW}" height="${swH}" fill="url(#${it.originPatternId})" clip-path="url(#${clipId})" stroke="none" rx="2"/>`;
+    if (it.originName) {
+      const origDisplay = it.originName === 'Completely Weathered Rock' ? 'CWR' : it.originName;
+      svg += `<text x="${itX + swW + 6}" y="${itY}" font-size="8.5" fill="#1e293b" font-weight="600">${it.label} <tspan fill="#64748b" font-weight="500" font-size="7.5">(${origDisplay})</tspan></text>`;
+    } else {
+      svg += `<text x="${itX + swW + 6}" y="${itY}" font-size="8.5" fill="#1e293b" font-weight="600">${it.label}</text>`;
+    }
   });
 
   // Top Card 2: Bedrock Lithology & Weathering
   svg += `<rect x="${card2X}" y="${legStartY}" width="${col2W}" height="${topCardH}" fill="#faf9f6" stroke="#e0dbce" stroke-width="1" rx="5"/>`;
   svg += `<rect x="${card2X}" y="${legStartY}" width="${col2W}" height="24" fill="#eeebe2" stroke="#e0dbce" stroke-width="1" rx="5"/>`;
   svg += `<rect x="${card2X}" y="${legStartY + 18}" width="${col2W}" height="6" fill="#eeebe2" stroke="none"/>`;
-  svg += `<text x="${card2X + 10}" y="${legStartY + 16}" font-size="9.5" font-weight="700" fill="#2c3e50" letter-spacing="0.02em">BEDROCK LITHOLOGY &amp; WEATHERING</text>`;
+  svg += `<text x="${card2X + 10}" y="${legStartY + 16}" font-size="9" font-weight="700" fill="#2c3e50" letter-spacing="0.01em">BEDROCK LITHOLOGY &amp; WEATHERING</text>`;
   
-  let curRockY = legStartY + 40;
-  const rSwW = 32, rSwH = 20;
+  let curRockY = legStartY + 38;
+  const rSwW = 30, rSwH = 18;
   rockLithoItems.forEach((it, idx) => {
-    const rx = card2X + 10, ry = curRockY - 15;
+    const rx = card2X + 10, ry = curRockY - 13.5;
     const clipId = `clip-rock-${idx}`;
     svg += `<defs><clipPath id="${clipId}"><rect x="${rx}" y="${ry}" width="${rSwW}" height="${rSwH}" rx="2"/></clipPath></defs>`;
     svg += `<rect x="${rx}" y="${ry}" width="${rSwW}" height="${rSwH}" fill="#f0eeea" stroke="#555" stroke-width="0.8" rx="2"/>`;
     if (it.patternId) svg += `<rect x="${rx}" y="${ry}" width="${rSwW}" height="${rSwH}" fill="url(#${it.patternId})" clip-path="url(#${clipId})" stroke="none"/>`;
     svg += `<rect x="${rx}" y="${ry}" width="${rSwW}" height="${rSwH}" fill="none" stroke="#555" stroke-width="0.8" rx="2"/>`;
-    svg += `<text x="${rx + rSwW + 6}" y="${curRockY - 3}" font-size="8.5" fill="#333333" font-weight="600">${it.label}</text>`;
-    curRockY += 28;
+    svg += `<text x="${rx + rSwW + 6}" y="${curRockY - 2}" font-size="8.5" fill="#333333" font-weight="600">${it.label}</text>`;
+    curRockY += 26;
   });
 
   if (weatherGradeItems.length) {
@@ -6951,24 +6976,24 @@ function buildProfileSvg(rows, options = {}, arg3 = null, arg4 = null) {
       const c = idx % wCols;
       const r = Math.floor(idx / wCols);
       const itX = card2X + 10 + c * wColW;
-      const itY = curRockY + r * 22;
-      svg += `<rect x="${itX}" y="${itY - 10}" width="16" height="11" fill="${it.color}" stroke="#777" stroke-width="0.6" rx="2"/>`;
-      svg += `<text x="${itX + 20}" y="${itY}" font-size="8" fill="#444444" font-weight="500">${it.label.replace(' Weathered Rock', '').replace(' Rock', '')}</text>`;
+      const itY = curRockY + r * 20;
+      svg += `<rect x="${itX}" y="${itY - 9}" width="15" height="10" fill="${it.color}" stroke="#777" stroke-width="0.6" rx="2"/>`;
+      svg += `<text x="${itX + 19}" y="${itY}" font-size="8" fill="#444444" font-weight="500">${it.label.replace(' Weathered Rock', '').replace(' Rock', '')}</text>`;
     });
   }
 
-  // Top Card 3: Contacts, Features & Hydrology
+  // Top Card 3: Contacts & Features
   svg += `<rect x="${card3X}" y="${legStartY}" width="${col3W}" height="${topCardH}" fill="#faf9f6" stroke="#e0dbce" stroke-width="1" rx="5"/>`;
   svg += `<rect x="${card3X}" y="${legStartY}" width="${col3W}" height="24" fill="#eeebe2" stroke="#e0dbce" stroke-width="1" rx="5"/>`;
   svg += `<rect x="${card3X}" y="${legStartY + 18}" width="${col3W}" height="6" fill="#eeebe2" stroke="none"/>`;
-  svg += `<text x="${card3X + 10}" y="${legStartY + 16}" font-size="9.5" font-weight="700" fill="#2c3e50" letter-spacing="0.02em">${anyBoulders ? 'CONTACTS, FEATURES &amp; HYDROLOGY' : 'CONTACTS &amp; HYDROLOGY'}</text>`;
+  svg += `<text x="${card3X + 10}" y="${legStartY + 16}" font-size="9" font-weight="700" fill="#2c3e50" letter-spacing="0.01em">CONTACTS &amp; FEATURES</text>`;
   
   lineItems.forEach((it, idx) => {
     const itX = card3X + 10;
-    const itY = legStartY + 40 + idx * 26;
+    const itY = legStartY + 38 + idx * 24;
     if (it.isBoulder) {
-      svg += `<ellipse cx="${itX + 14}" cy="${itY - 5}" rx="8.5" ry="5.5" fill="#c4bcaf" stroke="#5a5247" stroke-width="0.9"/>`;
-      svg += `<ellipse cx="${itX + 12.5}" cy="${itY - 6}" rx="4" ry="2.5" fill="#f0ebe1" opacity="0.75"/>`;
+      svg += `<ellipse cx="${itX + 14}" cy="${itY - 5}" rx="8" ry="5" fill="#c4bcaf" stroke="#5a5247" stroke-width="0.9"/>`;
+      svg += `<ellipse cx="${itX + 12.5}" cy="${itY - 6}" rx="3.8" ry="2.3" fill="#f0ebe1" opacity="0.75"/>`;
     } else {
       svg += `<line x1="${itX}" y1="${itY - 5}" x2="${itX + 28}" y2="${itY - 5}" stroke="${it.color}" stroke-width="2" stroke-dasharray="${it.dash}"/>`;
     }
@@ -7241,7 +7266,10 @@ function renderPlanViewLegendCard(rows, distances, sectionAz, offsets, cardX, ca
   const blen = Math.hypot(bdx, bdy) || 1;
   const bnx = -bdy / blen, bny = bdx / blen;
 
-  // Perpendicular projection tie lines & BH points with non-colliding label placement
+  // Process all points and assign to Left or Right side
+  const leftSide = [];
+  const rightSide = [];
+
   pts.forEach((p, pIdx) => {
     const px = toMapX(p.e);
     const py = toMapY(p.n);
@@ -7253,22 +7281,93 @@ function renderPlanViewLegendCard(rows, distances, sectionAz, offsets, cardX, ca
     const projX = toMapX(projE);
     const projY = toMapY(projN);
 
+    // Cross product / signed perpendicular distance from baseline
     const perpDist = (p.e - lineStartE) * uN - (p.n - lineStartN) * uE;
 
+    // Projection tie line
     if (Math.hypot(px - projX, py - projY) > 1.5) {
       svg += `<line x1="${px.toFixed(1)}" y1="${py.toFixed(1)}" x2="${projX.toFixed(1)}" y2="${projY.toFixed(1)}" stroke="#64748b" stroke-width="1" stroke-dasharray="2,1.5"/>`;
     }
 
-    // Offset label perpendicular to baseline, alternating sides for consecutive boreholes
-    const side = (pIdx % 2 === 0) ? -1 : 1;
-    const labelDist = Math.abs(perpDist * scale) > 4 ? 9 : 12;
-    const tx = px + bnx * side * labelDist;
-    const ty = py + bny * side * labelDist + 3;
+    // Determine side:
+    // If point has negative perpDist (or is left-labeled like L-), assign left side
+    // If point has positive perpDist (or is right-labeled like R-), assign right side
+    let side = 0;
+    if (perpDist < -0.15) {
+      side = -1; // Left side
+    } else if (perpDist > 0.15) {
+      side = 1;  // Right side
+    } else if (/[-_]L[-_]?\d+/i.test(p.name)) {
+      side = -1;
+    } else if (/[-_]R[-_]?\d+/i.test(p.name)) {
+      side = 1;
+    } else {
+      side = (pIdx % 2 === 0) ? -1 : 1;
+    }
 
-    svg += `
-      <circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="3.5" fill="#0f172a" stroke="#ffffff" stroke-width="1.2"/>
-      <text x="${tx.toFixed(1)}" y="${ty.toFixed(1)}" font-size="8" font-weight="700" fill="#0f172a" text-anchor="middle" style="paint-order: stroke fill; stroke: #ffffff; stroke-width: 3px; stroke-linejoin: round;">${p.shortName}</text>
-    `;
+    const item = { p, pIdx, px, py, side, origY: py, y: py };
+    if (side === -1) leftSide.push(item);
+    else rightSide.push(item);
+  });
+
+  // Vertical anti-collision relaxation function for a side
+  function relaxSide(sideList, side) {
+    if (!sideList.length) return;
+    // Sort top to bottom by screen Y
+    sideList.sort((a, b) => a.y - b.y);
+
+    const minGap = 13; // Minimum vertical gap between label baselines
+    for (let iter = 0; iter < 12; iter++) {
+      for (let k = 0; k < sideList.length - 1; k++) {
+        const cur = sideList[k];
+        const next = sideList[k + 1];
+        const overlap = (cur.y + minGap) - next.y;
+        if (overlap > 0) {
+          cur.y -= overlap * 0.55;
+          next.y += overlap * 0.55;
+        }
+      }
+    }
+
+    // Clamp inside map card bounds
+    const minY = cardY + 36, maxY = cardY + cardH - 12;
+    sideList.forEach(it => {
+      if (it.y < minY) it.y = minY;
+      if (it.y > maxY) it.y = maxY;
+    });
+
+    // Final forward pass to guarantee minGap
+    for (let k = 0; k < sideList.length - 1; k++) {
+      if (sideList[k + 1].y < sideList[k].y + minGap) {
+        sideList[k + 1].y = sideList[k].y + minGap;
+      }
+    }
+  }
+
+  relaxSide(leftSide, -1);
+  relaxSide(rightSide, 1);
+
+  // Render all points and labels
+  [...leftSide, ...rightSide].forEach(it => {
+    const { p, px, py, side, y } = it;
+    
+    // Label placement
+    const textAnchor = (side < 0) ? 'end' : 'start';
+    const labelOffsetX = (side < 0) ? -8 : 8;
+    const tx = px + labelOffsetX;
+    const ty = y + 2.5;
+
+    // If vertically displaced by more than 3px, draw crisp leader tick
+    if (Math.abs(y - py) > 3) {
+      const leaderX = (side < 0) ? tx + 2 : tx - 2;
+      svg += `<line x1="${px.toFixed(1)}" y1="${py.toFixed(1)}" x2="${leaderX.toFixed(1)}" y2="${(ty - 2.5).toFixed(1)}" stroke="#94a3b8" stroke-width="0.8" stroke-dasharray="1.5,1.5"/>`;
+    }
+
+    // Label with white halo
+    svg += `<text x="${tx.toFixed(1)}" y="${ty.toFixed(1)}" font-size="7.5" font-weight="700" fill="#0f172a" text-anchor="${textAnchor}" style="paint-order: stroke fill; stroke: #ffffff; stroke-width: 2.5px; stroke-linejoin: round;">${p.shortName}</text>`;
+
+    // Borehole circle point (rendered on top)
+    svg += `<circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="3" fill="#0f172a" stroke="#ffffff" stroke-width="1.2"/>`;
   });
 
   return svg;
