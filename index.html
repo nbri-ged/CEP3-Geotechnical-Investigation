@@ -3301,9 +3301,28 @@ function fetchBHProfileLog(){
 
 function getBHTests(rOrName) {
   if (!rOrName) return [];
-  const rawKey = typeof rOrName === 'string' ? rOrName.trim() : (rOrName['BH Name'] || rOrName['BH_ID'] || '').trim();
-  const normKey = cleanBHKey(rawKey);
-  return (profileTestsByBH && (profileTestsByBH[rawKey] || (normKey && profileTestsByBH[normKey]))) || [];
+  if (!profileTestsByBH) return [];
+  if (typeof rOrName === 'string') {
+    const rawKey = rOrName.trim();
+    const normKey = cleanBHKey(rawKey);
+    return profileTestsByBH[rawKey] || (normKey && profileTestsByBH[normKey]) || [];
+  }
+  const candidates = [
+    rOrName['BH Name'],
+    rOrName['PointID'],
+    rOrName['Point ID'],
+    rOrName['BH_ID'],
+    rOrName['BH ID'],
+    rOrName['Old BH ID'],
+    rOrName['New BH ID']
+  ].filter(Boolean).map(s => String(s).trim());
+
+  for (const c of candidates) {
+    if (profileTestsByBH[c]) return profileTestsByBH[c];
+    const norm = cleanBHKey(c);
+    if (norm && profileTestsByBH[norm]) return profileTestsByBH[norm];
+  }
+  return [];
 }
 
 function getBHLayers(rOrName) {
@@ -4557,6 +4576,38 @@ function sortBoreholesByMapPosition(rows) {
   return pts.map(p => p.row);
 }
 
+// Helper to extract or parse highway chainage / stationing from borehole metadata or PointID
+function extractBoreholeChainage(row, bhName) {
+  if (!row && !bhName) return '';
+  const rawCh = row ? (row['Chainage'] || row['Station'] || row['CH'] || row['Chainage (m)'] || row['Distance'] || row['Location'] || '') : '';
+  if (rawCh && String(rawCh).trim()) {
+    const s = String(rawCh).trim();
+    if (s.toLowerCase().startsWith('ch') || s.toLowerCase().startsWith('sta')) return s;
+    const num = parseFloat(s.replace(/[^0-9.]/g, ''));
+    if (!isNaN(num) && num > 0) {
+      const km = Math.floor(num / 1000);
+      const m = Math.round(num % 1000);
+      return `CH ${km}+${String(m).padStart(3, '0')}`;
+    }
+    return `CH ${s}`;
+  }
+  // Try extracting from BH name (e.g., BH-14170-L1 -> CH 14+170, BH-19195-R1 -> CH 19+195)
+  const name = String(bhName || (row ? row['PointID'] || '' : '')).trim();
+  const m5 = name.match(/BH[^\d]*(\d{2})(\d{3})/i);
+  if (m5) {
+    return `CH ${parseInt(m5[1], 10)}+${m5[2]}`;
+  }
+  const m4 = name.match(/BH[^\d]*(\d{1,2})[\-_](\d{3})/i);
+  if (m4) {
+    return `CH ${parseInt(m4[1], 10)}+${m4[2]}`;
+  }
+  const mBr = name.match(/BH[^\d]*BR[^\d]*(\d+)[-_](\d+)/i);
+  if (mBr) {
+    return `BR ${mBr[1]}-${mBr[2]}`;
+  }
+  return '';
+}
+
 function computeProfilePositions(rows){
   const points = rows.map(row => {
     const e = toNum(row['Easting']), n = toNum(row['Northing']);
@@ -5591,20 +5642,50 @@ function buildProfileSvg(rows, options = {}, arg3 = null, arg4 = null) {
   const sectionRockTypes = new Set(dominantRockPerBH);
 
   // ── CATEGORIZE LEGEND DATA INTO STRUCTURED SEMANTIC GROUPS ──
-  // Group 1: Soil Stratigraphy (BS 5930)
+  // Group 1: Soil Stratigraphy (BS 5930) with Unified Origin Texture Overlays
   const soilItems = [];
   masterSoilUnits.forEach((u, uIdx) => {
     if (!masterUnitHasRenderedArea(uIdx)) return;
     const meta = soilUnitMeta[u];
     const info = getGraphicInfo(meta.graphic);
-    if (!soilItems.some(it => it.label === info.label)) {
-      soilItems.push({ label: info.label, color: info.color });
+    let patternId = '';
+    const uUp = (meta.graphic || '').toUpperCase();
+    if (uUp === 'SM' || uUp === 'SP' || uUp === 'SC' || uUp === 'CS' || uUp.includes('SAND')) patternId = 'pat-sand';
+    else if (uUp === 'CL' || uUp === 'CH' || uUp === 'CI' || uUp.includes('CLAY')) patternId = 'pat-clay';
+    else if (uUp === 'GM' || uUp === 'GC' || uUp.includes('GRAVEL')) patternId = 'pat-gravel';
+
+    const originHatch = ORIGIN_HATCH_INFO[originHatchKeyOf(meta.origin)];
+    const originPatternId = originHatch ? originHatch.patternId : '';
+
+    if (!soilItems.some(it => it.label === info.label && it.originPatternId === originPatternId)) {
+      soilItems.push({ 
+        label: info.label, 
+        color: info.color, 
+        patternId, 
+        originPatternId,
+        originName: meta.origin ? formatTitleCase(meta.origin) : ''
+      });
     }
   });
   lensLayers.forEach(lens => {
     const info = getGraphicInfo(lens.graphic);
-    if (!soilItems.some(it => it.label === info.label)) {
-      soilItems.push({ label: info.label, color: info.color });
+    let patternId = '';
+    const uUp = (lens.graphic || '').toUpperCase();
+    if (uUp === 'SM' || uUp === 'SP' || uUp === 'SC' || uUp === 'CS' || uUp.includes('SAND')) patternId = 'pat-sand';
+    else if (uUp === 'CL' || uUp === 'CH' || uUp === 'CI' || uUp.includes('CLAY')) patternId = 'pat-clay';
+    else if (uUp === 'GM' || uUp === 'GC' || uUp.includes('GRAVEL')) patternId = 'pat-gravel';
+
+    const originHatch = ORIGIN_HATCH_INFO[originHatchKeyOf(lens.origin)];
+    const originPatternId = originHatch ? originHatch.patternId : '';
+
+    if (!soilItems.some(it => it.label === info.label && it.originPatternId === originPatternId)) {
+      soilItems.push({ 
+        label: info.label, 
+        color: info.color, 
+        patternId, 
+        originPatternId,
+        originName: lens.origin ? formatTitleCase(lens.origin) : ''
+      });
     }
   });
 
@@ -5726,6 +5807,8 @@ function buildProfileSvg(rows, options = {}, arg3 = null, arg4 = null) {
     return String(str).replace(/[<>&'"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', "'": '&apos;', '"': '&quot;' }[c]));
   }
 
+  const vertExag = ((plotH / elevRange) / ((xFrameRight - xFrameLeft) / distSpan));
+
   // ── TOP TITLE & STRUCTURAL GEOLOGY METADATA BANNER ────────────────────────
   const sectionTitle = (meta.sectionTitle && meta.sectionTitle.trim()) ? meta.sectionTitle.trim() : 'ENGINEERING GEOLOGICAL CROSS-SECTION A — B';
   svg += `<!-- Profile Header Title & Metadata -->
@@ -5736,7 +5819,8 @@ function buildProfileSvg(rows, options = {}, arg3 = null, arg4 = null) {
   <text x="${padLeft}" y="48" font-size="9" font-weight="600" fill="#334155">
     ALIGNMENT AZIMUTH: <tspan font-weight="700" fill="#1e40af">${meta.sectionAzimuth.toFixed(1)}° N</tspan> | 
     FOLIATION: <tspan font-weight="700" fill="#0f766e">Dip Dir ${meta.dipDirection}° N / Dip ${meta.dipAngle}°</tspan> | 
-    APPARENT DIP: <tspan font-weight="800" fill="#b91c1c">${appDip.angle.toFixed(1)}° ${appDip.directionStr}</tspan>
+    APPARENT DIP: <tspan font-weight="800" fill="#b91c1c">${appDip.angle.toFixed(1)}° ${appDip.directionStr}</tspan> | 
+    <tspan font-weight="800" fill="#0d9488">V.E. ${vertExag.toFixed(1)}×</tspan>
   </text>
   <text x="${padLeft}" y="65" font-size="8" fill="#64748b" font-style="italic">
     Method: ${meta.isProjection ? `Section Line Projection (Azimuth ${meta.sectionAzimuth.toFixed(1)}° N)` : 'Sequential Inter-Borehole Profile'} | Total Section Length: ${Math.round(totalDist)} m | Boreholes: ${rows.length}
@@ -5785,6 +5869,26 @@ function buildProfileSvg(rows, options = {}, arg3 = null, arg4 = null) {
     svg += `<line x1="${x.toFixed(1)}" y1="${axisY}" x2="${x.toFixed(1)}" y2="${(axisY + 5).toFixed(1)}" stroke="#3a3a3a" stroke-width="1"/>`;
     svg += `<text x="${x.toFixed(1)}" y="${(axisY + 17).toFixed(1)}" font-size="9" fill="#6b6459" font-weight="500" text-anchor="middle">${Math.round(d)}</text>`;
   }
+
+  // ── GRAPHIC SCALE BAR & SCALE REFERENCE (Engineering standard) ──
+  const scaleBarH_m = distSpan >= 200 ? 50 : (distSpan >= 80 ? 20 : 10);
+  const scaleBarH_px = scaleBarH_m * ((xFrameRight - xFrameLeft) / distSpan);
+  const scaleBarV_m = elevRange >= 40 ? 10 : (elevRange >= 20 ? 5 : 2);
+  const scaleBarV_px = scaleBarV_m * (plotH / elevRange);
+  const sbX = padLeft + 12;
+  const sbY = padTop + plotH - 12;
+
+  svg += `<!-- Engineering Graphic Scale Bar -->
+  <g class="graphic-scale-bar" opacity="0.92">
+    <rect x="${sbX - 6}" y="${sbY - 26}" width="${Math.max(scaleBarH_px + 76, 120)}" height="32" fill="rgba(255,255,255,0.92)" stroke="#cbd5e1" stroke-width="0.8" rx="3"/>
+    <!-- Horizontal scale bar -->
+    <rect x="${sbX}" y="${sbY - 6}" width="${(scaleBarH_px / 2).toFixed(1)}" height="4.5" fill="#1e293b"/>
+    <rect x="${(sbX + scaleBarH_px / 2).toFixed(1)}" y="${sbY - 6}" width="${(scaleBarH_px / 2).toFixed(1)}" height="4.5" fill="#f1f5f9" stroke="#1e293b" stroke-width="0.5"/>
+    <text x="${sbX}" y="${sbY - 10}" font-size="7" font-weight="700" fill="#334155">0</text>
+    <text x="${(sbX + scaleBarH_px).toFixed(1)}" y="${sbY - 10}" font-size="7" font-weight="700" fill="#334155">${scaleBarH_m}m (H)</text>
+    <!-- Vertical scale note -->
+    <text x="${sbX + scaleBarH_px + 8}" y="${sbY - 6}" font-size="6.8" font-weight="700" fill="#0f766e">V: ${scaleBarV_m}m | V.E. ${vertExag.toFixed(1)}×</text>
+  </g>`;
 
   // RENDERING ORDER (Geologically correct, back-to-front painter's algorithm):
   // Step A: Overburden base fill (ground surface down to rockhead) — fills the entire soil zone
@@ -6503,12 +6607,13 @@ function buildProfileSvg(rows, options = {}, arg3 = null, arg4 = null) {
     // ── IN-SITU TESTING & ROCK QUALITY DATA (SPT N-VALUES & RQD BARS) ──
     const tests = getBHTests(r);
     if (tests && tests.length) {
+      let lastRqdY = -999;
       tests.forEach(t => {
         const yTop = yPos(zG - t.depth);
         const yBot = yPos(zG - (t.depth + (t.length || 0.45)));
         const h = Math.max(Math.abs(yBot - yTop), 3.5);
 
-        // 1. SPT N-VALUE CALLOUT (Left side of borehole pillar)
+        // 1. SPT N-VALUE CALLOUT (Left side of borehole pillar with High-Contrast Pill)
         if (opts.showSPT && t.nVal !== null && (t.type === 'SPT' || t.nVal > 0)) {
           const nVal = t.nVal;
           const isRefusal = nVal >= 50;
@@ -6517,13 +6622,19 @@ function buildProfileSvg(rows, options = {}, arg3 = null, arg4 = null) {
           const barX = x - colW / 2 - 2 - barW;
           const barY = yTop;
           // Standard soil density/consistency color-coding
-          const barColor = isRefusal ? '#a82c2c' : (nVal >= 30 ? '#c97a2b' : (nVal >= 10 ? '#3f804f' : '#4a789c'));
+          const barColor = isRefusal ? '#a82c2c' : (nVal >= 30 ? '#c97a2b' : (nVal >= 10 ? '#2e7d32' : '#2563eb'));
+          const calloutTxt = `N=${nTxt}`;
+          const pillW = calloutTxt.length * 5.2 + 8;
+          const pillH = 11;
+          const pillX = barX - 2 - pillW;
+          const pillY = barY + Math.max(h, 4) / 2 - pillH / 2;
 
           svg += `<rect x="${barX.toFixed(1)}" y="${barY.toFixed(1)}" width="${barW.toFixed(1)}" height="${Math.max(h, 4).toFixed(1)}" fill="${barColor}" opacity="0.85" rx="1"/>`;
-          svg += `<text x="${(barX - 2).toFixed(1)}" y="${(barY + Math.max(h, 4) / 2 + 2.8).toFixed(1)}" font-size="7.5" fill="${barColor}" font-weight="700" text-anchor="end">N=${nTxt}</text>`;
+          svg += `<rect x="${pillX.toFixed(1)}" y="${pillY.toFixed(1)}" width="${pillW.toFixed(1)}" height="${pillH}" fill="rgba(255,255,255,0.92)" stroke="${barColor}" stroke-width="0.7" rx="2.5"/>`;
+          svg += `<text x="${(pillX + pillW / 2).toFixed(1)}" y="${(pillY + 8).toFixed(1)}" font-size="7.5" fill="${barColor}" font-weight="800" text-anchor="middle">${calloutTxt}</text>`;
         }
 
-        // 2. RQD & CORE RECOVERY (CR) BARS (Right side of borehole pillar in rock zone)
+        // 2. RQD & CORE RECOVERY (CR) BARS (Right side of borehole pillar in rock zone with High-Contrast Pill)
         if (opts.showRQD && (t.rqd !== null || t.cr !== null) && t.type !== 'SPT') {
           const rqdVal = t.rqd !== null ? t.rqd : 0;
           const crVal = t.cr !== null ? t.cr : 0;
@@ -6535,22 +6646,30 @@ function buildProfileSvg(rows, options = {}, arg3 = null, arg4 = null) {
 
           // RQD Color classification (ISRM / ASTM D6032)
           let rqdColor = '#d9534f'; // <25% Very Poor (Red)
-          if (rqdVal >= 90) rqdColor = '#1e7e34'; // 90-100% Excellent (Dark Green)
-          else if (rqdVal >= 75) rqdColor = '#28a745'; // 75-90% Good (Green)
-          else if (rqdVal >= 50) rqdColor = '#d4a017'; // 50-75% Fair (Amber)
-          else if (rqdVal >= 25) rqdColor = '#e67e22'; // 25-50% Poor (Orange)
+          if (rqdVal >= 90) rqdColor = '#1b5e20'; // 90-100% Excellent (Dark Green)
+          else if (rqdVal >= 75) rqdColor = '#2e7d32'; // 75-90% Good (Green)
+          else if (rqdVal >= 50) rqdColor = '#b45309'; // 50-75% Fair (Amber)
+          else if (rqdVal >= 25) rqdColor = '#d97706'; // 25-50% Poor (Orange)
 
           // Background Core Recovery (CR) track
           if (crVal > 0) {
-            svg += `<rect x="${trackX.toFixed(1)}" y="${barY.toFixed(1)}" width="${crW.toFixed(1)}" height="${Math.max(h, 4).toFixed(1)}" fill="#c2cbd0" stroke="#99a6ad" stroke-width="0.3" opacity="0.6" rx="1"/>`;
+            svg += `<rect x="${trackX.toFixed(1)}" y="${barY.toFixed(1)}" width="${crW.toFixed(1)}" height="${Math.max(h, 4).toFixed(1)}" fill="#cbd5e1" stroke="#94a3b8" stroke-width="0.4" opacity="0.7" rx="1"/>`;
           }
           // Foreground RQD track
           if (rqdVal > 0) {
             svg += `<rect x="${trackX.toFixed(1)}" y="${barY.toFixed(1)}" width="${rqdW.toFixed(1)}" height="${Math.max(h, 4).toFixed(1)}" fill="${rqdColor}" opacity="0.9" rx="1"/>`;
           }
-          // Label
+          // Text pill label (with vertical spacing check to avoid overlap)
           const rqdTxt = `RQD:${Math.round(rqdVal)}%`;
-          svg += `<text x="${(trackX + Math.max(crW, rqdW) + 2).toFixed(1)}" y="${(barY + Math.max(h, 4) / 2 + 2.8).toFixed(1)}" font-size="7" fill="#444444" font-weight="600" text-anchor="start">${rqdTxt}</text>`;
+          const pillW = rqdTxt.length * 4.6 + 6;
+          const pillH = 10;
+          const pillX = trackX + Math.max(crW, rqdW) + 2;
+          let pillY = barY + Math.max(h, 4) / 2 - pillH / 2;
+          if (pillY < lastRqdY + 9) pillY = lastRqdY + 9;
+          lastRqdY = pillY;
+
+          svg += `<rect x="${pillX.toFixed(1)}" y="${pillY.toFixed(1)}" width="${pillW.toFixed(1)}" height="${pillH}" fill="rgba(255,255,255,0.92)" stroke="#cbd5e1" stroke-width="0.6" rx="2"/>`;
+          svg += `<text x="${(pillX + pillW / 2).toFixed(1)}" y="${(pillY + 7.5).toFixed(1)}" font-size="7" fill="${rqdVal > 0 ? rqdColor : '#64748b'}" font-weight="700" text-anchor="middle">${rqdTxt}</text>`;
         }
       });
     }
@@ -6559,7 +6678,8 @@ function buildProfileSvg(rows, options = {}, arg3 = null, arg4 = null) {
     const offVal = (meta.offsets && meta.offsets[i] !== undefined) ? meta.offsets[i] : null;
     const hasOff = offVal !== null && Math.abs(offVal) >= 0.1;
     const offText = hasOff ? `Off: ${offVal >= 0 ? '+' : ''}${offVal.toFixed(1)}m ${offVal >= 0 ? 'R' : 'L'}` : '';
-    bhLabelInfo.push({ x, yG, bhName, glText: `GL ${zG.toFixed(1)}m`, offText });
+    const chText = extractBoreholeChainage(r, bhName);
+    bhLabelInfo.push({ x, yG, bhName, glText: `GL ${zG.toFixed(1)}m`, offText, chText });
 
     // Termination labels ALSO use a deferred vertical-stagger pass (see
     // below, mirrors the BH header label collision-avoidance) — previously
@@ -6579,20 +6699,21 @@ function buildProfileSvg(rows, options = {}, arg3 = null, arg4 = null) {
   // "Collision" is defined as: another label whose X centre is within
   // (boxW/2 + otherBoxW/2 + 6) pixels — i.e. the boxes would touch or overlap.
   {
-    const charW  = 6.3;   // px per char at font-size 10
-    const glCW   = 5.1;   // px per char at font-size 8.5
+    const charW  = 6.3;   // px per char at font-size 9.5
+    const glCW   = 5.1;   // px per char at font-size 8
     const offCW  = 4.8;
     const maxRows = 5;
 
     // placed = array of { x, cx, yTop, boxW }
     const placed = [];
 
-    bhLabelInfo.forEach(({ x, yG, bhName, glText, offText }) => {
+    bhLabelInfo.forEach(({ x, yG, bhName, glText, offText, chText }) => {
       const nameW = bhName.length * charW + 14;
       const glW   = glText.length * glCW  + 10;
       const offW  = offText ? offText.length * offCW + 10 : 0;
-      const boxW  = Math.max(nameW, glW, offW);
-      const boxH  = offText ? 36 : 26;
+      const chW   = chText ? chText.length * glCW + 10 : 0;
+      const boxW  = Math.max(nameW, glW, offW, chW);
+      const boxH  = (offText && chText) ? 44 : ((offText || chText) ? 36 : 26);
       const rowH  = boxH + 6;
       const cx    = x; // always keep same X — vertical only
 
@@ -6636,12 +6757,20 @@ function buildProfileSvg(rows, options = {}, arg3 = null, arg4 = null) {
       // BH Name
       svg += `<text x="${cx.toFixed(1)}" y="${(yTop + 11).toFixed(1)}" font-size="9.5" font-weight="800" fill="#1c2b2a" text-anchor="middle">${bhName}</text>`;
 
+      let nextY = yTop + 22;
+      // Chainage if present
+      if (chText) {
+        svg += `<text x="${cx.toFixed(1)}" y="${nextY.toFixed(1)}" font-size="8" fill="#0f766e" font-weight="700" text-anchor="middle">${chText}</text>`;
+        nextY += 9.5;
+      }
+
       // GL elevation
-      svg += `<text x="${cx.toFixed(1)}" y="${(yTop + 22).toFixed(1)}" font-size="8" fill="#6b6459" font-weight="600" text-anchor="middle">${glText}</text>`;
+      svg += `<text x="${cx.toFixed(1)}" y="${nextY.toFixed(1)}" font-size="8" fill="#6b6459" font-weight="600" text-anchor="middle">${glText}</text>`;
+      nextY += 9.5;
 
       // Offset if present
       if (offText) {
-        svg += `<text x="${cx.toFixed(1)}" y="${(yTop + 31.5).toFixed(1)}" font-size="7.5" fill="#2563eb" font-weight="700" text-anchor="middle">${offText}</text>`;
+        svg += `<text x="${cx.toFixed(1)}" y="${nextY.toFixed(1)}" font-size="7.5" fill="#2563eb" font-weight="700" text-anchor="middle">${offText}</text>`;
       }
     });
   }
@@ -6683,6 +6812,11 @@ function buildProfileSvg(rows, options = {}, arg3 = null, arg4 = null) {
       const yTop = yTerm + 4 + row * rowH;
       placed.push({ x, cx, yTop, boxW });
 
+      // Subtle leader line if pushed down
+      if (row > 0) {
+        svg += `<line x1="${cx.toFixed(1)}" y1="${yTerm.toFixed(1)}" x2="${cx.toFixed(1)}" y2="${yTop.toFixed(1)}" stroke="#b8b2a2" stroke-width="0.8" stroke-dasharray="2,2"/>`;
+      }
+
       svg += `<rect x="${(cx - boxW / 2).toFixed(1)}" y="${yTop.toFixed(1)}" width="${boxW.toFixed(1)}" height="${boxH}" fill="rgba(255, 255, 255, 0.90)" stroke="#b8b2a2" stroke-width="1" rx="3"/>`;
       svg += `<text x="${cx.toFixed(1)}" y="${(yTop + 10.5).toFixed(1)}" font-size="8.5" font-weight="600" fill="#444444" text-anchor="middle">${termText}</text>`;
     });
@@ -6711,12 +6845,14 @@ function buildProfileSvg(rows, options = {}, arg3 = null, arg4 = null) {
     const r = Math.floor(idx / soilCols);
     const itX = card1X + 10 + c * (col1W / soilCols);
     const itY = legStartY + 38 + r * 26;
-    const swW = 20, swH = 13;
+    const swW = 22, swH = 14;
     const clipId = `clip-soil-${idx}`;
     svg += `<defs><clipPath id="${clipId}"><rect x="${itX}" y="${itY - 10}" width="${swW}" height="${swH}" rx="2"/></clipPath></defs>`;
     svg += `<rect x="${itX}" y="${itY - 10}" width="${swW}" height="${swH}" fill="${it.color}" stroke="#666" stroke-width="0.7" rx="2"/>`;
     if (it.patternId) svg += `<rect x="${itX}" y="${itY - 10}" width="${swW}" height="${swH}" fill="url(#${it.patternId})" clip-path="url(#${clipId})" stroke="none" rx="2"/>`;
-    svg += `<text x="${itX + swW + 5}" y="${itY}" font-size="8.5" fill="#333333" font-weight="500">${it.label}</text>`;
+    if (it.originPatternId) svg += `<rect x="${itX}" y="${itY - 10}" width="${swW}" height="${swH}" fill="url(#${it.originPatternId})" clip-path="url(#${clipId})" stroke="none" rx="2"/>`;
+    const labelTxt = it.originName ? `${it.label} (${it.originName})` : it.label;
+    svg += `<text x="${itX + swW + 6}" y="${itY}" font-size="8.5" fill="#333333" font-weight="500">${labelTxt}</text>`;
   });
 
   // Top Card 2: Bedrock Lithology & Weathering
