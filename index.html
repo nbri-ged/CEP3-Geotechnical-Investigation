@@ -3650,10 +3650,34 @@ function buildBoreholeLogSvg(levels, layers, row){
     layers.forEach(layer => {
       const info = getGraphicInfo(layer.graphic);
       const isRock = info.isRock || isRockCode(layer.graphic);
+      const isBld = info.isBoulder || isBoulderCode(layer.graphic);
       const yTop = y0 + Math.min(layer.depth * scale, colH);
       const yBot = y0 + Math.min(layer.bottom * scale, colH);
       const h = Math.max(yBot - yTop, 0.5);
       let fillColor = info.color;
+
+      if (isBld) {
+        // Dedicated Boulder / Corestone Feature Marker in the borehole column
+        const cx = x0 + colW / 2;
+        const cy = (yTop + yBot) / 2;
+        const rx = (colW / 2) - 2.5;
+        const ry = Math.max(Math.min(h / 2 - 1.5, 9), 3.5);
+        svg += `<rect x="${x0}" y="${yTop.toFixed(1)}" width="${colW}" height="${h.toFixed(1)}" fill="#ded8cd" stroke="#5a5247" stroke-width="0.8" rx="2"/>`;
+        svg += `<ellipse cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" rx="${rx.toFixed(1)}" ry="${ry.toFixed(1)}" fill="#b8aea0" stroke="#4a4237" stroke-width="1.0"/>`;
+        svg += `<ellipse cx="${(cx - 2).toFixed(1)}" cy="${(cy - 1).toFixed(1)}" rx="${(rx * 0.5).toFixed(1)}" ry="${(ry * 0.45).toFixed(1)}" fill="#f5f0e6" opacity="0.75"/>`;
+
+        // Format Boulder callout with leader line
+        const midY = (yTop + yBot) / 2;
+        let labelY = Math.max(midY, lastLabelBot + 14);
+        lastLabelBot = labelY + 12;
+
+        svg += `<line x1="${x0+colW}" y1="${midY.toFixed(1)}" x2="${x0+colW+8}" y2="${labelY.toFixed(1)}" stroke="#78716c" stroke-width="0.8" stroke-dasharray="2,2"/>`;
+        svg += `<circle cx="${x0+colW}" cy="${midY.toFixed(1)}" r="1.5" fill="#78716c"/>`;
+        
+        svg += `<text x="${x0+colW+12}" y="${(labelY-2).toFixed(1)}" font-size="8" font-weight="800" fill="#78350f">🪨 Boulder / Corestone Obstruction</text>`;
+        svg += `<text x="${x0+colW+12}" y="${(labelY+7).toFixed(1)}" font-size="7" font-weight="600" fill="#64748b">Isolated Clast (${layer.depth.toFixed(2)}–${layer.bottom.toFixed(2)}m)</text>`;
+        return;
+      }
 
       if (isRock) {
         if (fadeProfile) {
@@ -3784,15 +3808,26 @@ function buildBoreholeLogSvg(levels, layers, row){
 function buildLayerLegendHtml(layers, row){
   if (!layers || !layers.length) return '';
   const seen = {};
+  let hasBoulder = false;
   layers.forEach(l => {
     const info = getGraphicInfo(l.graphic);
-    if (!info.isRock) seen[info.label] = info.color;
+    if (info.isBoulder) {
+      hasBoulder = true;
+    } else if (!info.isRock) {
+      seen[info.label] = info.color;
+    }
   });
   let html = Object.keys(seen).map(label =>
     `<span style="display:inline-flex; align-items:center; gap:3px; margin-right:8px; font-size:10px; color:#6b6459;">
       <span style="width:9px; height:9px; background:${seen[label]}; border:1px solid #999; display:inline-block; border-radius:2px;"></span>${label}
     </span>`
   ).join('');
+
+  if (hasBoulder) {
+    html += `<span style="display:inline-flex; align-items:center; gap:3px; margin-right:8px; font-size:10px; color:#78350f; font-weight:700;">
+      <span style="width:11px; height:8px; background:#b8aea0; border:1px solid #4a4237; display:inline-block; border-radius:3px;"></span>🪨 Boulder / Corestone
+    </span>`;
+  }
   
   const readings = row ? getBHWeathering(row) : null;
   if (readings && readings.length) {
@@ -4715,16 +4750,19 @@ function buildProfileSvg(rows, options = {}, arg3 = null, arg4 = null) {
   // Only merge CONTIGUOUS layers that share BOTH the same Origin Family AND
   // the same BSCS / graphic code (e.g. two consecutive 1.5m SM readings merge
   // into one 3.0m SM layer). Distinct lithology layers (e.g. SM, MG, CS, MS,
-  // SC, CL, BOULDER) are individually preserved with their true logged depths
-  // and elevations, ensuring high-fidelity stratigraphic representation.
+  // SC, CL) are individually preserved with their true logged depths and
+  // elevations. Boulders/Corestones are decoupled from layer merging and
+  // treated strictly as borehole column feature markers.
   const layersArr = rawLayersArr.map(layers => {
     if (!layers || !layers.length) return layers;
     const merged = [];
     layers.forEach(l => {
       const info = getGraphicInfo(l.graphic);
-      const fam = info.isRock ? null : originFamilyOf(l.origin);
+      const isBld = info.isBoulder || isBoulderCode(l.graphic);
+      const isRk = info.isRock || isRockCode(l.graphic);
+      const fam = (isRk || isBld) ? null : originFamilyOf(l.origin);
       const last = merged[merged.length - 1];
-      if (!info.isRock && last && !last.isRockBlock && last.originFamily === fam && (last.graphic || '').trim() === (l.graphic || '').trim() && Math.abs(last.bottom - l.depth) < 0.01) {
+      if (!isRk && !isBld && last && !last.isRockBlock && !last.isBoulder && last.originFamily === fam && (last.graphic || '').trim() === (l.graphic || '').trim() && Math.abs(last.bottom - l.depth) < 0.01) {
         last.bottom = l.bottom;
         last.subLayers.push(l);
       } else {
@@ -4735,7 +4773,8 @@ function buildProfileSvg(rows, options = {}, arg3 = null, arg4 = null) {
           origin: l.origin,
           consistency: l.consistency,
           originFamily: fam,
-          isRockBlock: info.isRock,
+          isRockBlock: isRk,
+          isBoulder: isBld,
           subLayers: [l]
         });
       }
@@ -4748,7 +4787,7 @@ function buildProfileSvg(rows, options = {}, arg3 = null, arg4 = null) {
     if (!layers) return;
     const seenCount = {};
     layers.forEach(l => {
-      if (l.isRockBlock) return;
+      if (l.isRockBlock || l.isBoulder) return;
       const baseKey = (l.originFamily || 'residual') + '||' + (l.graphic || '').trim();
       seenCount[baseKey] = (seenCount[baseKey] || 0) + 1;
       l.occIndex = seenCount[baseKey];
@@ -4848,46 +4887,19 @@ function buildProfileSvg(rows, options = {}, arg3 = null, arg4 = null) {
     return idx !== -1 ? idx : 50;
   }
 
-  // Compound "master unit" key (see GEOLOGICAL RULES rule 1/2). Always
-  // origin-family + BSCS graphic — two layers only ever share a slot (and
-  // therefore only ever interpolate) if BOTH match. This means a connected
-  // multi-origin unit (rule 7b: e.g. Alluvium judged continuous across
-  // several boreholes via sub-layer overlap) still SPLITS into one slot per
-  // distinct BSCS code it contains, exactly the same way Residual's own
-  // internal BSCS variation does — each code pinches in/out independently
-  // rather than being merged into a single "thickest code wins" block. (An
-  // earlier version special-cased connected lens-family blocks into one
-  // combined ||__connected__ slot per family; that hid real material
-  // differences between boreholes — e.g. a genuine thick clay zone at one
-  // borehole was invisible, absorbed into a neighbour's colour — and has
-  // been reverted in favour of this simpler, Residual-consistent approach.)
   function unitKey(layerLike, originFamily) {
     const graphic = typeof layerLike === 'string' ? layerLike : (layerLike ? layerLike.graphic : '');
     const occ = (layerLike && layerLike.occIndex && layerLike.occIndex > 1) ? `#${layerLike.occIndex}` : '';
     return originFamily + '||' + (graphic || '').trim() + occ;
   }
 
-  // ---- CONNECTIVITY CHECK (corrected rule 3, refined per rule 7b below): a
-  // merged Origin block is only rendered as an isolated LENS if NO merged
-  // block at EITHER adjacent borehole shares the same origin family AND at
-  // least one overlapping sub-layer BSCS code. We deliberately do NOT
-  // require the two blocks' "thickest" representative codes to match exactly
-  // — two occurrences of what's really the same continuous deposit can each
-  // have a different DOMINANT grain size (e.g. one location happens to have
-  // slightly more silt, the other slightly more clay) while still clearly
-  // being the same sheet, evidenced by sharing at least one common BSCS
-  // reading somewhere in their logged column. Requiring an exact
-  // representative-code match was too strict and incorrectly isolated
-  // deposits that should connect (see rule 7b). The merged block still
-  // RENDERS as one shape using its own thickest sub-layer's colour — only
-  // the connectivity DECISION uses the looser any-sub-layer-overlap test.
   function hasMatchingNeighborBlock(bhIdx, family, subLayerCodes) {
     const neighbors = [bhIdx - 1, bhIdx + 1].filter(j => j >= 0 && j < rows.length);
     return neighbors.some(j => {
       const layers = layersArr[j];
       if (!layers) return false;
       return layers.some(l => {
-        if (l.isRockBlock || l.originFamily !== family) return false;
+        if (l.isRockBlock || l.isBoulder || l.originFamily !== family) return false;
         const neighborCodes = new Set((l.subLayers || [l]).map(sl => (sl.graphic || '').trim()));
         return subLayerCodes.some(code => neighborCodes.has(code));
       });
@@ -4900,7 +4912,7 @@ function buildProfileSvg(rows, options = {}, arg3 = null, arg4 = null) {
   layersArr.forEach((layers, i) => {
     if (!layers) return;
     layers.forEach(l => {
-      if (l.isRockBlock) { l.isLens = false; return; }
+      if (l.isRockBlock || l.isBoulder) { l.isLens = false; return; }
       const isLensFamily = LENS_ORIGIN_FAMILIES.has(l.originFamily);
       const ownCodes = (l.subLayers || [l]).map(sl => (sl.graphic || '').trim());
       l.isLens = isLensFamily && !hasMatchingNeighborBlock(i, l.originFamily, ownCodes);
@@ -4909,24 +4921,19 @@ function buildProfileSvg(rows, options = {}, arg3 = null, arg4 = null) {
 
   // Master soil units (tabular system) now include any lens-family block
   // that turned out to be CONNECTED to a neighbour (rule 3 corrected) —
-  // only genuinely isolated blocks (l.isLens === true) are excluded here
-  // and handled by the separate lens pass below.
+  // only genuinely isolated blocks (l.isLens === true) and boulders are excluded here.
   const soilUnitKeySet = new Set();
   const soilUnitMeta = {}; // unitKey -> { graphic, originFamily }
   const unitDepths = {}; // unitKey -> [normalizedTopDepth]
   layersArr.forEach((layers) => {
     if (layers && layers.length) {
-      const nonRock = layers.filter(l => !l.isRockBlock);
-      const totalSoil = nonRock.length ? Math.max(...nonRock.map(l => l.bottom)) : 10;
+      const nonRockSoil = layers.filter(l => !l.isRockBlock && !l.isBoulder);
+      const totalSoil = nonRockSoil.length ? Math.max(...nonRockSoil.map(l => l.bottom)) : 10;
       layers.forEach(l => {
-        if (l.isRockBlock) return;
+        if (l.isRockBlock || l.isBoulder) return;
         if (l.isLens) return; // handled by lens pass, not tabular
         const key = unitKey(l, l.originFamily);
         soilUnitKeySet.add(key);
-        // Keep the FIRST graphic seen for this key as the representative for
-        // legend/base-colour purposes; a connected-lens key intentionally
-        // groups blocks that may have different representative graphics
-        // across boreholes, so this is necessarily just one illustrative pick.
         if (!soilUnitMeta[key]) soilUnitMeta[key] = { graphic: (l.graphic || '').trim(), originFamily: l.originFamily, origin: l.origin };
         if (!unitDepths[key]) unitDepths[key] = [];
         unitDepths[key].push(l.depth / (totalSoil || 1));
@@ -4940,21 +4947,6 @@ function buildProfileSvg(rows, options = {}, arg3 = null, arg4 = null) {
   });
 
   // ---- ORIGIN-FAMILY STACKING PRIORITY (rule 9) ----
-  // getGraphicRank alone is NOT sufficient to order master units: it ranks by
-  // BSCS/material code only, with no awareness of depositional Origin. Two
-  // units with the same or similar BSCS code can belong to totally different
-  // origins that MUST stack in a fixed natural order regardless of which
-  // BSCS code either one happens to be represented by (e.g. a connected
-  // Alluvium block might end up represented by "SC" while a Residual block
-  // at the same borehole is represented by "SM" — if SM ranks earlier than
-  // SC in GraphicHierarchy, a BSCS-only sort would incorrectly place
-  // Residual ABOVE Alluvium, which is geologically backwards: Alluvium is a
-  // surface/transported deposit and can never sit beneath in-situ Residual
-  // soil). originFamilyStackPriority fixes this by sorting on ORIGIN FAMILY
-  // PRIORITY first, and only using BSCS rank as a tiebreaker WITHIN the same
-  // family. This was a real bug, not a design choice — found via the
-  // bhCumBoundaries dump showing Alluvium's boundary slot placed below (not
-  // above) a Residual slot at two of three test boreholes.
   function originFamilyStackPriority(family) {
     if (family === 'made_ground') return 0;   // human-placed fill, always at/near surface
     if (family === 'alluvium') return 1;      // transported, surface/near-surface deposit
@@ -4997,21 +4989,30 @@ function buildProfileSvg(rows, options = {}, arg3 = null, arg4 = null) {
 
     const unitMap = {};
     if (layers && layers.length) {
-      // Tabular soil layers = everything NOT rock and NOT tagged as an
-      // isolated lens (see connectivity check above).
-      const soilLayers = layers.filter(l => !l.isRockBlock && !l.isLens);
-      // Depth-normalize against the FULL logged column (including any lens
-      // layers we're excluding here) so tabular units still sit at their
-      // true elevation — only their CONNECTIVITY across boreholes changes,
-      // not their position within this borehole's own column.
-      const allNonRockLayers = layers.filter(l => !l.isRockBlock);
+      // Tabular soil layers = everything NOT rock, NOT boulder, and NOT tagged as an isolated lens
+      const soilLayers = layers.filter(l => !l.isRockBlock && !l.isBoulder && !l.isLens);
+      const allNonRockLayers = layers.filter(l => !l.isRockBlock && !l.isBoulder);
       const totalSoilDepth = allNonRockLayers.length ? Math.max(...allNonRockLayers.map(l => l.bottom)) : overburden;
       const scaleToOverburden = totalSoilDepth > 0 ? (1.0 / totalSoilDepth) : (1.0 / overburden);
 
-      soilLayers.forEach(l => {
+      for (let sIdx = 0; sIdx < soilLayers.length; sIdx++) {
+        const l = soilLayers[sIdx];
         const key = unitKey(l, l.originFamily);
-        const fTop = Math.min(Math.max(l.depth * scaleToOverburden, 0), 1.0);
-        const fBot = Math.min(Math.max(l.bottom * scaleToOverburden, 0), 1.0);
+        let effTop = l.depth;
+        let effBot = l.bottom;
+        // If there is a preceding gap (e.g. from an embedded boulder above), bridge up to previous soil bottom or 0
+        if (sIdx === 0 && effTop > 0) {
+          effTop = 0;
+        } else if (sIdx > 0 && effTop > soilLayers[sIdx - 1].bottom) {
+          effTop = soilLayers[sIdx - 1].bottom;
+        }
+        // If there is a following gap before next soil layer, extend effBot to next soil layer top
+        if (sIdx < soilLayers.length - 1 && effBot < soilLayers[sIdx + 1].depth) {
+          effBot = soilLayers[sIdx + 1].depth;
+        }
+
+        const fTop = Math.min(Math.max(effTop * scaleToOverburden, 0), 1.0);
+        const fBot = Math.min(Math.max(effBot * scaleToOverburden, 0), 1.0);
         if (!unitMap[key]) {
           unitMap[key] = { fTop, fBot };
         } else {
@@ -5019,7 +5020,7 @@ function buildProfileSvg(rows, options = {}, arg3 = null, arg4 = null) {
           unitMap[key].fTop = Math.min(unitMap[key].fTop, fTop);
           unitMap[key].fBot = Math.max(unitMap[key].fBot, fBot);
         }
-      });
+      }
     } else {
       unitMap[unitKey('Overburden (soil)', 'unknown')] = { fTop: 0.0, fBot: 1.0 };
     }
@@ -6586,11 +6587,18 @@ function buildProfileSvg(rows, options = {}, arg3 = null, arg4 = null) {
         const yBot = yPos(zG - l.bottom);
         const h = Math.max(yBot - yTop, 0.4);
 
-        if (info.isBoulder) {
+        if (info.isBoulder || l.isBoulder) {
           // Dedicated Boulder / Corestone symbol on the borehole pillar
-          svg += `<rect x="${(x - colW / 2).toFixed(1)}" y="${yTop.toFixed(1)}" width="${colW.toFixed(1)}" height="${h.toFixed(1)}" fill="#c4bcaf" stroke="#5a5247" stroke-width="0.8" rx="3"/>`;
-          svg += `<ellipse cx="${x.toFixed(1)}" cy="${((yTop + yBot)/2).toFixed(1)}" rx="${(colW/2 - 2).toFixed(1)}" ry="${(Math.min(h/2 - 1, 4)).toFixed(1)}" fill="#ded8cd" stroke="#5a5247" stroke-width="0.6"/>`;
-          svg += `<text x="${(x + colW/2 + 3).toFixed(1)}" y="${((yTop + yBot)/2 + 2.5).toFixed(1)}" font-size="6.5" font-weight="700" fill="#7a6248">Boulder</text>`;
+          const bldH = Math.max(yBot - yTop, 4);
+          const bldMidY = (yTop + yBot) / 2;
+          const cx = x;
+          const rx = Math.max(colW / 2 - 1.5, 3);
+          const ry = Math.max(Math.min(bldH / 2 - 1, 5.5), 2.5);
+
+          svg += `<rect x="${(x - colW / 2).toFixed(1)}" y="${yTop.toFixed(1)}" width="${colW.toFixed(1)}" height="${bldH.toFixed(1)}" fill="#ded8cd" stroke="#5a5247" stroke-width="0.8" rx="2"/>`;
+          svg += `<ellipse cx="${cx.toFixed(1)}" cy="${bldMidY.toFixed(1)}" rx="${rx.toFixed(1)}" ry="${ry.toFixed(1)}" fill="#c4bcaf" stroke="#4a4237" stroke-width="0.8"/>`;
+          svg += `<ellipse cx="${(cx - 1.5).toFixed(1)}" cy="${(bldMidY - 0.8).toFixed(1)}" rx="${(rx * 0.5).toFixed(1)}" ry="${(ry * 0.45).toFixed(1)}" fill="#f0ebe1" opacity="0.65"/>`;
+          svg += `<text x="${(x + colW / 2 + 3).toFixed(1)}" y="${(bldMidY + 2.5).toFixed(1)}" font-size="6.8" font-weight="800" fill="#78350f">🪨 Boulder</text>`;
           return;
         }
 
@@ -6949,17 +6957,18 @@ function buildProfileSvg(rows, options = {}, arg3 = null, arg4 = null) {
     });
   }
 
-  // Top Card 3: Contacts & Hydrology
+  // Top Card 3: Contacts, Features & Hydrology
   svg += `<rect x="${card3X}" y="${legStartY}" width="${col3W}" height="${topCardH}" fill="#faf9f6" stroke="#e0dbce" stroke-width="1" rx="5"/>`;
   svg += `<rect x="${card3X}" y="${legStartY}" width="${col3W}" height="24" fill="#eeebe2" stroke="#e0dbce" stroke-width="1" rx="5"/>`;
   svg += `<rect x="${card3X}" y="${legStartY + 18}" width="${col3W}" height="6" fill="#eeebe2" stroke="none"/>`;
-  svg += `<text x="${card3X + 10}" y="${legStartY + 16}" font-size="9.5" font-weight="700" fill="#2c3e50" letter-spacing="0.02em">CONTACTS &amp; HYDROLOGY</text>`;
+  svg += `<text x="${card3X + 10}" y="${legStartY + 16}" font-size="9.5" font-weight="700" fill="#2c3e50" letter-spacing="0.02em">${anyBoulders ? 'CONTACTS, FEATURES &amp; HYDROLOGY' : 'CONTACTS &amp; HYDROLOGY'}</text>`;
   
   lineItems.forEach((it, idx) => {
     const itX = card3X + 10;
     const itY = legStartY + 40 + idx * 26;
     if (it.isBoulder) {
-      svg += `<ellipse cx="${itX + 14}" cy="${itY - 5}" rx="8.5" ry="5.5" fill="#ded8cd" stroke="#7a6248" stroke-width="0.9"/>`;
+      svg += `<ellipse cx="${itX + 14}" cy="${itY - 5}" rx="8.5" ry="5.5" fill="#c4bcaf" stroke="#5a5247" stroke-width="0.9"/>`;
+      svg += `<ellipse cx="${itX + 12.5}" cy="${itY - 6}" rx="4" ry="2.5" fill="#f0ebe1" opacity="0.75"/>`;
     } else {
       svg += `<line x1="${itX}" y1="${itY - 5}" x2="${itX + 28}" y2="${itY - 5}" stroke="${it.color}" stroke-width="2" stroke-dasharray="${it.dash}"/>`;
     }
