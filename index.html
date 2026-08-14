@@ -1327,11 +1327,114 @@
     max-width: 380px;
     animation: slideInToast 0.3s cubic-bezier(0.16, 1, 0.3, 1);
   }
-  .app-toast.success { border-left-color: #10b981; }
-  .app-toast.warning { border-left-color: #f59e0b; }
-  @keyframes slideInToast {
-    from { transform: translateX(50px); opacity: 0; }
-    to { transform: translateX(0); opacity: 1; }
+  /* ── CAD DXF EXPORT OPTIONS MODAL ── */
+  #dxf-modal-backdrop {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.75);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    z-index: 3500;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    animation: fadeInModal 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  #dxf-modal-backdrop.open {
+    display: flex;
+  }
+  #dxf-modal {
+    background: #ffffff;
+    border-radius: var(--radius-lg);
+    box-shadow: 0 25px 60px -15px rgba(15, 23, 42, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.2);
+    width: 95%;
+    max-width: 680px;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    animation: scaleInModal 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .dxf-header {
+    background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+    color: #ffffff;
+    padding: 16px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  }
+  .dxf-title {
+    font-size: 15px;
+    font-weight: 800;
+    letter-spacing: -0.01em;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .dxf-body {
+    padding: 20px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    font-size: 12px;
+  }
+  .dxf-section {
+    background: #f8fafc;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md);
+    padding: 14px 16px;
+  }
+  .dxf-section-title {
+    font-size: 12.5px;
+    font-weight: 800;
+    color: var(--ink);
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .dxf-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 8px 14px;
+  }
+  .dxf-checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--slate-700);
+    cursor: pointer;
+    user-select: none;
+    font-weight: 600;
+  }
+  .dxf-checkbox-label input[type="checkbox"], .dxf-checkbox-label input[type="radio"] {
+    accent-color: var(--brand-teal);
+    width: 15px;
+    height: 15px;
+    cursor: pointer;
+  }
+  .dxf-layer-pill {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    background: #e2e8f0;
+    color: #334155;
+    margin-left: auto;
+    font-weight: 700;
+  }
+  .dxf-footer {
+    padding: 14px 20px;
+    background: #f8fafc;
+    border-top: 1px solid var(--line);
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 10px;
   }
 </style>
 </head>
@@ -1511,7 +1614,7 @@
       <div style="display: flex; gap: 6px; align-items: center; flex-wrap: nowrap;">
         <button onclick="downloadProfilePNG()" title="Download PNG" class="kml-btn" style="padding: 4px 9px; font-size: 11px; background: #2e7d6e; color: #fff; border: none; border-radius: var(--radius-sm); cursor: pointer;">🖼 PNG</button>
         <button onclick="downloadProfileSVG()" title="Download SVG" class="kml-btn" style="padding: 4px 9px; font-size: 11px; background: #4a6572; color: #fff; border: none; border-radius: var(--radius-sm); cursor: pointer;">⚡ SVG</button>
-        <button onclick="exportProfileToDXF()" title="Download DXF (CAD)" class="kml-btn" style="padding: 4px 9px; font-size: 11px; background: #27ae60; color: #fff; border: none; border-radius: var(--radius-sm); cursor: pointer;">📐 DXF (CAD)</button>
+        <button onclick="openDxfExportModal()" title="Export to AutoCAD / Civil 3D DXF (Vector CAD with Layers, Hatches & Test Data)" class="kml-btn" style="padding: 4px 9px; font-size: 11px; background: #27ae60; color: #fff; border: none; border-radius: var(--radius-sm); cursor: pointer;">📐 DXF (CAD)</button>
         <div style="display: flex; gap: 3px; align-items: center; background: #7d3c98; border-radius: var(--radius-sm); padding: 3px 6px;">
           <span style="font-size: 10px; color: #e8d5f5; font-weight: 700; white-space: nowrap;">📄 PDF:</span>
           <button onclick="downloadProfilePDF('a4')" title="A4 Landscape PDF" style="padding: 2px 8px; font-size: 11px; font-weight: 700; background: #8e44ad; color: #fff; border: none; border-radius: 3px; cursor: pointer;">A4 ↔</button>
@@ -1613,6 +1716,150 @@
     </div>
 
     <div id="profile-modal-body"></div>
+  </div>
+</div>
+
+<!-- ── CAD DXF EXPORT OPTIONS MODAL ── -->
+<div id="dxf-modal-backdrop" onclick="if(event.target===this) closeDxfModal()">
+  <div id="dxf-modal" role="dialog" aria-modal="true" aria-labelledby="dxf-title-id">
+    <div class="dxf-header">
+      <div class="dxf-title" id="dxf-title-id">
+        <span>📐 AutoCAD / Civil 3D DXF Export Studio</span>
+      </div>
+      <button class="vmodal-close-btn" onclick="closeDxfModal()" title="Close">&times;</button>
+    </div>
+    
+    <div class="dxf-body">
+      <!-- Section 1: Subsurface Strata & Boundary Lines -->
+      <div class="dxf-section">
+        <div class="dxf-section-title">
+          <span>📐 Subsurface Strata &amp; Contact Lines</span>
+        </div>
+        <div class="dxf-grid">
+          <label class="dxf-checkbox-label">
+            <input type="checkbox" id="dxf-opt-ground" checked>
+            <span>Ground Surface Profile Line</span>
+            <span class="dxf-layer-pill">GEOL_GROUND</span>
+          </label>
+          <label class="dxf-checkbox-label">
+            <input type="checkbox" id="dxf-opt-rockhead" checked>
+            <span>Rockhead (Bedrock Contact)</span>
+            <span class="dxf-layer-pill">GEOL_ROCKHEAD</span>
+          </label>
+          <label class="dxf-checkbox-label">
+            <input type="checkbox" id="dxf-opt-soil-lines" checked>
+            <span>Soil Stratigraphy &amp; Pinch-outs</span>
+            <span class="dxf-layer-pill">GEOL_SOIL_STRATA</span>
+          </label>
+          <label class="dxf-checkbox-label">
+            <input type="checkbox" id="dxf-opt-rock-lines" checked>
+            <span>Dipping Bedrock Horizons</span>
+            <span class="dxf-layer-pill">GEOL_BEDROCK</span>
+          </label>
+          <label class="dxf-checkbox-label">
+            <input type="checkbox" id="dxf-opt-origin-lines" checked>
+            <span>Soil Origin Transition Lines</span>
+            <span class="dxf-layer-pill">GEOL_ORIGIN_BOUND</span>
+          </label>
+          <label class="dxf-checkbox-label">
+            <input type="checkbox" id="dxf-opt-gwt" checked>
+            <span>Groundwater Table (GWT) Line</span>
+            <span class="dxf-layer-pill">GEOL_GWT</span>
+          </label>
+        </div>
+      </div>
+
+      <!-- Section 2: Fills, Hatches & Color Codes -->
+      <div class="dxf-section">
+        <div class="dxf-section-title">
+          <span>🎨 Hatches, Fills &amp; Color Coding</span>
+        </div>
+        <div class="dxf-grid">
+          <label class="dxf-checkbox-label">
+            <input type="checkbox" id="dxf-opt-soil-hatches" checked>
+            <span>BS 5930 Soil Hatches (Sand/Clay/Gravel)</span>
+            <span class="dxf-layer-pill">GEOL_HATCH_SOIL</span>
+          </label>
+          <label class="dxf-checkbox-label">
+            <input type="checkbox" id="dxf-opt-rock-hatches" checked>
+            <span>Bedrock Foliation &amp; Lithology Hatches</span>
+            <span class="dxf-layer-pill">GEOL_HATCH_ROCK</span>
+          </label>
+          <label class="dxf-checkbox-label">
+            <input type="checkbox" id="dxf-opt-truecolor" checked>
+            <span>24-bit TrueColor RGB &amp; ACI Codes</span>
+            <span class="dxf-layer-pill">TRUECOLOR 420</span>
+          </label>
+          <label class="dxf-checkbox-label">
+            <input type="checkbox" id="dxf-opt-cwr-hatches" checked>
+            <span>CWR Grade V Transition Hatch Overlay</span>
+            <span class="dxf-layer-pill">GEOL_HATCH_CWR</span>
+          </label>
+        </div>
+      </div>
+
+      <!-- Section 3: Geotechnical In-Situ Test Data -->
+      <div class="dxf-section">
+        <div class="dxf-section-title">
+          <span>📊 In-Situ Geotechnical Test Data</span>
+        </div>
+        <div class="dxf-grid">
+          <label class="dxf-checkbox-label">
+            <input type="checkbox" id="dxf-opt-spt" checked>
+            <span>SPT N-Value Columns &amp; Text Annotations</span>
+            <span class="dxf-layer-pill">GEOL_SPT_DATA</span>
+          </label>
+          <label class="dxf-checkbox-label">
+            <input type="checkbox" id="dxf-opt-rqd" checked>
+            <span>RQD % &amp; Core Recovery (CR %) Bars</span>
+            <span class="dxf-layer-pill">GEOL_RQD_DATA</span>
+          </label>
+          <label class="dxf-checkbox-label">
+            <input type="checkbox" id="dxf-opt-pillars" checked>
+            <span>Borehole Core Pillars &amp; Depth Ranges</span>
+            <span class="dxf-layer-pill">GEOL_BOREHOLES</span>
+          </label>
+        </div>
+      </div>
+
+      <!-- Section 4: Grid, Dimensions & Drawing Scale -->
+      <div class="dxf-section">
+        <div class="dxf-section-title">
+          <span>📏 Dimensions, Grid &amp; Drawing Scale</span>
+        </div>
+        <div class="dxf-grid" style="margin-bottom: 12px;">
+          <label class="dxf-checkbox-label">
+            <input type="checkbox" id="dxf-opt-grid" checked>
+            <span>Elevation &amp; Chainage Dimension Grid</span>
+            <span class="dxf-layer-pill">GEOL_GRID_AXIS</span>
+          </label>
+          <label class="dxf-checkbox-label">
+            <input type="checkbox" id="dxf-opt-titleblock" checked>
+            <span>Title Block &amp; Structural Geology Info</span>
+            <span class="dxf-layer-pill">GEOL_TITLEBLOCK</span>
+          </label>
+        </div>
+
+        <div style="font-weight: 700; color: var(--slate-800); margin-bottom: 6px; font-size: 11.5px;">CAD Coordinate Scale:</div>
+        <div style="display: flex; gap: 16px; flex-wrap: wrap;">
+          <label class="dxf-checkbox-label">
+            <input type="radio" name="dxf-scale-choice" value="1" checked>
+            <span>1:1 Natural Scale (1 unit = 1m, Civil 3D Alignment)</span>
+          </label>
+          <label class="dxf-checkbox-label">
+            <input type="radio" name="dxf-scale-choice" value="ve">
+            <span>Exaggerated Scale (Vertical Exaggeration multiplier)</span>
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <div class="dxf-footer">
+      <button class="kml-btn" onclick="closeDxfModal()" style="padding: 7px 14px; font-size: 12px;">Cancel</button>
+      <button onclick="executeDxfExport()" class="kml-btn" style="background: linear-gradient(135deg, #059669, #10b981); color: #ffffff; font-weight: 800; border: none; padding: 7px 18px; font-size: 12px; box-shadow: var(--shadow-sm);">
+        🚀 Generate &amp; Download DXF
+      </button>
+    </div>
   </div>
 </div>
 
@@ -2135,7 +2382,27 @@ function forceHardRefreshAndPurge() {
   }, 400);
 }
 
+/* ── AUTO REFRESH CACHE ON FILE OPEN ── */
+function autoRefreshCacheOnStartup() {
+  try {
+    sessionStorage.clear();
+    // Clear temporary data cache keys to guarantee fresh dataset parsing on startup
+    const tempKeys = ['nbri_dates_cache', 'nbri_cache_timestamp'];
+    tempKeys.forEach(k => localStorage.removeItem(k));
+    if ('caches' in window) {
+      caches.keys().then(names => { names.forEach(n => caches.delete(n)); }).catch(() => {});
+    }
+    console.log('[NBRI System] Cache memory automatically refreshed on startup.');
+    setTimeout(() => {
+      showAppToast('⚡ Fresh Cache Synchronized', 'Real-time dataset connection established with live cache busting.', 'info', 3500);
+    }, 1200);
+  } catch(e) {
+    console.warn('[NBRI System] Auto-refresh cache note:', e);
+  }
+}
+
 checkAppVersionAndClearCache();
+autoRefreshCacheOnStartup();
 
 /* ============================================================
    CONFIG
@@ -4890,6 +5157,65 @@ let profileOptions = {
   showRoughRockhead: false
 };
 
+function originFamilyStackPriority(family) {
+  if (family === 'made_ground') return 0;   // human-placed fill, always at/near surface
+  if (family === 'alluvium') return 1;      // transported, surface/near-surface deposit
+  if (family === 'colluvium') return 1;     // transported, surface/near-surface deposit
+  if (family === 'unknown') return 2;       // unclassified soil — treated as ordinary overburden
+  if (family === 'residual') return 3;      // in-situ weathering profile (Residual + CWR)
+  return 2; // any other named origin (Aeolian, Estuarine, etc.)
+}
+
+// Monotonic Piecewise Cubic Hermite Interpolating Polynomial (PCHIP)
+// Preserves monotonicity between data points to prevent unphysical overshoots or artificial bedrock spires
+function interpolateSpline(points, xTarget) {
+  if (!points || !points.length) return 0;
+  if (points.length === 1) return points[0].y;
+  if (xTarget <= points[0].x) return points[0].y;
+  if (xTarget >= points[points.length - 1].x) return points[points.length - 1].y;
+
+  const n = points.length;
+  const h = [];
+  const delta = [];
+  for (let i = 0; i < n - 1; i++) {
+    const dx = points[i + 1].x - points[i].x;
+    h.push(dx);
+    delta.push(dx > 1e-6 ? (points[i + 1].y - points[i].y) / dx : 0);
+  }
+
+  const d = new Array(n);
+  d[0] = delta[0];
+  d[n - 1] = delta[n - 2];
+
+  for (let i = 1; i < n - 1; i++) {
+    if (delta[i - 1] * delta[i] <= 0) {
+      d[i] = 0; // Local extremum: tangent set flat to prevent overshoot
+    } else {
+      const w1 = 2 * h[i] + h[i - 1];
+      const w2 = h[i] + 2 * h[i - 1];
+      d[i] = (w1 + w2) / (w1 / delta[i - 1] + w2 / delta[i]);
+    }
+  }
+
+  for (let i = 0; i < n - 1; i++) {
+    if (xTarget >= points[i].x && xTarget <= points[i + 1].x) {
+      const dx = h[i];
+      if (dx <= 1e-6) return points[i].y;
+      const t = (xTarget - points[i].x) / dx;
+      const t2 = t * t;
+      const t3 = t2 * t;
+
+      const h00 = 2 * t3 - 3 * t2 + 1;
+      const h10 = t3 - 2 * t2 + t;
+      const h01 = -2 * t3 + 3 * t2;
+      const h11 = t3 - t2;
+
+      return h00 * points[i].y + h10 * dx * d[i] + h01 * points[i + 1].y + h11 * dx * d[i + 1];
+    }
+  }
+  return points[points.length - 1].y;
+}
+
 function detectBHTrendAzimuth(rows) {
   if (!rows || rows.length < 2) return 45.0;
   const sorted = sortBoreholesByMapPosition(rows);
@@ -5131,167 +5457,256 @@ function buildProfileSvg(rows, options = {}, arg3 = null, arg4 = null) {
 
   // Master soil units (tabular system) now include any lens-family block
   // that turned out to be CONNECTED to a neighbour (rule 3 corrected) —
-  // only genuinely isolated blocks (l.isLens === true) and boulders are excluded here.
-  const soilUnitKeySet = new Set();
-  const soilUnitMeta = {}; // unitKey -> { graphic, originFamily }
-  const unitDepths = {}; // unitKey -> [normalizedTopDepth]
-  layersArr.forEach((layers) => {
+  // ── TWO-TIER HIERARCHICAL STRATIGRAPHIC ARCHITECTURE ─────────────────────
+  // Tier 1: Macro-Origin Formations (Alluvium/Transported vs In-situ Residual/CWR)
+  // Tier 2: Intra-Formation Sub-Units (Layers pinch out strictly within their origin envelope)
+
+  const alluvUnitKeySet = new Set();
+  const resUnitKeySet = new Set();
+  const soilUnitMeta = {}; // unitKey -> { graphic, originFamily, origin }
+  const alluvUnitDepths = {}; // unitKey -> [normalizedDepthInAlluv]
+  const resUnitDepths = {}; // unitKey -> [normalizedDepthInRes]
+
+  // 1. Calculate Alluvium Base depth & elevation at each borehole
+  const alluvBaseDepths = rows.map((r, i) => {
+    const layers = layersArr[i];
+    if (!layers || !layers.length) return 0;
+    let maxAlluv = 0;
+    layers.forEach(l => {
+      if (!l.isRockBlock && !l.isBoulder && (l.originFamily === 'alluvium' || l.originFamily === 'colluvium' || l.originFamily === 'made_ground')) {
+        if (l.bottom > maxAlluv) maxAlluv = l.bottom;
+      }
+    });
+    return maxAlluv;
+  });
+
+  const alluvBaseLevels = rows.map((r, i) => {
+    const lv = levelsArr[i];
+    const zG = lv.elevation !== null ? lv.elevation : maxElev;
+    const zR = effectiveRockLevel[i] !== null ? effectiveRockLevel[i] : zG - 5;
+    const dAlluv = alluvBaseDepths[i];
+    if (dAlluv <= 0.05) return zG;
+    return Math.min(Math.max(zG - dAlluv, zR), zG);
+  });
+
+  // 2. Classify and collect intra-formation sub-units
+  layersArr.forEach((layers, i) => {
+    const dAlluv = alluvBaseDepths[i];
     if (layers && layers.length) {
       const nonRockSoil = layers.filter(l => !l.isRockBlock && !l.isBoulder);
       const totalSoil = nonRockSoil.length ? Math.max(...nonRockSoil.map(l => l.bottom)) : 10;
+      const totalRes = Math.max(totalSoil - dAlluv, 0.1);
+
       layers.forEach(l => {
         if (l.isRockBlock || l.isBoulder) return;
-        if (l.isLens) return; // handled by lens pass, not tabular
+        if (l.isLens) return; // handled by isolated lens pass
         const key = unitKey(l, l.originFamily);
-        soilUnitKeySet.add(key);
-        if (!soilUnitMeta[key]) soilUnitMeta[key] = { graphic: (l.graphic || '').trim(), originFamily: l.originFamily, origin: l.origin };
-        if (!unitDepths[key]) unitDepths[key] = [];
-        unitDepths[key].push(l.depth / (totalSoil || 1));
+        soilUnitMeta[key] = { graphic: (l.graphic || '').trim(), originFamily: l.originFamily, origin: l.origin };
+
+        if (l.originFamily === 'alluvium' || l.originFamily === 'colluvium' || l.originFamily === 'made_ground') {
+          alluvUnitKeySet.add(key);
+          if (!alluvUnitDepths[key]) alluvUnitDepths[key] = [];
+          alluvUnitDepths[key].push(dAlluv > 0.05 ? (l.depth / dAlluv) : 0);
+        } else {
+          resUnitKeySet.add(key);
+          if (!resUnitDepths[key]) resUnitDepths[key] = [];
+          const topInRes = Math.max(l.depth - dAlluv, 0);
+          resUnitDepths[key].push(topInRes / totalRes);
+        }
       });
-    } else {
-      const key = unitKey('Overburden (soil)', 'unknown');
-      soilUnitKeySet.add(key);
-      soilUnitMeta[key] = { graphic: 'Overburden (soil)', originFamily: 'unknown', origin: '' };
-      unitDepths[key] = [0];
     }
   });
 
-  // ---- ORIGIN-FAMILY STACKING PRIORITY (rule 9) ----
-  function originFamilyStackPriority(family) {
-    if (family === 'made_ground') return 0;   // human-placed fill, always at/near surface
-    if (family === 'alluvium') return 1;      // transported, surface/near-surface deposit
-    if (family === 'colluvium') return 1;     // transported, surface/near-surface deposit
-    if (family === 'unknown') return 2;       // unclassified soil — treated as ordinary overburden
-    if (family === 'residual') return 3;      // in-situ weathering profile (Residual + CWR)
-    return 2; // any other named origin (Aeolian, Estuarine, etc.) — see rule 2 fallback
-  }
-
-  const masterSoilUnits = Array.from(soilUnitKeySet).sort((a, b) => {
+  const alluvialMasterUnits = Array.from(alluvUnitKeySet).sort((a, b) => {
     const famA = originFamilyStackPriority(soilUnitMeta[a].originFamily);
     const famB = originFamilyStackPriority(soilUnitMeta[b].originFamily);
     if (famA !== famB) return famA - famB;
-    const depthsA = unitDepths[a] || [0];
-    const depthsB = unitDepths[b] || [0];
-    const minA = Math.min(...depthsA);
-    const minB = Math.min(...depthsB);
+    const depthsA = alluvUnitDepths[a] || [0];
+    const depthsB = alluvUnitDepths[b] || [0];
+    const minA = Math.min(...depthsA), minB = Math.min(...depthsB);
     if (Math.abs(minA - minB) > 0.01) return minA - minB;
     const avgA = depthsA.reduce((x, y) => x + y, 0) / depthsA.length;
     const avgB = depthsB.reduce((x, y) => x + y, 0) / depthsB.length;
     if (Math.abs(avgA - avgB) > 0.01) return avgA - avgB;
     return getGraphicRank(soilUnitMeta[a].graphic) - getGraphicRank(soilUnitMeta[b].graphic);
   });
-  if (masterSoilUnits.length === 0) {
+
+  const residualMasterUnits = Array.from(resUnitKeySet).sort((a, b) => {
+    const famA = originFamilyStackPriority(soilUnitMeta[a].originFamily);
+    const famB = originFamilyStackPriority(soilUnitMeta[b].originFamily);
+    if (famA !== famB) return famA - famB;
+    const depthsA = resUnitDepths[a] || [0];
+    const depthsB = resUnitDepths[b] || [0];
+    const minA = Math.min(...depthsA), minB = Math.min(...depthsB);
+    if (Math.abs(minA - minB) > 0.01) return minA - minB;
+    const avgA = depthsA.reduce((x, y) => x + y, 0) / depthsA.length;
+    const avgB = depthsB.reduce((x, y) => x + y, 0) / depthsB.length;
+    if (Math.abs(avgA - avgB) > 0.01) return avgA - avgB;
+    return getGraphicRank(soilUnitMeta[a].graphic) - getGraphicRank(soilUnitMeta[b].graphic);
+  });
+
+  if (residualMasterUnits.length === 0 && alluvialMasterUnits.length === 0) {
     const key = unitKey('Overburden (soil)', 'unknown');
-    masterSoilUnits.push(key);
+    residualMasterUnits.push(key);
     soilUnitMeta[key] = { graphic: 'Overburden (soil)', originFamily: 'unknown', origin: '' };
   }
 
-  // Build cumulative boundaries C_0, C_1, ..., C_K at each borehole
-  // Also record which units are PRESENT at each borehole (for pinch-out logic)
+  // Combined master list for legend & color palettes
+  const masterSoilUnits = [...alluvialMasterUnits, ...residualMasterUnits];
   const K = masterSoilUnits.length;
-  const bhUnitPresent = []; // bhUnitPresent[i][k] = true if unit k exists at borehole i
-  const bhCumBoundaries = rows.map((r, i) => {
-    const lv = levelsArr[i];
+  const K_alluv = alluvialMasterUnits.length;
+  const K_res = residualMasterUnits.length;
+
+  // 3. Build Intra-Alluvium Cumulative Boundaries
+  const bhAlluvUnitPresent = [];
+  const bhAlluvCumBoundaries = rows.map((r, i) => {
     const layers = layersArr[i];
-    const zGround = lv.elevation !== null ? lv.elevation : maxElev;
-    const zRock = effectiveRockLevel[i] !== null ? effectiveRockLevel[i] : zGround - 5;
-    const overburden = Math.max(zGround - zRock, 0.1);
-
+    const dAlluv = alluvBaseDepths[i];
+    const present = new Array(K_alluv).fill(false);
     const unitMap = {};
-    if (layers && layers.length) {
-      // Tabular soil layers = everything NOT rock, NOT boulder, and NOT tagged as an isolated lens
-      const soilLayers = layers.filter(l => !l.isRockBlock && !l.isBoulder && !l.isLens);
-      const allNonRockLayers = layers.filter(l => !l.isRockBlock && !l.isBoulder);
-      const totalSoilDepth = allNonRockLayers.length ? Math.max(...allNonRockLayers.map(l => l.bottom)) : overburden;
-      const scaleToOverburden = totalSoilDepth > 0 ? (1.0 / totalSoilDepth) : (1.0 / overburden);
 
-      for (let sIdx = 0; sIdx < soilLayers.length; sIdx++) {
-        const l = soilLayers[sIdx];
+    if (K_alluv > 0 && dAlluv > 0.05 && layers && layers.length) {
+      const alluvLayers = layers.filter(l => !l.isRockBlock && !l.isBoulder && !l.isLens && (l.originFamily === 'alluvium' || l.originFamily === 'colluvium' || l.originFamily === 'made_ground'));
+      alluvLayers.forEach(l => {
         const key = unitKey(l, l.originFamily);
-        let effTop = l.depth;
-        let effBot = l.bottom;
-        // If there is a preceding gap (e.g. from an embedded boulder above), bridge up to previous soil bottom or 0
-        if (sIdx === 0 && effTop > 0) {
-          effTop = 0;
-        } else if (sIdx > 0 && effTop > soilLayers[sIdx - 1].bottom) {
-          effTop = soilLayers[sIdx - 1].bottom;
+        const uIdx = alluvialMasterUnits.indexOf(key);
+        if (uIdx >= 0) {
+          present[uIdx] = true;
+          const fTop = Math.min(Math.max(l.depth / dAlluv, 0), 1.0);
+          const fBot = Math.min(Math.max(l.bottom / dAlluv, 0), 1.0);
+          if (!unitMap[key]) unitMap[key] = { fTop, fBot };
+          else {
+            unitMap[key].fTop = Math.min(unitMap[key].fTop, fTop);
+            unitMap[key].fBot = Math.max(unitMap[key].fBot, fBot);
+          }
         }
-        // If there is a following gap before next soil layer, extend effBot to next soil layer top
-        if (sIdx < soilLayers.length - 1 && effBot < soilLayers[sIdx + 1].depth) {
-          effBot = soilLayers[sIdx + 1].depth;
-        }
-
-        const fTop = Math.min(Math.max(effTop * scaleToOverburden, 0), 1.0);
-        const fBot = Math.min(Math.max(effBot * scaleToOverburden, 0), 1.0);
-        if (!unitMap[key]) {
-          unitMap[key] = { fTop, fBot };
-        } else {
-          // Merge: extend fTop down, fBot up to cover discontiguous occurrences
-          unitMap[key].fTop = Math.min(unitMap[key].fTop, fTop);
-          unitMap[key].fBot = Math.max(unitMap[key].fBot, fBot);
-        }
-      }
-    } else {
-      unitMap[unitKey('Overburden (soil)', 'unknown')] = { fTop: 0.0, fBot: 1.0 };
+      });
     }
+    bhAlluvUnitPresent.push(present);
 
-    // Record which units are present
-    const present = masterSoilUnits.map(u => !!unitMap[u]);
-    bhUnitPresent.push(present);
-
-    // Build cumulative boundaries in the actual LAYER ORDER from the log
-    // Strategy: walk masterSoilUnits in order, assigning their fraction slots
-    // Units NOT present at this BH get a zero-thickness slot (their C[uIdx] == C[uIdx+1])
-    const C = new Array(K + 1).fill(0);
+    const C = new Array(K_alluv + 1).fill(0);
     C[0] = 0.0;
     let cursor = 0.0;
-
-    masterSoilUnits.forEach((u, uIdx) => {
+    alluvialMasterUnits.forEach((u, uIdx) => {
       if (unitMap[u]) {
         const fTop = Math.max(unitMap[u].fTop, cursor);
         const fBot = Math.max(unitMap[u].fBot, fTop);
         C[uIdx] = fTop;
         C[uIdx + 1] = fBot;
-        // Ensure all preceding absent units stay collapsed at fTop so they have strictly 0 thickness
         for (let k = 0; k < uIdx; k++) {
-          if (!bhUnitPresent[i][k]) {
+          if (!bhAlluvUnitPresent[i][k]) {
             C[k] = Math.min(C[k], fTop);
             C[k + 1] = Math.min(C[k + 1], fTop);
           }
         }
         cursor = fBot;
       } else {
-        // Absent unit: zero thickness — both boundaries at current cursor
         C[uIdx] = cursor;
         C[uIdx + 1] = cursor;
       }
     });
-    // Extend top-most present unit up to 0.0 so no gap exists at surface
-    for (let k = 0; k < K; k++) {
-      if (bhUnitPresent[i][k]) {
+    for (let k = 0; k < K_alluv; k++) {
+      if (bhAlluvUnitPresent[i][k]) {
         C[k] = 0.0;
         for (let j = 0; j <= k; j++) {
-          if (!bhUnitPresent[i][j]) { C[j] = 0.0; C[j + 1] = 0.0; }
+          if (!bhAlluvUnitPresent[i][j]) { C[j] = 0.0; C[j + 1] = 0.0; }
         }
         break;
       }
     }
-    // Force last boundary to 1.0 to ensure full coverage
-    C[K] = 1.0;
-    // Redistribute: if cursor < 1.0, push remaining into last present unit
+    C[K_alluv] = 1.0;
     if (cursor < 1.0) {
-      // Find the last present unit and extend its bottom
-      for (let k = K - 1; k >= 0; k--) {
-        if (bhUnitPresent[i][k]) {
+      for (let k = K_alluv - 1; k >= 0; k--) {
+        if (bhAlluvUnitPresent[i][k]) {
           C[k + 1] = 1.0;
-          // Push all subsequent absent units' boundaries to 1.0
-          for (let j = k + 1; j <= K; j++) C[j] = 1.0;
+          for (let j = k + 1; j <= K_alluv; j++) C[j] = 1.0;
           break;
         }
       }
     }
-    // Monotone fix
-    for (let k = 1; k <= K; k++) {
+    for (let k = 1; k <= K_alluv; k++) {
+      if (C[k] < C[k - 1]) C[k] = C[k - 1];
+    }
+    return C;
+  });
+
+  // 4. Build Intra-Residual Cumulative Boundaries
+  const bhResUnitPresent = [];
+  const bhResCumBoundaries = rows.map((r, i) => {
+    const lv = levelsArr[i];
+    const layers = layersArr[i];
+    const zG = lv.elevation !== null ? lv.elevation : maxElev;
+    const zR = effectiveRockLevel[i] !== null ? effectiveRockLevel[i] : zG - 5;
+    const dAlluv = alluvBaseDepths[i];
+    const nonRock = (layers || []).filter(l => !l.isRockBlock && !l.isBoulder);
+    const totalSoil = nonRock.length ? Math.max(...nonRock.map(l => l.bottom)) : Math.max(zG - zR, 0.1);
+    const resThick = Math.max(totalSoil - dAlluv, 0.1);
+
+    const present = new Array(K_res).fill(false);
+    const unitMap = {};
+
+    if (K_res > 0 && layers && layers.length) {
+      const resLayers = layers.filter(l => !l.isRockBlock && !l.isBoulder && !l.isLens && (l.originFamily === 'residual' || l.originFamily === 'unknown'));
+      resLayers.forEach(l => {
+        const key = unitKey(l, l.originFamily);
+        const uIdx = residualMasterUnits.indexOf(key);
+        if (uIdx >= 0) {
+          present[uIdx] = true;
+          const topInRes = Math.max(l.depth - dAlluv, 0);
+          const botInRes = Math.max(l.bottom - dAlluv, topInRes);
+          const fTop = Math.min(Math.max(topInRes / resThick, 0), 1.0);
+          const fBot = Math.min(Math.max(botInRes / resThick, 0), 1.0);
+          if (!unitMap[key]) unitMap[key] = { fTop, fBot };
+          else {
+            unitMap[key].fTop = Math.min(unitMap[key].fTop, fTop);
+            unitMap[key].fBot = Math.max(unitMap[key].fBot, fBot);
+          }
+        }
+      });
+    }
+    bhResUnitPresent.push(present);
+
+    const C = new Array(K_res + 1).fill(0);
+    C[0] = 0.0;
+    let cursor = 0.0;
+    residualMasterUnits.forEach((u, uIdx) => {
+      if (unitMap[u]) {
+        const fTop = Math.max(unitMap[u].fTop, cursor);
+        const fBot = Math.max(unitMap[u].fBot, fTop);
+        C[uIdx] = fTop;
+        C[uIdx + 1] = fBot;
+        for (let k = 0; k < uIdx; k++) {
+          if (!bhResUnitPresent[i][k]) {
+            C[k] = Math.min(C[k], fTop);
+            C[k + 1] = Math.min(C[k + 1], fTop);
+          }
+        }
+        cursor = fBot;
+      } else {
+        C[uIdx] = cursor;
+        C[uIdx + 1] = cursor;
+      }
+    });
+    for (let k = 0; k < K_res; k++) {
+      if (bhResUnitPresent[i][k]) {
+        C[k] = 0.0;
+        for (let j = 0; j <= k; j++) {
+          if (!bhResUnitPresent[i][j]) { C[j] = 0.0; C[j + 1] = 0.0; }
+        }
+        break;
+      }
+    }
+    C[K_res] = 1.0;
+    if (cursor < 1.0) {
+      for (let k = K_res - 1; k >= 0; k--) {
+        if (bhResUnitPresent[i][k]) {
+          C[k + 1] = 1.0;
+          for (let j = k + 1; j <= K_res; j++) C[j] = 1.0;
+          break;
+        }
+      }
+    }
+    for (let k = 1; k <= K_res; k++) {
       if (C[k] < C[k - 1]) C[k] = C[k - 1];
     }
     return C;
@@ -5550,29 +5965,34 @@ function buildProfileSvg(rows, options = {}, arg3 = null, arg4 = null) {
     return getZGroundSmooth(d) - depthGw;
   }
 
-  // getCumBoundaryAtX with PINCH-OUT logic:
-  // For a given unit k, if it is absent at a borehole, it pinches to zero thickness
-  // at that BH. We interpolate C[k] and C[k+1] separately then guarantee monotonicity.
-  function getCumBoundaryAtX(k, d) {
-    if (k === 0) return 0.0;
-    if (k === K) return 1.0;
-    const pts = rows.map((r, i) => ({ x: distances[i], y: bhCumBoundaries[i][k] }));
-    const val = d <= pts[0].x ? pts[0].y
-      : d >= pts[pts.length - 1].x ? pts[pts.length - 1].y
-      : interpolateSpline(pts, d);
-    return Math.min(Math.max(val, 0.0), 1.0);
+  // ── TWO-TIER STRATIGRAPHIC BOUNDARY EVALUATION ──
+  const alluvBasePts = rows.map((r, i) => ({ x: distances[i], y: alluvBaseLevels[i] }));
+
+  function getZAlluvBase(d) {
+    const hasAnyAlluv = alluvBaseLevels.some((z, i) => {
+      const zG = levelsArr[i].elevation !== null ? levelsArr[i].elevation : maxElev;
+      return (zG - z) > 0.05;
+    });
+    if (!hasAnyAlluv) return getZGround(d);
+
+    let zBase;
+    if (d <= alluvBasePts[0].x) zBase = alluvBasePts[0].y;
+    else if (d >= alluvBasePts[alluvBasePts.length - 1].x) zBase = alluvBasePts[alluvBasePts.length - 1].y;
+    else zBase = interpolateSpline(alluvBasePts, d);
+
+    const zG = getZGround(d);
+    const zR = getZRock(d);
+    return Math.min(Math.max(zBase, zR), zG);
   }
 
   // Natural depositional undulations for internal soil layer boundaries (when opts.showRoughSoil is active)
   function calcNaturalSoilBoundaryRoughness(k, d) {
-    if (!opts.showRoughSoil || k <= 0 || k >= K) return 0;
-    // Side extensions: subtle tapering
+    if (!opts.showRoughSoil) return 0;
     if (d <= distances[0] || d >= distances[distances.length - 1]) {
       const distFromEdge = d < distances[0] ? (distances[0] - d) : (d - distances[distances.length - 1]);
       const extEnvelope = Math.sin(Math.min(distFromEdge / 12, 1) * Math.PI / 2);
       return extEnvelope * (0.04 * Math.sin(d / 2.8 + k * 1.5) + 0.02 * Math.sin(d / 1.4 + k * 0.7));
     }
-    // Find active borehole span
     let j = 0;
     for (let s = 0; s < distances.length - 1; s++) {
       if (d >= distances[s] - 1e-4 && d <= distances[s + 1] + 1e-4) {
@@ -5582,32 +6002,48 @@ function buildProfileSvg(rows, options = {}, arg3 = null, arg4 = null) {
     }
     const d0 = distances[j], d1 = distances[j + 1];
     const spanLen = Math.max(d1 - d0, 1);
-    const t = (d - d0) / spanLen; // 0 at BH j, 1 at BH j+1
-
-    // Envelope window: strictly 0 at boreholes (preserving 100% exact logged layer contact depths)
+    const t = (d - d0) / spanLen;
     const envelope = Math.pow(Math.sin(t * Math.PI), 1.25);
-    const maxAmp = Math.min(0.10, spanLen * 0.005); // Subtle depositional waviness (0.03m to 0.10m)
-
-    // Multi-frequency organic depositional texture with unique phase per soil boundary k
+    const maxAmp = Math.min(0.08, spanLen * 0.004);
     const wave1 = Math.sin((d * 2 * Math.PI) / 5.5 + k * 1.8);
     const wave2 = 0.45 * Math.sin((d * 2 * Math.PI) / 2.5 + k * 3.1 + 0.9);
-
     return envelope * maxAmp * (wave1 + wave2);
   }
 
-  // Evaluate elevation of cumulative soil boundary k at distance d
-  function getSoilBoundaryZ(k, d) {
-    const zG = getZGround(d);
-    const zR = getZRock(d);
-    if (k === 0) return zG;
-    if (k === K) return zR;
-    const overburdenAtD = Math.max(zG - zR, 0.05);
-    const f = getCumBoundaryAtX(k, d);
-    if (f <= 0.0001) return zG;
-    if (f >= 0.9999) return zR;
-    const zBase = zG - f * overburdenAtD;
+  // Intra-Alluvial Boundary Evaluation (0 = Ground, K_alluv = Alluvium Base)
+  function getAlluvBoundaryZ(k, d) {
+    const zTop = getZGround(d);
+    const zBase = getZAlluvBase(d);
+    const thick = Math.max(zTop - zBase, 0);
+    if (thick <= 0.01) return zTop;
+    if (k === 0) return zTop;
+    if (k === K_alluv) return zBase;
+    const pts = rows.map((r, i) => ({ x: distances[i], y: bhAlluvCumBoundaries[i][k] }));
+    const val = d <= pts[0].x ? pts[0].y : (d >= pts[pts.length - 1].x ? pts[pts.length - 1].y : interpolateSpline(pts, d));
+    const f = Math.min(Math.max(val, 0.0), 1.0);
     const roughness = calcNaturalSoilBoundaryRoughness(k, d);
-    return zBase + roughness;
+    return Math.min(Math.max(zTop - f * thick + roughness, zBase), zTop);
+  }
+
+  // Intra-Residual / CWR Boundary Evaluation (0 = Alluvium Base, K_res = Rockhead)
+  function getResBoundaryZ(k, d) {
+    const zTop = getZAlluvBase(d);
+    const zBase = getZRock(d);
+    const thick = Math.max(zTop - zBase, 0);
+    if (thick <= 0.01) return zTop;
+    if (k === 0) return zTop;
+    if (k === K_res) return zBase;
+    const pts = rows.map((r, i) => ({ x: distances[i], y: bhResCumBoundaries[i][k] }));
+    const val = d <= pts[0].x ? pts[0].y : (d >= pts[pts.length - 1].x ? pts[pts.length - 1].y : interpolateSpline(pts, d));
+    const f = Math.min(Math.max(val, 0.0), 1.0);
+    const roughness = calcNaturalSoilBoundaryRoughness(k + K_alluv, d);
+    return Math.min(Math.max(zTop - f * thick + roughness, zBase), zTop);
+  }
+
+  // Evaluate elevation of cumulative soil boundary k across masterSoilUnits
+  function getSoilBoundaryZ(k, d) {
+    if (k < K_alluv) return getAlluvBoundaryZ(k, d);
+    else return getResBoundaryZ(k - K_alluv, d);
   }
 
   // Helper: get the range of distances over which unit k has non-zero thickness
@@ -5794,33 +6230,22 @@ function buildProfileSvg(rows, options = {}, arg3 = null, arg4 = null) {
   // sampleDists is initialized, hence its position here rather than earlier
   // alongside the rest of the legend-prep code.)
   function masterUnitHasRenderedArea(uIdx) {
-    const bhLayerRanges = rows.map((r, i) => {
-      const zG = levelsArr[i].elevation !== null ? levelsArr[i].elevation : maxElev;
-      const zR = effectiveRockLevel[i] !== null ? effectiveRockLevel[i] : zG - 5;
-      const overburden = Math.max(zG - zR, 0.1);
-      const C = bhCumBoundaries[i];
-      const present = bhUnitPresent[i][uIdx];
-      return { present, zTop: zG - C[uIdx] * overburden, zBot: zG - C[uIdx + 1] * overburden };
-    });
+    const isAlluv = uIdx < K_alluv;
+    const kIdx = isAlluv ? uIdx : (uIdx - K_alluv);
+    const bhPresent = isAlluv ? bhAlluvUnitPresent : bhResUnitPresent;
+    const hasAnyBH = rows.some((r, i) => bhPresent[i] && bhPresent[i][kIdx]);
+    if (!hasAnyBH) return false;
+
     for (const d of sampleDists) {
-      const zG = getZGround(d);
-      const zR = getZRock(d);
-      const overburdenAtD = Math.max(zG - zR, 0.1);
-      const fTop = getCumBoundaryAtX(uIdx, d);
-      const fBot = getCumBoundaryAtX(uIdx + 1, d);
-      let zTop = zG - fTop * overburdenAtD;
-      let zBot = zG - fBot * overburdenAtD;
-      if (d < distances[0]) {
-        const range = bhLayerRanges[0];
-        zTop = range.present ? range.zTop : zG; zBot = range.present ? range.zBot : zG;
-      } else if (d > distances[distances.length - 1]) {
-        const range = bhLayerRanges[bhLayerRanges.length - 1];
-        zTop = range.present ? range.zTop : zG; zBot = range.present ? range.zBot : zG;
+      let zTop, zBot;
+      if (isAlluv) {
+        zTop = getAlluvBoundaryZ(kIdx, d);
+        zBot = getAlluvBoundaryZ(kIdx + 1, d);
+      } else {
+        zTop = getResBoundaryZ(kIdx, d);
+        zBot = getResBoundaryZ(kIdx + 1, d);
       }
-      zTop = Math.min(Math.max(zTop, zR), zG);
-      zBot = Math.min(Math.max(zBot, zR), zG);
-      if (zBot > zTop) zBot = zTop;
-      if (zTop - zBot > 0.01) return true;
+      if (zTop - zBot > 0.02) return true;
     }
     return false;
   }
@@ -6166,28 +6591,38 @@ function buildProfileSvg(rows, options = {}, arg3 = null, arg4 = null) {
     const meta = soilUnitMeta[u];
     const info = getGraphicInfo(meta.graphic);
     const code = meta.graphic;
-
-    // Single continuous polygon per master unit, driven by the shared cumulative
-    // boundary array (bhCumBoundaries / getCumBoundaryAtX). Using the SAME master
-    // fraction stack that establishes stacking order guarantees every layer ties
-    // in exactly with its neighbours above/below at every borehole, and pinches
-    // out smoothly (zero-thickness) wherever the unit is absent — no separate,
-    // independently-interpolated per-occurrence polygon that can drift out of
-    // registration with the rest of the stack.
     const uIdx = masterSoilUnits.indexOf(u);
-    {
-      const bhLayerRanges = rows.map((r, i) => {
-        const zG = levelsArr[i].elevation !== null ? levelsArr[i].elevation : maxElev;
-        const zR = effectiveRockLevel[i] !== null ? effectiveRockLevel[i] : zG - 5;
-        const overburden = Math.max(zG - zR, 0.1);
-        const C = bhCumBoundaries[i];
-        const present = bhUnitPresent[i][uIdx];
+    const isAlluv = uIdx < K_alluv;
+    const kIdx = isAlluv ? uIdx : (uIdx - K_alluv);
+    const bhPresent = isAlluv ? bhAlluvUnitPresent : bhResUnitPresent;
+
+    // Check if layer exists at any borehole
+    const hasAnyBH = rows.some((r, i) => bhPresent[i] && bhPresent[i][kIdx]);
+    if (!hasAnyBH) return;
+
+    const bhLayerRanges = rows.map((r, i) => {
+      const zG = levelsArr[i].elevation !== null ? levelsArr[i].elevation : maxElev;
+      const zBase = alluvBaseLevels[i];
+      const zR = effectiveRockLevel[i] !== null ? effectiveRockLevel[i] : zG - 5;
+      const present = bhPresent[i][kIdx];
+      if (isAlluv) {
+        const thick = Math.max(zG - zBase, 0);
+        const C = bhAlluvCumBoundaries[i];
         return {
           present,
-          zTop: zG - C[uIdx] * overburden,
-          zBot: zG - C[uIdx + 1] * overburden
+          zTop: zG - C[kIdx] * thick,
+          zBot: zG - C[kIdx + 1] * thick
         };
-      });
+      } else {
+        const thick = Math.max(zBase - zR, 0);
+        const C = bhResCumBoundaries[i];
+        return {
+          present,
+          zTop: zBase - C[kIdx] * thick,
+          zBot: zBase - C[kIdx + 1] * thick
+        };
+      }
+    });
 
     // Build continuous top/bottom curve across profile samples
     const topCurvePts = [];
@@ -6197,43 +6632,30 @@ function buildProfileSvg(rows, options = {}, arg3 = null, arg4 = null) {
     sampleDists.forEach(d => {
       const x = xPos(d);
       const zG = getZGround(d);
+      const zBase = getZAlluvBase(d);
       const zR = getZRock(d);
 
-      let zTop = getSoilBoundaryZ(uIdx, d);
-      let zBot = getSoilBoundaryZ(uIdx + 1, d);
+      let zTop = isAlluv ? getAlluvBoundaryZ(kIdx, d) : getResBoundaryZ(kIdx, d);
+      let zBot = isAlluv ? getAlluvBoundaryZ(kIdx + 1, d) : getResBoundaryZ(kIdx + 1, d);
 
-      // Handle side extensions (left of first BH, right of last BH) — clamp
-      // to the terminal borehole's own range rather than re-interpolating.
+      // Handle side extensions (left of first BH, right of last BH)
       if (d < distances[0]) {
         const range = bhLayerRanges[0];
-        zTop = range.present ? range.zTop : zG;
-        zBot = range.present ? range.zBot : zG;
+        zTop = range.present ? range.zTop : (isAlluv ? zG : zBase);
+        zBot = range.present ? range.zBot : (isAlluv ? zG : zBase);
       } else if (d > distances[distances.length - 1]) {
         const range = bhLayerRanges[bhLayerRanges.length - 1];
-        zTop = range.present ? range.zTop : zG;
-        zBot = range.present ? range.zBot : zG;
+        zTop = range.present ? range.zTop : (isAlluv ? zG : zBase);
+        zBot = range.present ? range.zBot : (isAlluv ? zG : zBase);
       }
 
-      // Strictly clamp layer boundaries to overburden zone [zR, zG]
-      zTop = Math.min(Math.max(zTop, zR), zG);
-      zBot = Math.min(Math.max(zBot, zR), zG);
-
-      // Geotechnical Rule: Valley-Margin Constraint for Alluvial Deposits
-      // Alluvium is a floodplain/valley deposit and cannot climb uphill onto hillside topography.
-      if (meta.originFamily === 'alluvium') {
-        let maxValleyElev = -Infinity;
-        let hasPresent = false;
-        for (let b = 0; b < rows.length; b++) {
-          if (bhUnitPresent[b] && bhUnitPresent[b][uIdx]) {
-            hasPresent = true;
-            const zGb = levelsArr[b].elevation !== null ? levelsArr[b].elevation : maxElev;
-            if (zGb > maxValleyElev) maxValleyElev = zGb;
-          }
-        }
-        if (hasPresent && isFinite(maxValleyElev)) {
-          zTop = Math.min(zTop, maxValleyElev + 0.15);
-          zBot = Math.min(zBot, zTop);
-        }
+      // Strictly clamp layer boundaries to its origin envelope
+      if (isAlluv) {
+        zTop = Math.min(Math.max(zTop, zBase), zG);
+        zBot = Math.min(Math.max(zBot, zBase), zG);
+      } else {
+        zTop = Math.min(Math.max(zTop, zR), zBase);
+        zBot = Math.min(Math.max(zBot, zR), zBase);
       }
 
       if (zBot > zTop) zBot = zTop;
@@ -6451,7 +6873,6 @@ function buildProfileSvg(rows, options = {}, arg3 = null, arg4 = null) {
         }
       });
     }
-    }
   });
 
   // ---- SOIL ORIGIN TRANSITION LINES ----
@@ -6469,6 +6890,7 @@ function buildProfileSvg(rows, options = {}, arg3 = null, arg4 = null) {
   // pinch-outs. A single section can have more than one such boundary (e.g.
   // Made Ground -> Alluvium -> Residual), so every transition index is found
   // and drawn, not just the first.
+  // ---- SOIL ORIGIN TRANSITION LINES ----
   {
     const originTransitionIndices = [];
     for (let k = 1; k < masterSoilUnits.length; k++) {
@@ -6477,13 +6899,26 @@ function buildProfileSvg(rows, options = {}, arg3 = null, arg4 = null) {
       if (famPrev !== famCur) originTransitionIndices.push(k);
     }
     originTransitionIndices.forEach(k => {
-      const linePts = [];
+      const lineRuns = [];
+      let currentRun = [];
       sampleDists.forEach(d => {
+        const zG = getZGround(d);
+        const zR = getZRock(d);
         const z = getSoilBoundaryZ(k, d);
-        linePts.push([xPos(d), yPos(z)]);
+        if ((zG - z) > 0.05 && (z - zR) > 0.05) {
+          currentRun.push([xPos(d), yPos(z)]);
+        } else if (currentRun.length) {
+          lineRuns.push(currentRun);
+          currentRun = [];
+        }
       });
-      svg += `<!-- Soil Origin transition line (master unit boundary index ${k}) -->
-      <path d="${ptsToCubicBezier(linePts)}" fill="none" stroke="#3a3a3a" stroke-width="1" stroke-dasharray="4,3" opacity="0.6"/>`;
+      if (currentRun.length) lineRuns.push(currentRun);
+      lineRuns.forEach(run => {
+        if (run.length >= 2) {
+          svg += `<!-- Soil Origin transition line (master unit boundary index ${k}) -->
+          <path d="${ptsToCubicBezier(run)}" fill="none" stroke="#3a3a3a" stroke-width="1.2" stroke-dasharray="4,3" opacity="0.75"/>`;
+        }
+      });
     });
   }
 
@@ -7861,7 +8296,11 @@ function downloadProfilePDF(paperSize = 'a4') {
   img.src = url;
 }
 
-function exportProfileToDXF(customRows) {
+/* ============================================================
+   AUTOCAD / CIVIL 3D DXF VECTOR EXPORTER STUDIO
+   ============================================================ */
+
+function openDxfExportModal(customRows) {
   let rows = customRows;
   if (!rows || !rows.length) {
     rows = currentProfileRows;
@@ -7872,13 +8311,70 @@ function exportProfileToDXF(customRows) {
     }
   }
   if (!rows || rows.length < 2) {
-    alert('Please select at least 2 boreholes to generate a CAD DXF drawing.');
+    alert('Please select at least 2 boreholes on the map or generate a profile first before exporting to CAD DXF.');
     return;
   }
+  currentProfileRows = rows;
+  const backdrop = document.getElementById('dxf-modal-backdrop');
+  if (backdrop) backdrop.classList.add('open');
+}
+
+function closeDxfModal() {
+  const backdrop = document.getElementById('dxf-modal-backdrop');
+  if (backdrop) backdrop.classList.remove('open');
+}
+
+function exportProfileToDXF(customRows) {
+  openDxfExportModal(customRows);
+}
+
+function executeDxfExport() {
+  const options = {
+    optGround: document.getElementById('dxf-opt-ground')?.checked ?? true,
+    optRockhead: document.getElementById('dxf-opt-rockhead')?.checked ?? true,
+    optSoilLines: document.getElementById('dxf-opt-soil-lines')?.checked ?? true,
+    optRockLines: document.getElementById('dxf-opt-rock-lines')?.checked ?? true,
+    optOriginLines: document.getElementById('dxf-opt-origin-lines')?.checked ?? true,
+    optGWT: document.getElementById('dxf-opt-gwt')?.checked ?? true,
+    optSoilHatches: document.getElementById('dxf-opt-soil-hatches')?.checked ?? true,
+    optRockHatches: document.getElementById('dxf-opt-rock-hatches')?.checked ?? true,
+    optTrueColor: document.getElementById('dxf-opt-truecolor')?.checked ?? true,
+    optCwrHatches: document.getElementById('dxf-opt-cwr-hatches')?.checked ?? true,
+    optSPT: document.getElementById('dxf-opt-spt')?.checked ?? true,
+    optRQD: document.getElementById('dxf-opt-rqd')?.checked ?? true,
+    optPillars: document.getElementById('dxf-opt-pillars')?.checked ?? true,
+    optGrid: document.getElementById('dxf-opt-grid')?.checked ?? true,
+    optTitle: document.getElementById('dxf-opt-titleblock')?.checked ?? true,
+    scaleChoice: document.querySelector('input[name="dxf-scale-choice"]:checked')?.value || '1'
+  };
+
+  closeDxfModal();
+  generateAndDownloadDxf(currentProfileRows, options);
+}
+
+function hexToDxfTrueColor(hex) {
+  if (!hex) return null;
+  const clean = hex.replace('#', '');
+  if (clean.length < 6) return null;
+  const r = parseInt(clean.substring(0, 2), 16) || 0;
+  const g = parseInt(clean.substring(2, 4), 16) || 0;
+  const b = parseInt(clean.substring(4, 6), 16) || 0;
+  return (r << 16) + (g << 8) + b;
+}
+
+function generateAndDownloadDxf(customRows, options = {}) {
+  let rows = customRows;
+  if (!rows || !rows.length) rows = currentProfileRows;
+  if (!rows || rows.length < 2) return;
+
+  const azInput = parseFloat(document.getElementById('az-input')?.value) || sectionAzimuth || 45;
+  const dipDir = parseFloat(document.getElementById('dip-dir-input')?.value) || foliationDipDir || 45;
+  const dipAng = parseFloat(document.getElementById('dip-ang-input')?.value) || foliationDipAngle || 45;
+  const secTitle = (document.getElementById('section-title-input')?.value || 'ENGINEERING GEOLOGICAL CROSS-SECTION A — B').trim();
 
   let sorted, distances;
   if (sectionMethod === 'projection') {
-    const projected = projectBoreholes(rows, sectionAzimuth);
+    const projected = projectBoreholes(rows, azInput);
     sorted = projected.map(t => t.row);
     distances = computeProjectedDistances(projected);
   } else {
@@ -7892,86 +8388,616 @@ function exportProfileToDXF(customRows) {
       distances.push(distances[i-1] + Math.max(d, 1));
     }
   }
+
+  const totalDist = distances[distances.length - 1];
   const levelsArr = sorted.map(computeBHLevels);
   const layersArr = sorted.map(r => getBHLayers(r) || null);
 
-  let dxf = `0\nSECTION\n2\nENTITIES\n`;
-
-  function addLine(layer, x1, y1, x2, y2) {
-    dxf += `0\nLINE\n8\n${layer}\n10\n${x1.toFixed(3)}\n20\n${y1.toFixed(3)}\n30\n0.0\n11\n${x2.toFixed(3)}\n21\n${y2.toFixed(3)}\n31\n0.0\n`;
-  }
-
-  function addText(layer, x, y, height, text) {
-    const cleanStr = String(text).replace(/[\r\n]+/g, ' ');
-    dxf += `0\nTEXT\n8\n${layer}\n10\n${x.toFixed(3)}\n20\n${y.toFixed(3)}\n30\n0.0\n40\n${height.toFixed(3)}\n1\n${cleanStr}\n`;
-  }
-
-  // Draw in 1:1 real world meters (Dist vs Elevation)
+  // Elevation range
+  const allElevs = [];
   sorted.forEach((r, i) => {
-    const x = distances[i];
+    const lv = levelsArr[i];
+    if (lv.elevation !== null) {
+      allElevs.push(lv.elevation);
+      if (lv.termDepth !== null) allElevs.push(lv.elevation - lv.termDepth);
+      if (lv.rockLevel !== null) allElevs.push(lv.rockLevel);
+      if (lv.waterLevel !== null) allElevs.push(lv.waterLevel);
+    }
+  });
+  const minElev = allElevs.length ? Math.floor(Math.min(...allElevs) - 5) : 50;
+  const maxElev = allElevs.length ? Math.ceil(Math.max(...allElevs) + 5) : 150;
+  const elevRange = Math.max(maxElev - minElev, 10);
+
+  // Vertical scale
+  const vScale = options.scaleChoice === 've' ? 5.0 : 1.0;
+  function cadX(d) { return d; }
+  function cadY(z) { return z * vScale; }
+
+  // Apparent dip calculation
+  const appDip = calcApparentDip(azInput, dipDir, dipAng);
+  const dirSign = appDip.directionStr === '← A' ? -1 : (appDip.directionStr === '→ B' ? 1 : 0);
+  const dipSlope = Math.tan((appDip.angle * Math.PI) / 180) * dirSign;
+
+  // Rockhead calculations
+  const effectiveRockLevel = sorted.map((r, i) => {
+    const lv = levelsArr[i];
+    if (lv.rockLevel !== null) return lv.rockLevel;
+    const lys = layersArr[i];
+    if (lys && lys.length) {
+      for (const l of lys) {
+        if (l.isRockBlock) {
+          const zG = lv.elevation !== null ? lv.elevation : maxElev;
+          return zG - l.depth;
+        }
+      }
+    }
+    const zG = lv.elevation !== null ? lv.elevation : maxElev;
+    return lv.termDepth !== null ? zG - lv.termDepth : zG - 8;
+  });
+
+  const groundPts = sorted.map((r, i) => ({ x: distances[i], y: levelsArr[i].elevation !== null ? levelsArr[i].elevation : maxElev }));
+  const rockPts = sorted.map((r, i) => ({ x: distances[i], y: effectiveRockLevel[i] !== null ? effectiveRockLevel[i] : groundPts[i].y - 5 }));
+  const gwDepthPts = sorted.map((r, i) => {
+    const lv = levelsArr[i];
+    if (lv.gwLevel !== null && lv.elevation !== null) return { x: distances[i], y: Math.max(lv.elevation - lv.gwLevel, 0.1) };
+    if (lv.gwDepth !== null) return { x: distances[i], y: Math.max(lv.gwDepth, 0.1) };
+    return null;
+  }).filter(Boolean);
+
+  function getZGround(d) { return interpolateSpline(groundPts, d); }
+  function getZRock(d) { return interpolateSpline(rockPts, d); }
+  function getZWater(d) {
+    if (!gwDepthPts.length) return null;
+    const depth = interpolateSpline(gwDepthPts, d);
+    return getZGround(d) - depth;
+  }
+
+  // ── TWO-TIER HIERARCHICAL STRATIGRAPHIC SOIL MODEL FOR DXF ──
+  const alluvBaseDepths = sorted.map((r, i) => {
+    const lys = layersArr[i];
+    if (!lys || !lys.length) return 0;
+    let maxAlluv = 0;
+    lys.forEach(l => {
+      if (!l.isRockBlock && !l.isBoulder) {
+        const fam = originFamilyOf(l.origin);
+        if (fam === 'alluvium' || fam === 'colluvium' || fam === 'made_ground') {
+          if (l.bottom > maxAlluv) maxAlluv = l.bottom;
+        }
+      }
+    });
+    return maxAlluv;
+  });
+
+  const alluvBaseLevels = sorted.map((r, i) => {
+    const lv = levelsArr[i];
+    const zG = lv.elevation !== null ? lv.elevation : maxElev;
+    const zR = effectiveRockLevel[i] !== null ? effectiveRockLevel[i] : zG - 5;
+    const dAlluv = alluvBaseDepths[i];
+    if (dAlluv <= 0.05) return zG;
+    return Math.min(Math.max(zG - dAlluv, zR), zG);
+  });
+
+  const alluvUnitKeySet = new Set();
+  const resUnitKeySet = new Set();
+  const soilUnitMeta = {};
+
+  sorted.forEach((r, i) => {
+    const lys = layersArr[i];
+    if (!lys) return;
+    lys.forEach(l => {
+      if (!l.isRockBlock && !l.isBoulder) {
+        const fam = originFamilyOf(l.origin);
+        const key = fam + '|' + l.graphic;
+        soilUnitMeta[key] = {
+          graphic: l.graphic,
+          origin: l.origin,
+          originFamily: fam,
+          description: l.description
+        };
+        if (fam === 'alluvium' || fam === 'colluvium' || fam === 'made_ground') {
+          alluvUnitKeySet.add(key);
+        } else {
+          resUnitKeySet.add(key);
+        }
+      }
+    });
+  });
+
+  const alluvialMasterUnits = Array.from(alluvUnitKeySet).sort((a, b) => {
+    return originFamilyStackPriority(soilUnitMeta[a].originFamily) - originFamilyStackPriority(soilUnitMeta[b].originFamily);
+  });
+
+  const residualMasterUnits = Array.from(resUnitKeySet).sort((a, b) => {
+    return originFamilyStackPriority(soilUnitMeta[a].originFamily) - originFamilyStackPriority(soilUnitMeta[b].originFamily);
+  });
+
+  if (residualMasterUnits.length === 0 && alluvialMasterUnits.length === 0) {
+    const key = 'unknown|Overburden (soil)';
+    residualMasterUnits.push(key);
+    soilUnitMeta[key] = { graphic: 'Overburden (soil)', origin: '', originFamily: 'unknown', description: 'Overburden soil' };
+  }
+
+  const masterSoilUnits = [...alluvialMasterUnits, ...residualMasterUnits];
+  const K_alluv = alluvialMasterUnits.length;
+  const K_res = residualMasterUnits.length;
+
+  // Intra-Alluvial Cumulative Boundaries
+  const bhAlluvUnitPresent = [];
+  const bhAlluvCumBoundaries = sorted.map((r, i) => {
+    const lys = layersArr[i];
+    const dAlluv = alluvBaseDepths[i];
+    const present = new Array(K_alluv).fill(false);
+    const unitMap = {};
+
+    if (K_alluv > 0 && dAlluv > 0.05 && lys) {
+      lys.forEach(l => {
+        if (!l.isRockBlock && !l.isBoulder) {
+          const fam = originFamilyOf(l.origin);
+          if (fam === 'alluvium' || fam === 'colluvium' || fam === 'made_ground') {
+            const key = fam + '|' + l.graphic;
+            const uIdx = alluvialMasterUnits.indexOf(key);
+            if (uIdx >= 0) {
+              present[uIdx] = true;
+              const fTop = Math.min(Math.max(l.depth / dAlluv, 0.0), 1.0);
+              const fBot = Math.min(Math.max(l.bottom / dAlluv, 0.0), 1.0);
+              unitMap[key] = { fTop, fBot };
+            }
+          }
+        }
+      });
+    }
+    bhAlluvUnitPresent.push(present);
+
+    const C = new Array(K_alluv + 1).fill(0);
+    let cursor = 0.0;
+    alluvialMasterUnits.forEach((u, uIdx) => {
+      if (unitMap[u]) {
+        const fTop = Math.max(unitMap[u].fTop, cursor);
+        const fBot = Math.max(unitMap[u].fBot, fTop);
+        C[uIdx] = fTop;
+        C[uIdx + 1] = fBot;
+        cursor = fBot;
+      } else {
+        C[uIdx] = cursor;
+        C[uIdx + 1] = cursor;
+      }
+    });
+    C[K_alluv] = 1.0;
+    for (let k = 1; k <= K_alluv; k++) {
+      if (C[k] < C[k - 1]) C[k] = C[k - 1];
+    }
+    return C;
+  });
+
+  // Intra-Residual Cumulative Boundaries
+  const bhResUnitPresent = [];
+  const bhResCumBoundaries = sorted.map((r, i) => {
+    const lv = levelsArr[i];
+    const lys = layersArr[i];
+    const zG = lv.elevation !== null ? lv.elevation : maxElev;
+    const zR = effectiveRockLevel[i] !== null ? effectiveRockLevel[i] : zG - 5;
+    const dAlluv = alluvBaseDepths[i];
+    const nonRock = (lys || []).filter(l => !l.isRockBlock && !l.isBoulder);
+    const totalSoil = nonRock.length ? Math.max(...nonRock.map(l => l.bottom)) : Math.max(zG - zR, 0.1);
+    const resThick = Math.max(totalSoil - dAlluv, 0.1);
+
+    const present = new Array(K_res).fill(false);
+    const unitMap = {};
+
+    if (K_res > 0 && lys) {
+      lys.forEach(l => {
+        if (!l.isRockBlock && !l.isBoulder) {
+          const fam = originFamilyOf(l.origin);
+          if (fam === 'residual' || fam === 'unknown') {
+            const key = fam + '|' + l.graphic;
+            const uIdx = residualMasterUnits.indexOf(key);
+            if (uIdx >= 0) {
+              present[uIdx] = true;
+              const topInRes = Math.max(l.depth - dAlluv, 0);
+              const botInRes = Math.max(l.bottom - dAlluv, topInRes);
+              const fTop = Math.min(Math.max(topInRes / resThick, 0.0), 1.0);
+              const fBot = Math.min(Math.max(botInRes / resThick, 0.0), 1.0);
+              unitMap[key] = { fTop, fBot };
+            }
+          }
+        }
+      });
+    }
+    bhResUnitPresent.push(present);
+
+    const C = new Array(K_res + 1).fill(0);
+    let cursor = 0.0;
+    residualMasterUnits.forEach((u, uIdx) => {
+      if (unitMap[u]) {
+        const fTop = Math.max(unitMap[u].fTop, cursor);
+        const fBot = Math.max(unitMap[u].fBot, fTop);
+        C[uIdx] = fTop;
+        C[uIdx + 1] = fBot;
+        cursor = fBot;
+      } else {
+        C[uIdx] = cursor;
+        C[uIdx + 1] = cursor;
+      }
+    });
+    C[K_res] = 1.0;
+    for (let k = 1; k <= K_res; k++) {
+      if (C[k] < C[k - 1]) C[k] = C[k - 1];
+    }
+    return C;
+  });
+
+  const alluvBasePts = sorted.map((r, i) => ({ x: distances[i], y: alluvBaseLevels[i] }));
+  function getZAlluvBase(d) {
+    const hasAnyAlluv = alluvBaseLevels.some((z, i) => {
+      const zG = levelsArr[i].elevation !== null ? levelsArr[i].elevation : maxElev;
+      return (zG - z) > 0.05;
+    });
+    if (!hasAnyAlluv) return getZGround(d);
+    let zBase = interpolateSpline(alluvBasePts, d);
+    const zG = getZGround(d);
+    const zR = getZRock(d);
+    return Math.min(Math.max(zBase, zR), zG);
+  }
+
+  function getAlluvBoundaryZ(k, d) {
+    const zTop = getZGround(d);
+    const zBase = getZAlluvBase(d);
+    const thick = Math.max(zTop - zBase, 0);
+    if (thick <= 0.01) return zTop;
+    if (k === 0) return zTop;
+    if (k === K_alluv) return zBase;
+    const pts = sorted.map((r, i) => ({ x: distances[i], y: bhAlluvCumBoundaries[i][k] }));
+    const f = Math.min(Math.max(interpolateSpline(pts, d), 0.0), 1.0);
+    return Math.min(Math.max(zTop - f * thick, zBase), zTop);
+  }
+
+  function getResBoundaryZ(k, d) {
+    const zTop = getZAlluvBase(d);
+    const zBase = getZRock(d);
+    const thick = Math.max(zTop - zBase, 0);
+    if (thick <= 0.01) return zTop;
+    if (k === 0) return zTop;
+    if (k === K_res) return zBase;
+    const pts = sorted.map((r, i) => ({ x: distances[i], y: bhResCumBoundaries[i][k] }));
+    const f = Math.min(Math.max(interpolateSpline(pts, d), 0.0), 1.0);
+    return Math.min(Math.max(zTop - f * thick, zBase), zTop);
+  }
+
+  // ── DXF FILE COMPOSITION ──────────────────────────────────────────────────
+  let dxf = `0\nSECTION\n2\nHEADER\n9\n$ACADVER\n1\nAC1009\n9\n$INSUNITS\n70\n6\n9\n$EXTMIN\n10\n0.0\n20\n${(minElev * vScale).toFixed(3)}\n30\n0.0\n9\n$EXTMAX\n10\n${totalDist.toFixed(3)}\n20\n${(maxElev * vScale).toFixed(3)}\n30\n0.0\n0\nENDSEC\n`;
+
+  // TABLES SECTION
+  dxf += `0\nSECTION\n2\nTABLES\n`;
+  
+  // LTYPE Table
+  dxf += `0\nTABLE\n2\nLTYPE\n70\n4\n`;
+  dxf += `0\nLTYPE\n2\nCONTINUOUS\n70\n64\n3\nSolid line\n72\n65\n73\n0\n40\n0.0\n`;
+  dxf += `0\nLTYPE\n2\nDASHED\n70\n64\n3\nDashed line\n72\n65\n73\n2\n40\n4.0\n49\n3.0\n49\n-1.0\n`;
+  dxf += `0\nLTYPE\n2\nHIDDEN\n70\n64\n3\nHidden line\n72\n65\n73\n2\n40\n2.5\n49\n1.8\n49\n-0.7\n`;
+  dxf += `0\nLTYPE\n2\nPHANTOM\n70\n64\n3\nPhantom line\n72\n65\n73\n4\n40\n6.0\n49\n3.5\n49\n-0.8\n49\n0.9\n49\n-0.8\n`;
+  dxf += `0\nENDTAB\n`;
+
+  // LAYER Table
+  const cadLayers = [
+    { name: 'GEOL_GROUND_SURFACE', color: 4, ltype: 'CONTINUOUS' },     // Cyan
+    { name: 'GEOL_ROCKHEAD', color: 1, ltype: 'DASHED' },               // Red
+    { name: 'GEOL_SOIL_STRATA', color: 30, ltype: 'CONTINUOUS' },       // Orange / Tan
+    { name: 'GEOL_BEDROCK_STRATA', color: 140, ltype: 'CONTINUOUS' },   // Teal
+    { name: 'GEOL_ORIGIN_BOUNDARIES', color: 8, ltype: 'HIDDEN' },      // Gray
+    { name: 'GEOL_GWT', color: 5, ltype: 'DASHED' },                    // Blue
+    { name: 'GEOL_HATCH_SOIL', color: 8, ltype: 'CONTINUOUS' },
+    { name: 'GEOL_HATCH_ROCK', color: 8, ltype: 'CONTINUOUS' },
+    { name: 'GEOL_HATCH_CWR', color: 34, ltype: 'CONTINUOUS' },
+    { name: 'GEOL_BOREHOLES', color: 7, ltype: 'CONTINUOUS' },          // White / Black
+    { name: 'GEOL_SPT_BARS', color: 140, ltype: 'CONTINUOUS' },
+    { name: 'GEOL_SPT_DATA', color: 3, ltype: 'CONTINUOUS' },           // Green
+    { name: 'GEOL_RQD_BARS', color: 2, ltype: 'CONTINUOUS' },           // Yellow
+    { name: 'GEOL_RQD_DATA', color: 2, ltype: 'CONTINUOUS' },
+    { name: 'GEOL_LABELS', color: 7, ltype: 'CONTINUOUS' },
+    { name: 'GEOL_GRID_AXIS', color: 8, ltype: 'CONTINUOUS' },
+    { name: 'GEOL_GRID_TEXT', color: 7, ltype: 'CONTINUOUS' },
+    { name: 'GEOL_TITLEBLOCK', color: 7, ltype: 'CONTINUOUS' }
+  ];
+
+  dxf += `0\nTABLE\n2\nLAYER\n70\n${cadLayers.length}\n`;
+  cadLayers.forEach(l => {
+    dxf += `0\nLAYER\n2\n${l.name}\n70\n0\n62\n${l.color}\n6\n${l.ltype}\n`;
+  });
+  dxf += `0\nENDTAB\n0\nENDSEC\n`;
+
+  // ENTITIES SECTION
+  dxf += `0\nSECTION\n2\nENTITIES\n`;
+
+  function addLine(layer, x1, y1, x2, y2, colorAci = null, trueColor = null) {
+    dxf += `0\nLINE\n8\n${layer}\n`;
+    if (colorAci !== null) dxf += `62\n${colorAci}\n`;
+    if (options.optTrueColor && trueColor !== null) dxf += `420\n${trueColor}\n`;
+    dxf += `10\n${x1.toFixed(3)}\n20\n${y1.toFixed(3)}\n30\n0.0\n11\n${x2.toFixed(3)}\n21\n${y2.toFixed(3)}\n31\n0.0\n`;
+  }
+
+  function addPolyline(layer, pts, isClosed = false, colorAci = null, trueColor = null) {
+    if (!pts || pts.length < 2) return;
+    for (let i = 0; i < pts.length - 1; i++) {
+      addLine(layer, pts[i][0], pts[i][1], pts[i+1][0], pts[i+1][1], colorAci, trueColor);
+    }
+    if (isClosed) {
+      addLine(layer, pts[pts.length - 1][0], pts[pts.length - 1][1], pts[0][0], pts[0][1], colorAci, trueColor);
+    }
+  }
+
+  function add3dFace(layer, p1, p2, p3, p4, colorAci = null, trueColor = null) {
+    dxf += `0\n3DFACE\n8\n${layer}\n`;
+    if (colorAci !== null) dxf += `62\n${colorAci}\n`;
+    if (options.optTrueColor && trueColor !== null) dxf += `420\n${trueColor}\n`;
+    dxf += `10\n${p1[0].toFixed(3)}\n20\n${p1[1].toFixed(3)}\n30\n0.0\n`;
+    dxf += `11\n${p2[0].toFixed(3)}\n21\n${p2[1].toFixed(3)}\n31\n0.0\n`;
+    dxf += `12\n${p3[0].toFixed(3)}\n22\n${p3[1].toFixed(3)}\n32\n0.0\n`;
+    dxf += `13\n${p4[0].toFixed(3)}\n23\n${p4[1].toFixed(3)}\n33\n0.0\n`;
+  }
+
+  function addText(layer, x, y, height, text, rotation = 0, colorAci = null) {
+    const cleanStr = String(text).replace(/[\r\n]+/g, ' ');
+    dxf += `0\nTEXT\n8\n${layer}\n`;
+    if (colorAci !== null) dxf += `62\n${colorAci}\n`;
+    dxf += `10\n${x.toFixed(3)}\n20\n${y.toFixed(3)}\n30\n0.0\n40\n${height.toFixed(3)}\n1\n${cleanStr}\n`;
+    if (rotation !== 0) dxf += `50\n${rotation.toFixed(1)}\n`;
+  }
+
+  // Profile Sampling Points
+  const nSamples = Math.max(Math.round(totalDist / 2), 60);
+  const sampleD = [];
+  for (let s = 0; s <= nSamples; s++) {
+    sampleD.push((s / nSamples) * totalDist);
+  }
+
+  // 1. GROUND SURFACE LINE
+  if (options.optGround) {
+    const gPts = sampleD.map(d => [cadX(d), cadY(getZGround(d))]);
+    addPolyline('GEOL_GROUND_SURFACE', gPts, false, 4);
+  }
+
+  // 2. ROCKHEAD LINE
+  if (options.optRockhead) {
+    const rPts = sampleD.map(d => [cadX(d), cadY(getZRock(d))]);
+    addPolyline('GEOL_ROCKHEAD', rPts, false, 1);
+  }
+
+  // 3. GROUNDWATER TABLE (GWT) LINE
+  if (options.optGWT && gwDepthPts.length) {
+    const wPts = sampleD.map(d => {
+      const zW = getZWater(d);
+      return zW !== null ? [cadX(d), cadY(zW)] : null;
+    }).filter(Boolean);
+    if (wPts.length >= 2) addPolyline('GEOL_GWT', wPts, false, 5);
+  }
+
+  // 4. SOIL STRATIGRAPHY BOUNDARIES & HATCHES
+  masterSoilUnits.forEach((u, uIdx) => {
+    const meta = soilUnitMeta[u];
+    const info = getGraphicInfo(meta.graphic);
+    const tc = hexToDxfTrueColor(info.color);
+    const isAlluv = uIdx < K_alluv;
+    const kIdx = isAlluv ? uIdx : (uIdx - K_alluv);
+    const bhPresent = isAlluv ? bhAlluvUnitPresent : bhResUnitPresent;
+
+    const hasAnyBH = sorted.some((r, i) => bhPresent[i] && bhPresent[i][kIdx]);
+    if (!hasAnyBH) return;
+
+    const topCurve = [];
+    const botCurve = [];
+    sampleD.forEach(d => {
+      const zG = getZGround(d);
+      const zBase = getZAlluvBase(d);
+      const zR = getZRock(d);
+
+      let zTop = isAlluv ? getAlluvBoundaryZ(kIdx, d) : getResBoundaryZ(kIdx, d);
+      let zBot = isAlluv ? getAlluvBoundaryZ(kIdx + 1, d) : getResBoundaryZ(kIdx + 1, d);
+
+      if (isAlluv) {
+        zTop = Math.min(Math.max(zTop, zBase), zG);
+        zBot = Math.min(Math.max(zBot, zBase), zG);
+      } else {
+        zTop = Math.min(Math.max(zTop, zR), zBase);
+        zBot = Math.min(Math.max(zBot, zR), zBase);
+      }
+      if (zBot > zTop) zBot = zTop;
+
+      topCurve.push([cadX(d), cadY(zTop)]);
+      botCurve.push([cadX(d), cadY(zBot)]);
+    });
+
+    // Draw boundary line
+    if (options.optSoilLines) {
+      addPolyline('GEOL_SOIL_STRATA', topCurve, false, 30, tc);
+    }
+
+    // Draw CAD mesh / hatch strips
+    if (options.optSoilHatches) {
+      for (let s = 0; s < topCurve.length - 1; s++) {
+        const p1 = topCurve[s];
+        const p2 = topCurve[s + 1];
+        const p3 = botCurve[s + 1];
+        const p4 = botCurve[s];
+        if (Math.abs(p1[1] - p4[1]) > 0.05 || Math.abs(p2[1] - p3[1]) > 0.05) {
+          add3dFace('GEOL_HATCH_SOIL', p1, p2, p3, p4, 30, tc);
+        }
+      }
+    }
+  });
+
+  // 4b. SOIL ORIGIN BOUNDARIES (e.g. Alluvium Base Contact)
+  if (options.optOriginLines && K_alluv > 0) {
+    const originPts = [];
+    sampleD.forEach(d => {
+      const zG = getZGround(d);
+      const zBase = getZAlluvBase(d);
+      const zR = getZRock(d);
+      if ((zG - zBase) > 0.05 && (zBase - zR) > 0.05) {
+        originPts.push([cadX(d), cadY(zBase)]);
+      } else {
+        if (originPts.length >= 2) {
+          addPolyline('GEOL_ORIGIN_BOUNDARIES', originPts, false, 8);
+        }
+        originPts.length = 0;
+      }
+    });
+    if (originPts.length >= 2) {
+      addPolyline('GEOL_ORIGIN_BOUNDARIES', originPts, false, 8);
+    }
+  }
+
+  // 5. DIPPING BEDROCK FORMATION HORIZONS
+  if (options.optRockLines || options.optRockHatches) {
+    const rockHorizonElevs = [];
+    sorted.forEach((r, i) => {
+      const d = distances[i];
+      const zR = effectiveRockLevel[i] !== null ? effectiveRockLevel[i] : maxElev - 10;
+      rockHorizonElevs.push(zR + dipSlope * d);
+    });
+    rockHorizonElevs.sort((a, b) => b - a);
+
+    const mergedH = [];
+    rockHorizonElevs.forEach(h => {
+      if (!mergedH.length || Math.abs(mergedH[mergedH.length - 1] - h) >= 3.0) {
+        mergedH.push(h);
+      }
+    });
+
+    mergedH.forEach((hVal, hIdx) => {
+      const linePts = [];
+      sampleD.forEach(d => {
+        const zUpper = hVal - dipSlope * d;
+        const zR = getZRock(d);
+        const zTop = Math.min(zUpper, zR);
+        if (zTop >= minElev) {
+          linePts.push([cadX(d), cadY(zTop)]);
+        }
+      });
+      if (options.optRockLines && linePts.length >= 2) {
+        addPolyline('GEOL_BEDROCK_STRATA', linePts, false, 140);
+      }
+    });
+  }
+
+  // 6. BOREHOLE PILLARS, STRATIGRAPHY & IN-SITU DATA (SPT, RQD)
+  sorted.forEach((r, i) => {
+    const x = cadX(distances[i]);
     const lv = levelsArr[i];
     const zG = lv.elevation !== null ? lv.elevation : 100;
-    const bhName = (r['BH Name'] || '').trim();
-    const lys = layersArr[i];
+    const zR = effectiveRockLevel[i] !== null ? effectiveRockLevel[i] : zG - 5;
     const zTerm = lv.termDepth !== null ? zG - lv.termDepth : zG - 15;
+    const bhName = (r['BH Name'] || r['PointID'] || `BH ${i+1}`).trim();
+    const lys = layersArr[i];
 
-    // Pillar rectangle
-    addLine('GEOL_BOREHOLES', x - 1, zG, x + 1, zG);
-    addLine('GEOL_BOREHOLES', x - 1, zTerm, x + 1, zTerm);
-    addLine('GEOL_BOREHOLES', x - 1, zG, x - 1, zTerm);
-    addLine('GEOL_BOREHOLES', x + 1, zG, x + 1, zTerm);
+    if (options.optPillars) {
+      // Pillar rectangle (0.8m wide in CAD)
+      const pw = 0.4;
+      addLine('GEOL_BOREHOLES', x - pw, cadY(zG), x + pw, cadY(zG));
+      addLine('GEOL_BOREHOLES', x - pw, cadY(zTerm), x + pw, cadY(zTerm));
+      addLine('GEOL_BOREHOLES', x - pw, cadY(zG), x - pw, cadY(zTerm));
+      addLine('GEOL_BOREHOLES', x + pw, cadY(zG), x + pw, cadY(zTerm));
 
-    // Text Annotations
-    addText('GEOL_LABELS', x, zG + 1.5, 1.2, bhName);
-    addText('GEOL_LABELS', x, zG + 0.3, 0.9, `GL ${zG.toFixed(2)}m`);
-    addText('GEOL_LABELS', x, zTerm - 1.2, 0.9, `Term ${zTerm.toFixed(2)}m`);
+      // Header and footer text annotations
+      addText('GEOL_LABELS', x, cadY(zG) + 2.0 * vScale, 1.2 * vScale, bhName, 0, 7);
+      addText('GEOL_LABELS', x, cadY(zG) + 0.6 * vScale, 0.9 * vScale, `GL ${zG.toFixed(2)}m`, 0, 7);
+      addText('GEOL_LABELS', x, cadY(zTerm) - 1.5 * vScale, 0.9 * vScale, `Term ${zTerm.toFixed(2)}m`, 0, 7);
 
-    if (lys && lys.length) {
-      lys.forEach(l => {
-        const topZ = zG - l.depth;
-        const botZ = zG - l.bottom;
-        const code = (l.graphic || '').trim();
-        addLine('GEOL_STRATIGRAPHY', x - 1, topZ, x + 1, topZ);
-        addLine('GEOL_STRATIGRAPHY', x - 1, botZ, x + 1, botZ);
-        addText('GEOL_STRATIGRAPHY', x + 1.5, (topZ + botZ)/2, 0.7, code);
+      // Stratigraphy sub-intervals
+      if (lys && lys.length) {
+        lys.forEach(l => {
+          const topZ = zG - l.depth;
+          const botZ = zG - l.bottom;
+          const code = (l.graphic || '').trim();
+          addLine('GEOL_SOIL_STRATA', x - pw, cadY(topZ), x + pw, cadY(topZ), 30);
+          addLine('GEOL_SOIL_STRATA', x - pw, cadY(botZ), x + pw, cadY(botZ), 30);
+          if (code) {
+            addText('GEOL_SOIL_STRATA', x + pw + 0.3, cadY((topZ + botZ) / 2), 0.7 * vScale, code, 0, 30);
+          }
+        });
+      }
+    }
+
+    // 7. IN-SITU SPT N-VALUES & RQD DATA
+    const allTests = getBHTests(r);
+    if (allTests && allTests.length) {
+      allTests.forEach(tst => {
+        const tDepth = parseFloat(tst.depth) || 0;
+        const tLen = parseFloat(tst.length) || 0.45;
+        const tTop = zG - tDepth;
+        const tBot = zG - (tDepth + tLen);
+
+        // SPT Data
+        if (options.optSPT && tst.nVal !== null && (tst.type === 'SPT' || tst.nVal > 0)) {
+          const nNum = tst.nVal;
+          const isRefusal = nNum >= 50;
+          const nTxt = isRefusal ? '50+' : String(Math.round(nNum));
+          const barLen = Math.min(nNum, 50) * 0.08;
+          const barX1 = x + 0.6;
+          const barX2 = barX1 + Math.max(barLen, 0.5);
+          addLine('GEOL_SPT_BARS', barX1, cadY(tTop), barX2, cadY(tTop), 3);
+          addText('GEOL_SPT_DATA', barX2 + 0.3, cadY((tTop + tBot) / 2), 0.65 * vScale, `N=${nTxt}`, 0, 3);
+        }
+
+        // RQD Data
+        if (options.optRQD && tst.rqd !== null && tst.type !== 'SPT') {
+          const rVal = tst.rqd;
+          const barW = (rVal / 100) * 2.5;
+          const rx1 = x - 0.6;
+          const rx2 = rx1 - Math.max(barW, 0.2);
+          addLine('GEOL_RQD_BARS', rx1, cadY(tTop), rx2, cadY(tTop), 2);
+          addLine('GEOL_RQD_BARS', rx1, cadY(tBot), rx2, cadY(tBot), 2);
+          addLine('GEOL_RQD_BARS', rx2, cadY(tTop), rx2, cadY(tBot), 2);
+          addText('GEOL_RQD_DATA', rx2 - 0.3, cadY((tTop + tBot) / 2), 0.6 * vScale, `RQD ${Math.round(rVal)}%`, 0, 2);
+        }
       });
     }
   });
 
-  // Ground surface line connect
-  for (let i = 0; i < sorted.length - 1; i++) {
-    const zG1 = levelsArr[i].elevation !== null ? levelsArr[i].elevation : 100;
-    const zG2 = levelsArr[i+1].elevation !== null ? levelsArr[i+1].elevation : 100;
-    addLine('GEOL_GROUND_SURFACE', distances[i], zG1, distances[i+1], zG2);
+  // 9. ELEVATION & CHAINAGE DIMENSION GRID
+  if (options.optGrid) {
+    const elevStep = niceScaleMeters(Math.max(elevRange / 6, 2));
+    const startElev = Math.ceil(minElev / elevStep) * elevStep;
+    for (let el = startElev; el <= maxElev; el += elevStep) {
+      const y = cadY(el);
+      addLine('GEOL_GRID_AXIS', 0, y, totalDist, y, 8);
+      addText('GEOL_GRID_TEXT', -3, y - 0.4 * vScale, 0.9 * vScale, `${el}m RL`, 0, 7);
+      addText('GEOL_GRID_TEXT', totalDist + 3, y - 0.4 * vScale, 0.9 * vScale, `${el}m RL`, 0, 7);
+    }
+
+    const distStep = niceScaleMeters(Math.max(totalDist / 8, 10));
+    for (let d = 0; d <= totalDist + 0.1; d += distStep) {
+      const x = cadX(d);
+      const yAxis = cadY(minElev);
+      addLine('GEOL_GRID_AXIS', x, yAxis, x, yAxis - 1.5 * vScale, 7);
+      addText('GEOL_GRID_TEXT', x, yAxis - 3.5 * vScale, 0.9 * vScale, `${Math.round(d)}m`, 0, 7);
+    }
+    // Bottom Axis Line
+    addLine('GEOL_GRID_AXIS', 0, cadY(minElev), totalDist, cadY(minElev), 7);
   }
 
-  // Rockhead (bedrock contact) connect
-  for (let i = 0; i < sorted.length - 1; i++) {
-    const zR1 = levelsArr[i].rockLevel !== null ? levelsArr[i].rockLevel : null;
-    const zR2 = levelsArr[i+1].rockLevel !== null ? levelsArr[i+1].rockLevel : null;
-    if (zR1 !== null && zR2 !== null) {
-      addLine('GEOL_ROCKHEAD', distances[i], zR1, distances[i+1], zR2);
-    }
-  }
-
-  // Groundwater Table (GWT) connect
-  for (let i = 0; i < sorted.length - 1; i++) {
-    const zW1 = levelsArr[i].waterLevel !== null ? levelsArr[i].waterLevel : null;
-    const zW2 = levelsArr[i+1].waterLevel !== null ? levelsArr[i+1].waterLevel : null;
-    if (zW1 !== null && zW2 !== null) {
-      addLine('GEOL_GWT', distances[i], zW1, distances[i+1], zW2);
-    }
+  // 10. TITLE BLOCK & STRUCTURAL METADATA BANNER
+  if (options.optTitle) {
+    const titleY = cadY(maxElev + 6);
+    addText('GEOL_TITLEBLOCK', 0, titleY, 2.2 * vScale, secTitle, 0, 7);
+    const metaStr = `ALIGNMENT AZIMUTH: ${azInput.toFixed(1)}° N | FOLIATION: Dip Dir ${dipDir}° N / Dip ${dipAng}° | APPARENT DIP: ${appDip.angle.toFixed(1)}° ${appDip.directionStr} | SCALE: 1:${vScale === 1.0 ? '1 (Natural)' : 'VE 5x'}`;
+    addText('GEOL_TITLEBLOCK', 0, titleY - 2.2 * vScale, 1.1 * vScale, metaStr, 0, 7);
+    addLine('GEOL_TITLEBLOCK', 0, titleY - 3.2 * vScale, totalDist, titleY - 3.2 * vScale, 7);
   }
 
   dxf += `0\nENDSEC\n0\nEOF\n`;
 
-  const blob = new Blob([dxf], { type: 'application/dxf' });
+  // Trigger File Download
+  const blob = new Blob([dxf], { type: 'application/dxf;charset=utf-8' });
   const a = document.body.appendChild(document.createElement('a'));
   a.href = URL.createObjectURL(blob);
-  a.download = 'CEP3_Geology_Profile_' + new Date().toISOString().slice(0,10) + '.dxf';
+  const cleanTitle = secTitle.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 30);
+  a.download = `CEP3_${cleanTitle}_${new Date().toISOString().slice(0,10)}.dxf`;
   a.click();
   document.body.removeChild(a);
+
+  showAppToast('📐 CAD DXF Export Complete', 'AutoCAD / Civil 3D DXF file generated with all selected strata, hatches, and geotechnical test data.', 'success');
 }
+
 </script>
 
 <script>
