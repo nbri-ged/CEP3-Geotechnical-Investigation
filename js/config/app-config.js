@@ -4,7 +4,7 @@
    ============================================================ */
 
 // Software Version & Release
-const APP_VERSION = "2.5.0";
+const APP_VERSION = "2.5.1";
 const LOCAL_BOREHOLES_CSV = "CEP 3  Rambukkana-Galagedara - BoreholesDetails (2).csv";
 
 // Data Source Endpoints (Google Sheets Published CSV Feeds)
