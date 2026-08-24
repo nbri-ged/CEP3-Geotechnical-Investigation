@@ -4,7 +4,7 @@
    ============================================================ */
 
 // Software Version & Release
-const APP_VERSION = "2.5.2";
+const APP_VERSION = "2.5.4";
 const LOCAL_BOREHOLES_CSV = "CEP 3  Rambukkana-Galagedara - BoreholesDetails (2).csv";
 
 // Data Source Endpoints (Google Sheets Published CSV Feeds)
@@ -49,6 +49,7 @@ const PACKAGE_COLORS = {
 // Cache busting URL helper
 function getBustedUrl(url) {
   if (!url) return '';
+  if (url.includes('docs.google.com')) return url;
   const sep = url.includes('?') ? '&' : '?';
   return `${url}${sep}_v=${APP_VERSION}_t=${Date.now()}`;
 }
