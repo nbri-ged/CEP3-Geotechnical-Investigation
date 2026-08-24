@@ -1,62 +1,74 @@
-let profileSelectMode = false;
-let profileSelectedIdx = []; // indices into allRows — unique per physical borehole,
-                              // unlike BH Name which can repeat across sections
+function initCrossSectionControls() {
+  const profileSelectBtn = document.getElementById('profile-select-btn');
+  if (profileSelectBtn) {
+    profileSelectBtn.addEventListener('click', () => {
+      profileSelectMode = !profileSelectMode;
+      profileSelectBtn.classList.toggle('profile-active', profileSelectMode);
+      profileSelectBtn.textContent = profileSelectMode ? '✅ Click Boreholes Now (tap again to stop)' : '📍 Select Boreholes on Map';
+    });
+  }
 
-const profileSelectBtn = document.getElementById('profile-select-btn');
-profileSelectBtn.addEventListener('click', () => {
-  profileSelectMode = !profileSelectMode;
-  profileSelectBtn.classList.toggle('profile-active', profileSelectMode);
-  profileSelectBtn.textContent = profileSelectMode ? '✅ Click Boreholes Now (tap again to stop)' : '📍 Select Boreholes on Map';
-});
+  const clearBtn = document.getElementById('profile-clear-btn');
+  if (clearBtn) {
+    clearBtn.addEventListener('click', () => {
+      profileSelectedIdx = [];
+      updateProfileChips();
+      if (typeof render === 'function') render();
+    });
+  }
 
-function toggleProfileSelection(rowIdx){
+  const genBtn = document.getElementById('profile-generate-btn');
+  if (genBtn) {
+    genBtn.addEventListener('click', () => {
+      if (profileSelectedIdx.length < 2) {
+        alert('Select at least 2 boreholes first (click them on the map while "Select Boreholes on Map" is active).');
+        return;
+      }
+      let rows = profileSelectedIdx
+        .map(rowIdx => allRows[rowIdx])
+        .filter(Boolean);
+
+      rows = sortBoreholesByMapPosition(rows);
+      showProfileModal(rows);
+    });
+  }
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initCrossSectionControls);
+} else {
+  initCrossSectionControls();
+}
+
+function toggleProfileSelection(rowIdx) {
   const idx = profileSelectedIdx.indexOf(rowIdx);
-  if (idx === -1){
+  if (idx === -1) {
     profileSelectedIdx.push(rowIdx);
   } else {
     profileSelectedIdx.splice(idx, 1);
   }
   updateProfileChips();
+  if (typeof render === 'function') render();
 }
 
-function updateProfileChips(){
+function updateProfileChips() {
   const wrap = document.getElementById('profile-selected-list');
   const chipsEl = document.getElementById('profile-chips');
-  if (profileSelectedIdx.length === 0){
+  if (!wrap || !chipsEl) return;
+  if (profileSelectedIdx.length === 0) {
     wrap.style.display = 'none';
     return;
   }
   wrap.style.display = 'block';
   chipsEl.innerHTML = profileSelectedIdx.map((rowIdx, i) => {
     const r = allRows[rowIdx];
-    const n = r ? (r['BH Name'] || '').trim() : '(missing)';
+    const n = r ? (r['BH Name'] || r['PointID'] || '').trim() : '(missing)';
     return `<span class="profile-chip" data-idx="${rowIdx}">${i+1}. ${n} &times;</span>`;
   }).join('');
   chipsEl.querySelectorAll('.profile-chip').forEach(chip => {
     chip.addEventListener('click', () => toggleProfileSelection(parseInt(chip.getAttribute('data-idx'), 10)));
   });
 }
-
-document.getElementById('profile-clear-btn').addEventListener('click', () => {
-  profileSelectedIdx = [];
-  updateProfileChips();
-});
-
-document.getElementById('profile-generate-btn').addEventListener('click', () => {
-  if (profileSelectedIdx.length < 2){
-    alert('Select at least 2 boreholes first (click them on the map while "Select Boreholes on Map" is active).');
-    return;
-  }
-  let rows = profileSelectedIdx
-    .map(rowIdx => allRows[rowIdx])
-    .filter(Boolean);
-
-  // AUTO-SORT by geographic position along the section line
-  // Project each BH onto the best-fit axis (centroid → furthest BH direction)
-  rows = sortBoreholesByMapPosition(rows);
-
-  showProfileModal(rows);
-});
 
 function sortBoreholesByMapPosition(rows) {
   // Convert all to lat/lon
