@@ -1,0 +1,259 @@
+/* ============================================================
+   NBRI GEOTECHNICAL GIS — SIDEBAR & CONTROLS (sidebar.css)
+   ============================================================ */
+
+#sidebar {
+  width: 320px;
+  min-width: 320px;
+  background: #ffffff;
+  border-right: 1px solid var(--line);
+  box-shadow: 4px 0 16px rgba(15, 23, 42, 0.04);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  transition: width 0.24s cubic-bezier(0.16, 1, 0.3, 1), min-width 0.24s cubic-bezier(0.16, 1, 0.3, 1), padding 0.24s ease;
+  z-index: 10;
+}
+#sidebar::-webkit-scrollbar {
+  width: 6px;
+}
+#sidebar::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: var(--radius-full);
+}
+#sidebar::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+#app.sidebar-collapsed-desktop #sidebar {
+  width: 0;
+  min-width: 0;
+  border-right: none;
+  overflow: hidden;
+}
+
+#sidebar-backdrop {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  header h1 { font-size: 15px; }
+  header .sub { display: none; }
+  #status-line { font-size: 11px; }
+  #sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100%;
+    width: 85vw;
+    max-width: 340px;
+    min-width: 0;
+    z-index: 1200;
+    box-shadow: 4px 0 24px rgba(0, 0, 0, 0.3);
+    transform: translateX(-100%);
+    transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  #app.sidebar-open-mobile #sidebar {
+    transform: translateX(0);
+  }
+  #app.sidebar-open-mobile #sidebar-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.55);
+    backdrop-filter: blur(4px);
+    z-index: 1150;
+  }
+}
+
+/* Sidebar Block & Section Styles */
+#sidebar .block {
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--line);
+  position: relative;
+}
+#sidebar .block:last-child {
+  border-bottom: none;
+}
+
+#sidebar h2 {
+  font-size: 11.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--slate-500);
+  font-weight: 700;
+  margin: 0 0 12px 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Search Box */
+.search-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.search-icon {
+  position: absolute;
+  left: 11px;
+  color: #94a3b8;
+  pointer-events: none;
+  font-size: 14px;
+}
+#search {
+  width: 100%;
+  padding: 9px 12px 9px 34px;
+  border: 1.5px solid var(--line);
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  background: #ffffff;
+  font-family: var(--font-sans);
+  color: var(--ink);
+  transition: all 0.15s ease;
+  box-shadow: var(--shadow-xs);
+}
+#search:focus {
+  outline: none;
+  border-color: var(--brand-teal);
+  box-shadow: 0 0 0 3.5px var(--brand-teal-glow);
+  background: #ffffff;
+}
+
+/* Filter Groups & Select Inputs */
+.filter-group {
+  margin-bottom: 12px;
+}
+.filter-group:last-child {
+  margin-bottom: 0;
+}
+.filter-group label {
+  display: block;
+  font-size: 11.5px;
+  color: var(--slate-700);
+  font-weight: 700;
+  margin-bottom: 5px;
+}
+
+select {
+  width: 100%;
+  padding: 8.5px 12px;
+  border: 1.5px solid var(--line);
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  background-color: #ffffff;
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  box-shadow: var(--shadow-xs);
+}
+select:focus {
+  outline: none;
+  border-color: var(--brand-teal);
+  box-shadow: 0 0 0 3.5px var(--brand-teal-glow);
+}
+
+#count {
+  font-size: 12px;
+  color: var(--slate-500);
+  font-weight: 600;
+  margin-top: 8px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+#count::before {
+  content: '';
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--brand-teal);
+}
+
+/* Modern Action Buttons */
+.kml-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  width: 100%;
+  padding: 9px 12px;
+  margin-bottom: 8px;
+  background: #ffffff;
+  border: 1.5px solid var(--line-strong);
+  color: var(--slate-700);
+  border-radius: var(--radius-md);
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+  text-align: left;
+  font-family: var(--font-sans);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: var(--shadow-xs);
+}
+.kml-btn:hover {
+  background: var(--slate-50);
+  border-color: var(--brand-teal);
+  color: var(--brand-teal-dark);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-sm);
+}
+.kml-btn:active {
+  transform: translateY(0);
+}
+
+/* Featured Cross-Section Studio Card in Sidebar */
+.studio-feature-card {
+  background: linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 50%, #f0fdfa 100%) !important;
+  border: 1.5px solid #a7f3d0 !important;
+  border-radius: var(--radius-lg) !important;
+  padding: 16px 18px !important;
+  margin: 12px 14px !important;
+  box-shadow: 0 4px 14px rgba(16, 185, 129, 0.08) !important;
+}
+.studio-badge {
+  background: linear-gradient(135deg, #059669, #10b981);
+  color: #ffffff;
+  font-size: 9.5px;
+  font-weight: 800;
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  box-shadow: 0 2px 6px rgba(16, 185, 129, 0.25);
+}
+
+/* Chips */
+.profile-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: linear-gradient(135deg, var(--brand-teal-dark), var(--brand-teal));
+  color: #ffffff;
+  padding: 3.5px 10px;
+  border-radius: var(--radius-full);
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 2px 6px var(--brand-teal-glow);
+  transition: all 0.15s ease;
+}
+.profile-chip:hover {
+  background: linear-gradient(135deg, #115e59, #0f766e);
+  transform: scale(1.04);
+}
+
+#profile-select-btn.profile-active {
+  background: var(--brand-orange) !important;
+  color: #ffffff !important;
+  border-color: var(--brand-orange-dark) !important;
+  box-shadow: 0 4px 12px var(--brand-orange-glow) !important;
+  animation: pulseActive 2s infinite ease-in-out;
+}
+@keyframes pulseActive {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(234, 88, 12, 0.4); }
+  50% { box-shadow: 0 0 0 6px rgba(234, 88, 12, 0); }
+}

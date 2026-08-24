@@ -1,0 +1,101 @@
+/* ============================================================
+   NBRI GEOTECHNICAL GIS — DESIGN SYSTEM & TOKENS (base.css)
+   ============================================================ */
+
+:root {
+  --font-sans: 'Plus Jakarta Sans', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+
+  /* Slate & Obsidian Palette */
+  --slate-950: #090e17;
+  --slate-900: #0f172a;
+  --slate-850: #141f36;
+  --slate-800: #1e293b;
+  --slate-700: #334155;
+  --slate-600: #475569;
+  --slate-500: #64748b;
+  --slate-400: #94a3b8;
+  --slate-300: #cbd5e1;
+  --slate-200: #e2e8f0;
+  --slate-100: #f1f5f9;
+  --slate-50:  #f8fafc;
+
+  /* Brand Accent Colors */
+  --brand-teal: #0d9488;
+  --brand-teal-dark: #0f766e;
+  --brand-teal-light: #14b8a6;
+  --brand-teal-glow: rgba(20, 184, 166, 0.25);
+
+  --brand-emerald: #10b981;
+  --brand-emerald-dark: #059669;
+  --brand-emerald-glow: rgba(16, 185, 129, 0.22);
+
+  --brand-amber: #f59e0b;
+  --brand-amber-dark: #d97706;
+  --brand-amber-glow: rgba(245, 158, 11, 0.22);
+
+  --brand-orange: #ea580c;
+  --brand-orange-dark: #c2410c;
+  --brand-orange-glow: rgba(234, 88, 12, 0.22);
+
+  --brand-blue: #2563eb;
+  --brand-blue-dark: #1d4ed8;
+  --brand-blue-glow: rgba(37, 99, 235, 0.22);
+
+  --brand-purple: #7c3aed;
+  --brand-rose: #f43f5e;
+
+  /* Core Semantic Tokens */
+  --ink: #0f172a;
+  --paper: #f8fafc;
+  --line: #e2e8f0;
+  --line-strong: #cbd5e1;
+  --accent: var(--brand-teal);
+  --accent-dark: var(--brand-teal-dark);
+  --accent-2: var(--brand-orange);
+  --panel: #ffffff;
+  --muted: #64748b;
+
+  /* Modern Multi-Layer Box Shadows */
+  --shadow-xs: 0 1px 2px rgba(15, 23, 42, 0.04);
+  --shadow-sm: 0 2px 4px rgba(15, 23, 42, 0.05), 0 1px 2px rgba(15, 23, 42, 0.03);
+  --shadow-md: 0 6px 16px -2px rgba(15, 23, 42, 0.08), 0 2px 6px -1px rgba(15, 23, 42, 0.04);
+  --shadow-lg: 0 12px 28px -4px rgba(15, 23, 42, 0.12), 0 4px 12px -2px rgba(15, 23, 42, 0.06);
+  --shadow-xl: 0 20px 40px -8px rgba(15, 23, 42, 0.22), 0 8px 18px -4px rgba(15, 23, 42, 0.10);
+  --shadow-glass: 0 8px 32px 0 rgba(15, 23, 42, 0.18);
+
+  /* Rounded Corners */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 18px;
+  --radius-full: 9999px;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+html, body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font-sans);
+  background: var(--paper);
+  color: var(--ink);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#app {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+  position: relative;
+}
