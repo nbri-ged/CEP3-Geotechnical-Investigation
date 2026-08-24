@@ -147,6 +147,8 @@ const ORIGIN_FAMILY_MAP = {
   'fill': 'made_ground'
 };
 
+const LENS_ORIGIN_FAMILIES = new Set(['alluvium', 'colluvium', 'made_ground']);
+
 function originFamilyOf(rawOrigin) {
   const clean = (rawOrigin || '').trim().toLowerCase();
   return ORIGIN_FAMILY_MAP[clean] || ('other:' + clean);
