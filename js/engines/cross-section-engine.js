@@ -1,13 +1,29 @@
 function toggleProfileSelection(rowIdx) {
+  if (typeof rowIdx !== 'number' || isNaN(rowIdx)) return;
   const idx = profileSelectedIdx.indexOf(rowIdx);
+  const row = allRows[rowIdx];
+  const bhName = row ? (row['BH Name'] || row['PointID'] || `BH #${rowIdx+1}`).trim() : `BH #${rowIdx+1}`;
+  
   if (idx === -1) {
     profileSelectedIdx.push(rowIdx);
+    if (typeof showAppToast === 'function') {
+      showAppToast('📍 Borehole Added', `Added ${bhName} (${profileSelectedIdx.length} selected for 2D profile)`, 'success');
+    }
   } else {
     profileSelectedIdx.splice(idx, 1);
+    if (typeof showAppToast === 'function') {
+      showAppToast('📍 Borehole Removed', `Removed ${bhName} (${profileSelectedIdx.length} remaining)`, 'info');
+    }
   }
   updateProfileChips();
   if (typeof render === 'function') render();
 }
+
+// Global window exports to guarantee fail-proof onclick resolution
+window.toggleProfileSelection = toggleProfileSelection;
+window.showProfileModal = showProfileModal;
+window.updateProfileChips = updateProfileChips;
+window.recreateProfile = recreateProfile;
 
 function updateProfileChips() {
   const wrap = document.getElementById('profile-selected-list');
@@ -2752,14 +2768,6 @@ function buildProfileSvg(rows, options = {}, arg3 = null, arg4 = null) {
   svg += `</svg>`;
   return svg;
 }
-
-let currentProfileRows = null;
-
-// ── SECTION METHOD & STRUCTURAL GEOLOGY STATE ──────────────────────────────
-let sectionMethod = 'sequential'; // 'sequential' | 'projection'
-let sectionAzimuth = 45;          // degrees from North, clockwise
-let foliationDipDir = 45;         // True Dip Direction (0-360° from North)
-let foliationDipAngle = 45;       // True Dip Angle (0-90° from horizontal)
 
 function onSectionMethodChange(val) {
   sectionMethod = val;
