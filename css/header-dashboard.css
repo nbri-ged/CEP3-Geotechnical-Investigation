@@ -1,0 +1,238 @@
+/* ============================================================
+   NBRI GEOTECHNICAL GIS — HEADER & DASHBOARD BAR (header-dashboard.css)
+   ============================================================ */
+
+/* 1. MODERN GLASSMORPHIC HEADER */
+header {
+  background: linear-gradient(135deg, #091312 0%, #112220 50%, #152d2a 100%);
+  color: #ffffff;
+  padding: 12px 24px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+  position: relative;
+  z-index: 1100;
+  backdrop-filter: blur(12px);
+}
+
+.header-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+#sidebar-toggle {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  color: #ffffff;
+  border-radius: var(--radius-md);
+  width: 38px;
+  height: 38px;
+  font-size: 17px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: var(--shadow-xs);
+}
+#sidebar-toggle:hover {
+  background: rgba(255, 255, 255, 0.16);
+  border-color: rgba(255, 255, 255, 0.35);
+  transform: scale(1.04);
+}
+#sidebar-toggle:active {
+  transform: scale(0.96);
+}
+
+.header-title-wrap {
+  display: flex;
+  flex-direction: column;
+}
+
+.header-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+header h1 {
+  font-size: 17px;
+  margin: 0;
+  letter-spacing: -0.01em;
+  font-weight: 800;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.header-badge-project {
+  background: linear-gradient(135deg, var(--brand-teal), var(--brand-teal-light));
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  text-transform: uppercase;
+  box-shadow: 0 2px 6px var(--brand-teal-glow);
+}
+
+header .sub {
+  font-size: 11px;
+  color: #94a3b8;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  margin-top: 1px;
+}
+
+#status-line {
+  margin-left: auto;
+  font-size: 12px;
+  color: #cbd5e1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.status-indicator-pill {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  padding: 4px 10px;
+  border-radius: var(--radius-full);
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #e2e8f0;
+}
+
+#status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--brand-amber);
+  box-shadow: 0 0 8px var(--brand-amber);
+  transition: all 0.3s ease;
+}
+#status-dot.ok {
+  background: #10b981;
+  box-shadow: 0 0 8px #10b981;
+}
+#status-dot.err {
+  background: #ef4444;
+  box-shadow: 0 0 8px #ef4444;
+}
+
+#refresh-btn {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #ffffff;
+  border-radius: var(--radius-sm);
+  width: 28px;
+  height: 28px;
+  font-size: 14px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+#refresh-btn:hover {
+  background: rgba(255, 255, 255, 0.18);
+  border-color: rgba(255, 255, 255, 0.4);
+  transform: scale(1.05);
+}
+#refresh-btn.spinning {
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* 2. MODERN KPI DASHBOARD BAR */
+#dashboard {
+  background: linear-gradient(135deg, #111d1b 0%, #172a27 100%);
+  color: #ffffff;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 10px 24px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  position: relative;
+  z-index: 2;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+.dash-stat {
+  display: flex;
+  flex-direction: column;
+  padding: 6px 14px;
+  min-width: 105px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-left: 3.5px solid #475569;
+  border-radius: var(--radius-md);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+  overflow: hidden;
+}
+.dash-stat:hover {
+  background: rgba(255, 255, 255, 0.08);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-sm);
+}
+.dash-stat.dash-total { border-left-color: #60a5fa; }
+.dash-stat.dash-completed-stat { border-left-color: #34d399; }
+.dash-stat.dash-inprogress-stat { border-left-color: #fbbf24; }
+.dash-stat.dash-remaining-stat { border-left-color: #94a3b8; }
+.dash-stat.dash-progress { border-left-color: #2dd4bf; background: rgba(45, 212, 191, 0.06); }
+
+.dash-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: #94a3b8;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.dash-value {
+  font-size: 18px;
+  font-weight: 800;
+  color: #ffffff;
+  letter-spacing: -0.02em;
+  margin-top: 2px;
+  font-family: var(--font-sans);
+}
+.dash-progress .dash-value {
+  color: #2dd4bf;
+}
+#dash-updated {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #cbd5e1;
+}
+
+@media (max-width: 768px) {
+  #dashboard {
+    padding: 8px 12px;
+    gap: 6px;
+  }
+  .dash-stat {
+    padding: 5px 8px;
+    min-width: 80px;
+    flex: 1 1 calc(33.333% - 6px);
+  }
+  .dash-label { font-size: 9px; }
+  .dash-value { font-size: 15px; }
+}

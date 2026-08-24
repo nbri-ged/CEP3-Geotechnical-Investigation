@@ -1,0 +1,148 @@
+/* ============================================================
+   NBRI GEOTECHNICAL GIS — 2D CROSS SECTION MODAL (cross-section-modal.css)
+   ============================================================ */
+
+#profile-modal-backdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.70);
+  backdrop-filter: blur(8px);
+  z-index: 2000;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  animation: fadeInModal 0.2s ease-out;
+}
+#profile-modal-backdrop.open {
+  display: flex;
+}
+#profile-modal {
+  background: #ffffff;
+  border-radius: var(--radius-xl);
+  max-width: 96vw;
+  max-height: 94vh;
+  width: 1200px;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+  animation: scaleInModal 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+#profile-modal-header {
+  background: linear-gradient(135deg, #091312 0%, #152d2a 100%);
+  color: #ffffff;
+  padding: 12px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-weight: 800;
+  font-size: 14.5px;
+  border-bottom: 2px solid var(--brand-teal);
+}
+#profile-modal-header button {
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  color: #ffffff;
+  border-radius: var(--radius-sm);
+  padding: 5px 10px;
+  font-size: 11.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+#profile-modal-header button:hover {
+  background: rgba(255, 255, 255, 0.24);
+  transform: translateY(-1px);
+}
+
+/* Section Method Panel */
+#section-method-panel {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+  background: #f8fafc;
+  border-bottom: 1px solid var(--line);
+  padding: 8px 20px;
+  font-size: 11.5px;
+}
+#section-method-panel label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+  user-select: none;
+}
+#az-panel {
+  display: none;
+  align-items: center;
+  gap: 6px;
+  margin-left: 4px;
+}
+#az-panel.visible {
+  display: flex;
+}
+#az-input {
+  width: 60px;
+  padding: 3px 6px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  font-size: 11.5px;
+  text-align: center;
+  font-weight: 700;
+}
+#az-auto-btn {
+  padding: 3px 9px;
+  font-size: 10.5px;
+  font-weight: 700;
+  background: #334155;
+  color: #ffffff;
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+#az-auto-btn:hover {
+  background: #1e293b;
+}
+
+#recreate-profile-btn {
+  margin-left: auto;
+  padding: 5px 14px;
+  font-size: 12px;
+  font-weight: 800;
+  background: linear-gradient(135deg, #059669, #10b981);
+  color: #ffffff;
+  border: none;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.25);
+  transition: all 0.2s ease;
+}
+#recreate-profile-btn:hover {
+  background: linear-gradient(135deg, #047857, #059669);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.35);
+}
+
+#profile-modal-toolbar {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  background: #f1f5f9;
+  padding: 8px 20px;
+  border-bottom: 1px solid var(--line);
+  font-size: 11.5px;
+  flex-wrap: wrap;
+}
+
+#profile-modal-body {
+  padding: 20px;
+  overflow: auto;
+  background: #f8fafc;
+}
