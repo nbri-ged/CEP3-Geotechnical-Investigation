@@ -64,7 +64,7 @@ async function parseCsvWithProxy(url, onComplete, onError) {
     return false;
   }
 
-  // 1. Direct fetch with quick timeout (3.5s)
+  // 1. Direct fetch
   try {
     const ctrl = new AbortController();
     const tid = setTimeout(() => ctrl.abort(), 3500);
@@ -76,7 +76,7 @@ async function parseCsvWithProxy(url, onComplete, onError) {
     }
   } catch(e) {}
 
-  // 2. Direct Papa parse download (3s)
+  // 2. Direct Papa parse download
   try {
     let parsedOk = false;
     await new Promise((resolve) => {
@@ -96,7 +96,20 @@ async function parseCsvWithProxy(url, onComplete, onError) {
     if (parsedOk) return;
   } catch(e) {}
 
-  // 3. Proxy 1: AllOrigins Raw API (fastest CORS proxy)
+  // 3. Proxy 1: corsproxy.io
+  try {
+    const ctrl = new AbortController();
+    const tid = setTimeout(() => ctrl.abort(), 3500);
+    const proxyUrl = 'https://corsproxy.io/?' + encodeURIComponent(targetUrl);
+    const resp = await fetch(proxyUrl, { signal: ctrl.signal });
+    clearTimeout(tid);
+    if (resp.ok) {
+      const text = await resp.text();
+      if (parseText(text)) return;
+    }
+  } catch(e) {}
+
+  // 4. Proxy 2: AllOrigins Raw API
   try {
     const ctrl = new AbortController();
     const tid = setTimeout(() => ctrl.abort(), 3500);
@@ -106,19 +119,6 @@ async function parseCsvWithProxy(url, onComplete, onError) {
     if (resp.ok) {
       const text = await resp.text();
       if (parseText(text)) return;
-    }
-  } catch(e) {}
-
-  // 4. Proxy 2: AllOrigins JSON API
-  try {
-    const ctrl = new AbortController();
-    const tid = setTimeout(() => ctrl.abort(), 3500);
-    const proxyUrl = 'https://api.allorigins.win/get?url=' + encodeURIComponent(targetUrl);
-    const resp = await fetch(proxyUrl, { signal: ctrl.signal });
-    clearTimeout(tid);
-    if (resp.ok) {
-      const json = await resp.json();
-      if (json && json.contents && parseText(json.contents)) return;
     }
   } catch(e) {}
 

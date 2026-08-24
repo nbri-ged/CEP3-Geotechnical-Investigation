@@ -26,7 +26,9 @@ function formatSoilLayerDisplay(layer) {
   const originStr = layer.origin ? ` (${formatTitleCase(layer.origin)})` : '';
   let title = `${consistencyStr}${info.label}${originStr}`.trim();
   if (info.isBoulder) title = 'Boulder / Corestone Obstruction';
-  const subtitle = `Depth ${layer.depth.toFixed(2)}–${layer.bottom.toFixed(2)}m (Thickness ${(layer.bottom - layer.depth).toFixed(2)}m)`;
+  const d = toNum(layer.depth) || 0;
+  const b = toNum(layer.bottom) || d;
+  const subtitle = `Depth ${d.toFixed(2)}–${b.toFixed(2)}m (Thickness ${(b - d).toFixed(2)}m)`;
   return { title, subtitle, color: info.color };
 }
 
@@ -35,21 +37,28 @@ function formatRockLayerDisplay(layer, row, readings) {
   rockName = formatTitleCase(rockName);
   const gradeStr = formatWeatheringGradeLabel(layer.grade || (layer.rawGrade || ''));
   const title = gradeStr ? `${gradeStr} ${rockName}` : rockName;
-  const subtitle = `Depth ${layer.depth.toFixed(2)}–${layer.bottom.toFixed(2)}m (Cored ${(layer.bottom - layer.depth).toFixed(2)}m)`;
+  const d = toNum(layer.depth) || 0;
+  const b = toNum(layer.bottom) || d;
+  const subtitle = `Depth ${d.toFixed(2)}–${b.toFixed(2)}m (Cored ${(b - d).toFixed(2)}m)`;
   return { title, subtitle, color: '#8f8f95' };
 }
 
 function buildBoreholeLogSvg(levels, layers, row){
+  if (!levels) return '';
   const { elevation, termDepth, overburden, gwDepth, rockLevel, terminationLevel, gwLevel } = levels;
+  
   const effectiveTermDepth = (layers && layers.length)
-    ? Math.max(...layers.map(l => l.bottom))
-    : (termDepth || 15);
-  if (effectiveTermDepth === null || effectiveTermDepth <= 0) return '';
+    ? Math.max(...layers.map(l => (toNum(l.bottom) || 0)))
+    : (toNum(termDepth) || 15);
+  if (!effectiveTermDepth || effectiveTermDepth <= 0) return '';
 
   const colH = 310, colW = 26, x0 = 50, y0 = 25;
   const scale = colH / effectiveTermDepth;
-  const gwPx = (gwDepth !== null) ? Math.min(Math.max(gwDepth * scale, 0), colH) : null;
-  const rkPx = (overburden !== null) ? Math.min(Math.max(overburden * scale, 0), colH) : null;
+  
+  const gwNum = toNum(gwDepth);
+  const rkNum = toNum(overburden);
+  const gwPx = gwNum !== null ? Math.min(Math.max(gwNum * scale, 0), colH) : null;
+  const rkPx = rkNum !== null ? Math.min(Math.max(rkNum * scale, 0), colH) : null;
 
   const POPUP_BEDROCK_COLOR = '#8f8f95';
   let fadeProfile = null;
@@ -59,7 +68,7 @@ function buildBoreholeLogSvg(levels, layers, row){
     readings = getBHWeathering(row);
     if (readings && readings.length) {
       const rockLayer = (layers && layers.length) ? layers.find(l => getGraphicInfo(l.graphic).isRock) : null;
-      rockDepthTopForFade = rockLayer ? rockLayer.depth : (overburden !== null ? overburden : 0);
+      rockDepthTopForFade = rockLayer ? (toNum(rockLayer.depth) || 0) : (rkNum !== null ? rkNum : 0);
       fadeProfile = buildSingleBHFadeProfile(readings, rockDepthTopForFade, effectiveTermDepth);
     }
   }
@@ -111,15 +120,20 @@ function buildBoreholeLogSvg(levels, layers, row){
   // Depth Axis Ticks
   const depthTicks = new Set([0, effectiveTermDepth]);
   if (layers && layers.length) {
-    layers.forEach(l => { depthTicks.add(l.depth); depthTicks.add(l.bottom); });
-  } else if (overburden !== null) {
-    depthTicks.add(overburden);
+    layers.forEach(l => {
+      const d = toNum(l.depth);
+      const b = toNum(l.bottom);
+      if (d !== null) depthTicks.add(d);
+      if (b !== null) depthTicks.add(b);
+    });
+  } else if (rkNum !== null) {
+    depthTicks.add(rkNum);
   }
 
   Array.from(depthTicks).sort((a,b) => a - b).forEach(d => {
     const y = y0 + Math.min(d * scale, colH);
     const isTerm = Math.abs(d - effectiveTermDepth) < 0.05;
-    const isRockHead = (overburden !== null && Math.abs(d - overburden) < 0.05);
+    const isRockHead = (rkNum !== null && Math.abs(d - rkNum) < 0.05);
     const strokeCol = isTerm ? '#0f172a' : (isRockHead ? '#b91c1c' : '#64748b');
     const strokeW = (isTerm || isRockHead) ? 1.2 : 0.8;
     svg += `<line x1="42" y1="${y.toFixed(1)}" x2="50" y2="${y.toFixed(1)}" stroke="${strokeCol}" stroke-width="${strokeW}"/>`;
@@ -127,16 +141,16 @@ function buildBoreholeLogSvg(levels, layers, row){
   });
 
   // GWT Indicator Line
-  if (gwPx !== null) {
+  if (gwPx !== null && gwNum !== null) {
     const gwY = y0 + gwPx;
     svg += `<line x1="12" y1="${gwY.toFixed(1)}" x2="${x0+colW+4}" y2="${gwY.toFixed(1)}" stroke="#2563eb" stroke-width="1.2" stroke-dasharray="3,2"/>`;
     svg += `<polygon points="26,${gwY.toFixed(1)} 20,${(gwY-5).toFixed(1)} 32,${(gwY-5).toFixed(1)}" fill="#2563eb"/>`;
     svg += `<text x="18" y="${(gwY-3).toFixed(1)}" font-size="6.5" font-weight="800" fill="#2563eb" text-anchor="end">GWT</text>`;
-    svg += `<text x="18" y="${(gwY+5).toFixed(1)}" font-size="6.5" font-weight="700" fill="#2563eb" text-anchor="end">${gwDepth.toFixed(1)}m</text>`;
+    svg += `<text x="18" y="${(gwY+5).toFixed(1)}" font-size="6.5" font-weight="700" fill="#2563eb" text-anchor="end">${gwNum.toFixed(1)}m</text>`;
   }
 
   // Rockhead Indicator Line
-  if (rkPx !== null && rkPx > 0 && rkPx < colH) {
+  if (rkPx !== null && rkNum !== null && rkPx > 0 && rkPx < colH) {
     const rkY = y0 + rkPx;
     svg += `<line x1="12" y1="${rkY.toFixed(1)}" x2="${x0+colW+4}" y2="${rkY.toFixed(1)}" stroke="#b91c1c" stroke-width="1.2" stroke-dasharray="3,2"/>`;
     svg += `<text x="18" y="${(rkY-4).toFixed(1)}" font-size="6.5" font-weight="800" fill="#b91c1c" text-anchor="end">ROCK</text>`;
@@ -150,8 +164,10 @@ function buildBoreholeLogSvg(levels, layers, row){
       const info = getGraphicInfo(layer.graphic);
       const isRock = info.isRock || isRockCode(layer.graphic);
       const isBld = info.isBoulder || isBoulderCode(layer.graphic);
-      const yTop = y0 + Math.min(layer.depth * scale, colH);
-      const yBot = y0 + Math.min(layer.bottom * scale, colH);
+      const layerD = toNum(layer.depth) || 0;
+      const layerB = toNum(layer.bottom) || (layerD + 0.5);
+      const yTop = y0 + Math.min(layerD * scale, colH);
+      const yBot = y0 + Math.min(layerB * scale, colH);
       const h = Math.max(yBot - yTop, 0.5);
       let fillColor = info.color;
 
@@ -174,14 +190,14 @@ function buildBoreholeLogSvg(levels, layers, row){
         svg += `<circle cx="${x0+colW}" cy="${midY.toFixed(1)}" r="1.5" fill="#78716c"/>`;
         
         svg += `<text x="${x0+colW+12}" y="${(labelY-2).toFixed(1)}" font-size="8" font-weight="800" fill="#78350f">🪨 Boulder / Corestone Obstruction</text>`;
-        svg += `<text x="${x0+colW+12}" y="${(labelY+7).toFixed(1)}" font-size="7" font-weight="600" fill="#64748b">Isolated Clast (${layer.depth.toFixed(2)}–${layer.bottom.toFixed(2)}m)</text>`;
+        svg += `<text x="${x0+colW+12}" y="${(labelY+7).toFixed(1)}" font-size="7" font-weight="600" fill="#64748b">Isolated Clast (${layerD.toFixed(2)}–${layerB.toFixed(2)}m)</text>`;
         return;
       }
 
       if (isRock) {
         if (fadeProfile) {
-          const midDepth = (layer.depth + layer.bottom) / 2;
-          const fade = evalSingleBHFade(fadeProfile, midDepth - rockDepthTopForFade);
+          const midDepth = (layerD + layerB) / 2;
+          const fade = evalSingleBHFade(fadeProfile, midDepth - (rockDepthTopForFade || 0));
           fillColor = colorAtFadePosition(fade, POPUP_BEDROCK_COLOR);
         } else {
           fillColor = POPUP_BEDROCK_COLOR;
@@ -228,7 +244,7 @@ function buildBoreholeLogSvg(levels, layers, row){
     });
   } else {
     // Simple Overburden + Bedrock model
-    const overburdenPx = overburden !== null ? Math.min(overburden * scale, colH) : colH;
+    const overburdenPx = rkNum !== null ? Math.min(rkNum * scale, colH) : colH;
     const rockPx = colH - overburdenPx;
     svg += `<rect x="${x0}" y="${y0}" width="${colW}" height="${overburdenPx.toFixed(1)}" fill="#c9a84e" stroke="#574c38" stroke-width="0.4"/>`;
     svg += `<rect x="${x0}" y="${y0}" width="${colW}" height="${overburdenPx.toFixed(1)}" fill="url(#pat-residual)" stroke="none"/>`;
@@ -237,15 +253,16 @@ function buildBoreholeLogSvg(levels, layers, row){
       svg += `<rect x="${x0}" y="${(y0+overburdenPx).toFixed(1)}" width="${colW}" height="${rockPx.toFixed(1)}" fill="url(#pat-rock)" stroke="none"/>`;
     }
     svg += `<text x="${x0+colW+12}" y="${y0+15}" font-size="8" font-weight="700" fill="#0f172a">Soil Overburden</text>`;
-    svg += `<text x="${x0+colW+12}" y="${y0+24}" font-size="7" font-weight="500" fill="#64748b">Thickness ${overburden !== null ? overburden.toFixed(2)+'m' : '—'}</text>`;
+    svg += `<text x="${x0+colW+12}" y="${y0+24}" font-size="7" font-weight="500" fill="#64748b">Thickness ${rkNum !== null ? rkNum.toFixed(2)+'m' : '—'}</text>`;
     if (rockPx > 0.3) {
       let rockName = 'Bedrock';
       if (row) {
         const rawName = row['Rock Type Name'] || row['Rock Type'] || row['Lithology'];
         if (rawName) rockName = formatTitleCase(rawName);
       }
+      const rockCoringVal = toNum(levels.rockCoring);
       svg += `<text x="${x0+colW+12}" y="${(y0+overburdenPx+18).toFixed(1)}" font-size="8" font-weight="700" fill="#0f172a">${rockName}</text>`;
-      svg += `<text x="${x0+colW+12}" y="${(y0+overburdenPx+27).toFixed(1)}" font-size="7" font-weight="500" fill="#64748b">Cored ${levels.rockCoring !== null ? levels.rockCoring.toFixed(2)+'m' : '—'}</text>`;
+      svg += `<text x="${x0+colW+12}" y="${(y0+overburdenPx+27).toFixed(1)}" font-size="7" font-weight="500" fill="#64748b">Cored ${rockCoringVal !== null ? rockCoringVal.toFixed(2)+'m' : '—'}</text>`;
     }
   }
 
@@ -256,11 +273,14 @@ function buildBoreholeLogSvg(levels, layers, row){
   const tests = row ? getBHTests(row) : [];
   if (tests && tests.length) {
     tests.forEach(t => {
-      const ty = y0 + Math.min(t.depth * scale, colH);
+      const testD = toNum(t.depth);
+      if (testD === null) return;
+      const ty = y0 + Math.min(testD * scale, colH);
       
       // SPT Test rendering
-      if (t.nVal !== null && t.nVal !== undefined) {
-        const val = t.nVal;
+      const nValNum = toNum(t.nVal);
+      if (nValNum !== null) {
+        const val = nValNum;
         const bw = Math.min(val / 50, 1) * testColWidth;
         const isRefusal = val >= 50;
         const barFill = isRefusal ? '#ef4444' : (val > 25 ? '#f59e0b' : '#10b981');
@@ -269,28 +289,31 @@ function buildBoreholeLogSvg(levels, layers, row){
       }
       
       // Rock Coring / RQD Test rendering
-      if (t.rqd !== null || t.cr !== null) {
-        const th = Math.max((t.length || 1.0) * scale, 7.5);
-        if (t.cr !== null && t.cr !== undefined) {
-          const crW = Math.min(t.cr / 100, 1) * testColWidth;
+      const rqdNum = toNum(t.rqd);
+      const crNum = toNum(t.cr);
+      if (rqdNum !== null || crNum !== null) {
+        const testLen = toNum(t.length) || 1.0;
+        const th = Math.max(testLen * scale, 7.5);
+        if (crNum !== null) {
+          const crW = Math.min(crNum / 100, 1) * testColWidth;
           svg += `<rect x="${testColLeft}" y="${ty.toFixed(1)}" width="${crW.toFixed(1)}" height="${th.toFixed(1)}" fill="#e0f2fe" stroke="#38bdf8" stroke-width="0.4" opacity="0.9" rx="1"/>`;
         }
-        if (t.rqd !== null && t.rqd !== undefined) {
-          const rqdW = Math.min(t.rqd / 100, 1) * testColWidth;
+        if (rqdNum !== null) {
+          const rqdW = Math.min(rqdNum / 100, 1) * testColWidth;
           svg += `<rect x="${testColLeft}" y="${ty.toFixed(1)}" width="${rqdW.toFixed(1)}" height="${th.toFixed(1)}" fill="#0284c7" fill-opacity="0.85" stroke="#0369a1" stroke-width="0.4" rx="1"/>`;
         }
         
         let lbl = '';
-        if (t.rqd !== null && t.cr !== null) {
-          lbl = `RQD ${Math.round(t.rqd)}% (CR ${Math.round(t.cr)}%)`;
-        } else if (t.rqd !== null) {
-          lbl = `RQD ${Math.round(t.rqd)}%`;
-        } else if (t.cr !== null) {
-          lbl = `CR ${Math.round(t.cr)}%`;
+        if (rqdNum !== null && crNum !== null) {
+          lbl = `RQD ${Math.round(rqdNum)}% (CR ${Math.round(crNum)}%)`;
+        } else if (rqdNum !== null) {
+          lbl = `RQD ${Math.round(rqdNum)}%`;
+        } else if (crNum !== null) {
+          lbl = `CR ${Math.round(crNum)}%`;
         }
         
         if (lbl) {
-          const textColor = (t.rqd && t.rqd > 35) ? '#ffffff' : '#0369a1';
+          const textColor = (rqdNum && rqdNum > 35) ? '#ffffff' : '#0369a1';
           svg += `<text x="${testColLeft + 3}" y="${(ty + th/2 + 2.2).toFixed(1)}" font-size="6.2" font-weight="700" fill="${textColor}">${lbl}</text>`;
         }
       }
@@ -298,7 +321,8 @@ function buildBoreholeLogSvg(levels, layers, row){
   }
 
   // Bottom Summary Text
-  const termRLStr = terminationLevel !== null ? ` (RL +${terminationLevel.toFixed(2)}m MSL)` : '';
+  const termLevelNum = toNum(terminationLevel);
+  const termRLStr = termLevelNum !== null ? ` (RL +${termLevelNum.toFixed(2)}m MSL)` : '';
   svg += `<text x="${x0+colW+8}" y="${y0+colH+16}" font-size="9" font-weight="700" fill="#0f172a">Terminated @ ${effectiveTermDepth.toFixed(2)}m${termRLStr}</text>`;
   svg += `</svg>`;
   return svg;
