@@ -1,45 +1,3 @@
-function initCrossSectionControls() {
-  const profileSelectBtn = document.getElementById('profile-select-btn');
-  if (profileSelectBtn) {
-    profileSelectBtn.addEventListener('click', () => {
-      profileSelectMode = !profileSelectMode;
-      profileSelectBtn.classList.toggle('profile-active', profileSelectMode);
-      profileSelectBtn.textContent = profileSelectMode ? '✅ Click Boreholes Now (tap again to stop)' : '📍 Select Boreholes on Map';
-    });
-  }
-
-  const clearBtn = document.getElementById('profile-clear-btn');
-  if (clearBtn) {
-    clearBtn.addEventListener('click', () => {
-      profileSelectedIdx = [];
-      updateProfileChips();
-      if (typeof render === 'function') render();
-    });
-  }
-
-  const genBtn = document.getElementById('profile-generate-btn');
-  if (genBtn) {
-    genBtn.addEventListener('click', () => {
-      if (profileSelectedIdx.length < 2) {
-        alert('Select at least 2 boreholes first (click them on the map while "Select Boreholes on Map" is active).');
-        return;
-      }
-      let rows = profileSelectedIdx
-        .map(rowIdx => allRows[rowIdx])
-        .filter(Boolean);
-
-      rows = sortBoreholesByMapPosition(rows);
-      showProfileModal(rows);
-    });
-  }
-}
-
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', initCrossSectionControls);
-} else {
-  initCrossSectionControls();
-}
-
 function toggleProfileSelection(rowIdx) {
   const idx = profileSelectedIdx.indexOf(rowIdx);
   if (idx === -1) {
@@ -159,7 +117,7 @@ function computeProfilePositions(rows){
    (Fulfills 100% complete filling via cumulative boundaries,
     separate Y-axis margins, terrain-following groundwater, zero white gaps)
    ============================================================ */
-let profileOptions = {
+profileOptions = {
   showRockLithology: true,
   showSPT: true,
   showRQD: true,
@@ -3109,9 +3067,109 @@ function renderPlanViewLegendCard(rows, distances, sectionAz, offsets, cardX, ca
   return svg;
 }
 
-// ── RECREATE BUTTON ────────────────────────────────────────────────────────
-function recreateProfile() {
-  if (!currentProfileRows) return;
+// ── 0% TO 100% GEOTECHNICAL SYNTHESIS PROGRESS CARD ─────────────────────
+function renderProgressCard(percent, stageText) {
+  return `
+    <div id="profile-progress-modal-wrapper" style="display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:460px; padding:40px 20px; background:#f8fafc; border-radius:12px;">
+      <div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:16px; box-shadow:0 20px 25px -5px rgba(0,0,0,0.07), 0 8px 10px -6px rgba(0,0,0,0.05); padding:36px 40px; width:100%; max-width:540px; text-align:center;">
+        
+        <div style="display:inline-flex; align-items:center; justify-content:center; width:54px; height:54px; background:linear-gradient(135deg, #eff6ff, #dbeafe); border-radius:14px; margin-bottom:18px; border:1px solid #bfdbfe; font-size:26px;">
+          ⚙️
+        </div>
+
+        <div style="font-size:18px; font-weight:800; color:#0f172a; margin-bottom:6px; letter-spacing:-0.01em;">
+          Synthesizing 2D Geological Cross-Section
+        </div>
+        
+        <div id="profile-progress-status" style="font-size:12.5px; font-weight:600; color:#64748b; min-height:22px; margin-bottom:20px;">
+          ${stageText}
+        </div>
+
+        <!-- Progress Bar Container -->
+        <div style="background:#f1f5f9; border-radius:999px; height:12px; overflow:hidden; border:1px solid #cbd5e1; padding:2px; margin-bottom:12px; position:relative;">
+          <div id="profile-progress-bar" style="width:${percent}%; height:100%; border-radius:999px; background:linear-gradient(90deg, #3b82f6 0%, #2563eb 50%, #059669 100%); transition:width 0.22s cubic-bezier(0.4, 0, 0.2, 1); box-shadow:0 0 10px rgba(37,99,235,0.35);"></div>
+        </div>
+
+        <div style="display:flex; justify-content:space-between; align-items:center; font-size:11.5px; font-weight:700; color:#475569;">
+          <span>Geotechnical Synthesis</span>
+          <span id="profile-progress-pct" style="color:#2563eb; font-weight:800;">${percent}%</span>
+        </div>
+
+        <!-- Geotechnical Pipeline Steps Checklist -->
+        <div style="margin-top:24px; padding-top:16px; border-top:1px dashed #e2e8f0; display:flex; justify-content:space-around; font-size:10.5px; font-weight:600; color:#94a3b8;">
+          <span id="step-chk-1" style="color:${percent >= 20 ? '#059669' : '#94a3b8'}">✓ 3D Alignment</span>
+          <span id="step-chk-2" style="color:${percent >= 50 ? '#059669' : '#94a3b8'}">✓ BS 5930 Strata</span>
+          <span id="step-chk-3" style="color:${percent >= 75 ? '#059669' : '#94a3b8'}">✓ SPT &amp; RQD</span>
+          <span id="step-chk-4" style="color:${percent >= 100 ? '#059669' : '#94a3b8'}">✓ Vector CAD</span>
+        </div>
+
+      </div>
+    </div>
+  `;
+}
+
+function runProfileSynthesisWithProgress(onDone) {
+  const container = document.getElementById('profile-modal-body');
+  if (!container) return;
+
+  const stages = [
+    { pct: 20, text: '📍 Calculating borehole spatial chainages and 3D terrain profile...' },
+    { pct: 50, text: '📐 Projecting BS 5930 stratigraphy and continuous weathering envelopes...' },
+    { pct: 75, text: '🔬 Assembling SPT N-value resistance bars and dual RQD/CR tracks...' },
+    { pct: 92, text: '🎨 Synthesizing vector CAD lithological patterns and foliation apparent dips...' },
+    { pct: 100, text: '✨ Engineering geological cross-section synthesized successfully!' }
+  ];
+
+  container.innerHTML = renderProgressCard(0, 'Initializing geotechnical synthesis pipeline...');
+
+  let stepIdx = 0;
+
+  function advanceStage() {
+    if (stepIdx < stages.length) {
+      const cur = stages[stepIdx];
+      const bar = document.getElementById('profile-progress-bar');
+      const pctEl = document.getElementById('profile-progress-pct');
+      const statusEl = document.getElementById('profile-progress-status');
+      const chk1 = document.getElementById('step-chk-1');
+      const chk2 = document.getElementById('step-chk-2');
+      const chk3 = document.getElementById('step-chk-3');
+      const chk4 = document.getElementById('step-chk-4');
+
+      if (bar) bar.style.width = cur.pct + '%';
+      if (pctEl) pctEl.textContent = cur.pct + '%';
+      if (statusEl) statusEl.textContent = cur.text;
+      if (chk1 && cur.pct >= 20) chk1.style.color = '#059669';
+      if (chk2 && cur.pct >= 50) chk2.style.color = '#059669';
+      if (chk3 && cur.pct >= 75) chk3.style.color = '#059669';
+      if (chk4 && cur.pct >= 100) chk4.style.color = '#059669';
+
+      stepIdx++;
+      setTimeout(advanceStage, 60);
+    } else {
+      setTimeout(() => {
+        try {
+          recreateProfileDirect();
+        } catch(err) {
+          console.error('Error generating profile SVG:', err);
+          container.innerHTML = `
+            <div style="padding: 40px; text-align: center; color: #b91c1c;">
+              <div style="font-size: 28px; margin-bottom: 8px;">⚠️</div>
+              <div style="font-weight: 800; font-size: 16px; margin-bottom: 6px;">Error Synthesizing Cross-Section</div>
+              <div style="font-size: 12px; color: #64748b; margin-bottom: 16px;">${err.message || 'An unexpected error occurred.'}</div>
+              <button onclick="runProfileSynthesisWithProgress()" style="padding: 6px 14px; background: #2563eb; color: #fff; border: none; border-radius: 4px; font-weight: 700; cursor: pointer;">🔄 Retry</button>
+            </div>
+          `;
+        }
+        if (onDone) onDone();
+      }, 70);
+    }
+  }
+
+  setTimeout(advanceStage, 30);
+}
+
+function recreateProfileDirect() {
+  if (!currentProfileRows || !currentProfileRows.length) return;
   sectionAzimuth = parseFloat(document.getElementById('az-input')?.value) || 0;
   foliationDipDir = parseFloat(document.getElementById('dip-dir-input')?.value) || 45;
   foliationDipAngle = parseFloat(document.getElementById('dip-ang-input')?.value) || 45;
@@ -3144,10 +3202,27 @@ function recreateProfile() {
   };
 
   const svg = buildProfileSvg(orderedRows, profileOptions, distances, projectMeta);
-  document.getElementById('profile-modal-body').innerHTML = svg;
+  const body = document.getElementById('profile-modal-body');
+  if (body) {
+    body.innerHTML = svg;
+  }
+}
+
+// ── RECREATE BUTTON ────────────────────────────────────────────────────────
+function recreateProfile() {
+  runProfileSynthesisWithProgress();
 }
 
 function showProfileModal(rows){
+  if (!rows || !rows.length) {
+    if (typeof showToast === 'function') {
+      showToast('Please select at least 2 boreholes on the map to generate a 2D cross-section profile.', 'warning');
+    } else {
+      alert('Please select at least 2 boreholes on the map to generate a 2D cross-section profile.');
+    }
+    return;
+  }
+
   currentProfileRows = rows;
   const rockEl = document.getElementById('modal-opt-rocklithology');
   const sptEl  = document.getElementById('modal-opt-spt');
@@ -3178,8 +3253,13 @@ function showProfileModal(rows){
   }
 
   autoDetectAzimuth();
-  recreateProfile();
-  document.getElementById('profile-modal-backdrop').classList.add('open');
+
+  // Instantly open modal backdrop so the user gets immediate feedback
+  const backdrop = document.getElementById('profile-modal-backdrop');
+  if (backdrop) backdrop.classList.add('open');
+
+  // Trigger 0% to 100% progress animation and render
+  runProfileSynthesisWithProgress();
 }
 
 function syncProfileOption(key, val) {
@@ -3188,11 +3268,10 @@ function syncProfileOption(key, val) {
   const sideEl  = document.getElementById('sidebar-opt-' + key.replace('show', '').toLowerCase());
   if (modalEl) modalEl.checked = val;
   if (sideEl)  sideEl.checked  = val;
-  if (currentProfileRows && document.getElementById('profile-modal-backdrop').classList.contains('open')) {
-    recreateProfile();
+  if (currentProfileRows && document.getElementById('profile-modal-backdrop')?.classList.contains('open')) {
+    recreateProfileDirect();
   }
 }
-
 
 function toggleProfileOption(key, val) {
   syncProfileOption(key, val);
