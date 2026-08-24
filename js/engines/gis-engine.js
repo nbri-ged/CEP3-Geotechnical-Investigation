@@ -357,6 +357,37 @@ function updateDashboard(){
   setEl('dash-progress', progressPct + '%');
 }
 
+const PACKAGE_PALETTE = ['#4c6ef5', '#e8590c', '#2b8a3e', '#c2255c', '#5f3dc4', '#0c8599', '#e67700', '#495057', '#087f5b', '#a61e4d'];
+
+function colorFor(status) {
+  return STATUS_COLORS[status] || STATUS_COLORS.default || '#4c6a72';
+}
+
+function colorForPackage(pkg) {
+  const s = (pkg || '').trim();
+  if (!s) return '#8a8370';
+  let hash = 0;
+  for (let i = 0; i < s.length; i++) {
+    hash = (hash * 31 + s.charCodeAt(i)) | 0;
+  }
+  return PACKAGE_PALETTE[Math.abs(hash) % PACKAGE_PALETTE.length];
+}
+
+function makeIcon(status, pkg) {
+  const statusColor = colorFor(status);
+  const pkgColor = colorForPackage(pkg);
+  const opacity = (status === "Cancelled") ? "0.5" : "1.0";
+  return L.divIcon({
+    className: '',
+    html: `
+      <div style="position:relative;width:18px;height:18px;">
+        <div class="bh-dot-package" style="position:absolute; top:2px; left:2px; width:14px; height:14px; border-radius:50%; background:${pkgColor}; border:2px solid #ffffff; box-shadow:0 0 0 2px ${pkgColor}, 0 2px 5px rgba(0,0,0,0.4); opacity:${opacity};"></div>
+        <div class="bh-dot-status" style="position:absolute; top:2px; left:2px; width:14px; height:14px; border-radius:50%; background:${statusColor}; border:2px solid #ffffff; box-shadow:0 0 0 2px ${statusColor}, 0 2px 5px rgba(0,0,0,0.4); opacity:${opacity};"></div>
+      </div>`,
+    iconSize: [18, 18], iconAnchor: [9, 9], popupAnchor: [0, -9]
+  });
+}
+
 /* ── LEAFLET SPATIAL RENDERING & POPUPS ── */
 function render(){
   if (!map || !markersLayer) return;

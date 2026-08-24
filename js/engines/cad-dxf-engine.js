@@ -695,22 +695,3 @@ function generateAndDownloadDxf(customRows, options = {}) {
 
   showAppToast('📐 CAD DXF Export Complete', 'AutoCAD / Civil 3D DXF file generated with all selected strata, hatches, and geotechnical test data.', 'success');
 }
-
-</script>
-
-<script>
-  // Unregister any service worker left over from a previous version of this
-  // page. A stuck/broken SW registration (e.g. a failed cache.addAll() during
-  // install) can cause the browser to hard-fail every request to this origin,
-  // including ERR_CONNECTION_RESET on reload — so we proactively clear it.
-  if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.getRegistrations().then(regs => {
-      regs.forEach(reg => reg.unregister());
-    }).catch(() => {});
-  }
-  if ('caches' in window) {
-    caches.keys().then(names => { names.forEach(n => caches.delete(n)); }).catch(() => {});
-  }
-</script>
-</body>
-</html>
