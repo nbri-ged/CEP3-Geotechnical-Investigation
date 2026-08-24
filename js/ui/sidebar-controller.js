@@ -2,9 +2,6 @@
    NBRI GEOTECHNICAL GIS — SIDEBAR & FILTER CONTROLLER (sidebar-controller.js)
    ============================================================ */
 
-let isProfileSelecting = false;
-let profileSelectedIdx = [];
-
 function initSidebarController() {
   const searchInput = document.getElementById('search');
   const fStatus = document.getElementById('f-status');
