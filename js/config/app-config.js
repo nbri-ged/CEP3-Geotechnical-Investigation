@@ -4,7 +4,7 @@
    ============================================================ */
 
 // Software Version & Release
-const APP_VERSION = "2.5.4";
+const APP_VERSION = "2.5.6";
 const LOCAL_BOREHOLES_CSV = "CEP 3  Rambukkana-Galagedara - BoreholesDetails (2).csv";
 
 // Data Source Endpoints (Google Sheets Published CSV Feeds)
@@ -70,6 +70,22 @@ var profileTestsByBH = {};
 
 var profileSelectMode = false;
 var profileSelectedIdx = [];
+var currentProfileRows = null;
+var sectionMethod = 'sequential';
+var sectionAzimuth = 45;
+var foliationDipDir = 45;
+var foliationDipAngle = 45;
+
+var profileOptions = {
+  showRockLithology: true,
+  showSPT: true,
+  showRQD: true,
+  showGWT: true,
+  showWeathering: true,
+  showRoughGround: false,
+  showRoughSoil: false,
+  showRoughRockhead: false
+};
 
 var isMeasuring = false;
 var measurePoints = [];
