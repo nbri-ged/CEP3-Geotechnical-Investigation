@@ -436,7 +436,8 @@ function buildProfileSvg(rows, options = {}, arg3 = null, arg4 = null) {
     if (!layers) return;
     layers.forEach(l => {
       if (l.isRockBlock || l.isBoulder) { l.isLens = false; return; }
-      const isLensFamily = LENS_ORIGIN_FAMILIES.has(l.originFamily);
+      const lensSet = (typeof LENS_ORIGIN_FAMILIES !== 'undefined' && LENS_ORIGIN_FAMILIES) ? LENS_ORIGIN_FAMILIES : new Set(['alluvium', 'colluvium', 'made_ground']);
+      const isLensFamily = lensSet.has(l.originFamily);
       const ownCodes = (l.subLayers || [l]).map(sl => (sl.graphic || '').trim());
       l.isLens = isLensFamily && !hasMatchingNeighborBlock(i, l.originFamily, ownCodes);
     });
