@@ -64,10 +64,10 @@ async function parseCsvWithProxy(url, onComplete, onError) {
     return false;
   }
 
-  // 1. Direct fetch with timeout
+  // 1. Direct fetch with quick timeout (3.5s)
   try {
     const ctrl = new AbortController();
-    const tid = setTimeout(() => ctrl.abort(), 6000);
+    const tid = setTimeout(() => ctrl.abort(), 3500);
     const resp = await fetch(targetUrl, { signal: ctrl.signal, cache: 'no-store' });
     clearTimeout(tid);
     if (resp.ok) {
@@ -76,7 +76,7 @@ async function parseCsvWithProxy(url, onComplete, onError) {
     }
   } catch(e) {}
 
-  // 2. Direct Papa parse download
+  // 2. Direct Papa parse download (3s)
   try {
     let parsedOk = false;
     await new Promise((resolve) => {
@@ -91,28 +91,15 @@ async function parseCsvWithProxy(url, onComplete, onError) {
         },
         error: () => resolve()
       });
-      setTimeout(resolve, 5000);
+      setTimeout(resolve, 3000);
     });
     if (parsedOk) return;
   } catch(e) {}
 
-  // 3. Proxy 1: AllOrigins JSON API
+  // 3. Proxy 1: AllOrigins Raw API (fastest CORS proxy)
   try {
     const ctrl = new AbortController();
-    const tid = setTimeout(() => ctrl.abort(), 5000);
-    const proxyUrl = 'https://api.allorigins.win/get?url=' + encodeURIComponent(targetUrl);
-    const resp = await fetch(proxyUrl, { signal: ctrl.signal });
-    clearTimeout(tid);
-    if (resp.ok) {
-      const json = await resp.json();
-      if (json && json.contents && parseText(json.contents)) return;
-    }
-  } catch(e) {}
-
-  // 4. Proxy 2: AllOrigins Raw API
-  try {
-    const ctrl = new AbortController();
-    const tid = setTimeout(() => ctrl.abort(), 4000);
+    const tid = setTimeout(() => ctrl.abort(), 3500);
     const proxyUrl = 'https://api.allorigins.win/raw?url=' + encodeURIComponent(targetUrl);
     const resp = await fetch(proxyUrl, { signal: ctrl.signal });
     clearTimeout(tid);
@@ -122,10 +109,23 @@ async function parseCsvWithProxy(url, onComplete, onError) {
     }
   } catch(e) {}
 
+  // 4. Proxy 2: AllOrigins JSON API
+  try {
+    const ctrl = new AbortController();
+    const tid = setTimeout(() => ctrl.abort(), 3500);
+    const proxyUrl = 'https://api.allorigins.win/get?url=' + encodeURIComponent(targetUrl);
+    const resp = await fetch(proxyUrl, { signal: ctrl.signal });
+    clearTimeout(tid);
+    if (resp.ok) {
+      const json = await resp.json();
+      if (json && json.contents && parseText(json.contents)) return;
+    }
+  } catch(e) {}
+
   // 5. Proxy 3: CodeTabs CORS Proxy
   try {
     const ctrl = new AbortController();
-    const tid = setTimeout(() => ctrl.abort(), 4000);
+    const tid = setTimeout(() => ctrl.abort(), 3500);
     const proxyUrl = 'https://api.codetabs.com/v1/proxy?quest=' + encodeURIComponent(targetUrl);
     const resp = await fetch(proxyUrl, { signal: ctrl.signal });
     clearTimeout(tid);

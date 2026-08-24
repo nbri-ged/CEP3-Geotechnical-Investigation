@@ -202,6 +202,15 @@ function fetchData() {
 function fetchBHProfileLog() {
   const localProfUrl = 'CEP 3  Rambukkana-Galagedara - BH Profile.csv';
   
+  if (window.EMBEDDED_BH_PROFILE_CSV && (!profileLayersByBH || Object.keys(profileLayersByBH).length === 0)) {
+    try {
+      Papa.parse(window.EMBEDDED_BH_PROFILE_CSV, {
+        header: false, skipEmptyLines: true,
+        complete: (r) => { if (r.data && r.data.length) processBHProfileData(r.data); }
+      });
+    } catch(e){}
+  }
+
   parseCsvWithProxy(BH_PROFILE_CSV_URL, (data) => {
     if (data && data.length) {
       if (Array.isArray(data[0])) {
@@ -270,7 +279,7 @@ function fetchCEP4BHs() {
 function fetchProgressSeries() {}
 
 function loadRows(data) {
-  allRows = data.map(r => normalizeRow(r)).filter(r => r['BH Name'] || r['PointID']);
+  allRows = data.map(r => normalizeRow(r)).filter(r => (r['BH Name'] && r['BH Name'].trim()) || (r['PointID'] && r['PointID'].trim()));
 
   // Cache to localStorage
   try {
@@ -288,6 +297,7 @@ function loadRows(data) {
   populateSelect('f-contractor', contractors);
   populateSelect('f-lot', lots);
   populateSelect('f-package', packages);
+  populateSelect('report-package-select', packages);
 
   buildLegend(allRows);
   buildPackageLegend(allRows);
@@ -328,23 +338,23 @@ function buildPackageLegend(rows){
 }
 
 function updateDashboard(){
-  let completed = 0, ongoing = 0, planned = 0, cancelled = 0;
+  const total = allRows.length;
+  let completed = 0, inProgress = 0, cancelled = 0;
   allRows.forEach(r => {
     let s = (r['Status'] || '').trim();
-    if (s === 'Ongoing') s = 'In Progress';
     if (s === 'Completed') completed++;
-    else if (s === 'In Progress') ongoing++;
-    else if (s === 'Planned') planned++;
+    else if (s === 'In Progress' || s === 'Ongoing') inProgress++;
     else if (s === 'Cancelled') cancelled++;
   });
+  const remaining = Math.max(total - completed - inProgress - cancelled, 0);
+  const progressPct = total > 0 ? Math.round((completed / total) * 100) : 0;
+
   const setEl = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
-  setEl('stat-total', allRows.length);
-  setEl('stat-completed', completed);
-  setEl('stat-ongoing', ongoing);
-  setEl('stat-planned', planned);
-  setEl('stat-cancelled', cancelled);
-  const prog = allRows.length > 0 ? Math.round((completed / allRows.length) * 100) : 0;
-  setEl('stat-progress', prog + '%');
+  setEl('dash-total', total);
+  setEl('dash-completed', completed);
+  setEl('dash-inprogress', inProgress);
+  setEl('dash-remaining', remaining);
+  setEl('dash-progress', progressPct + '%');
 }
 
 /* ── LEAFLET SPATIAL RENDERING & POPUPS ── */
@@ -362,6 +372,7 @@ function render(){
   markers = [];
   let shown = 0;
   const bounds = [];
+  const labeledPackages = new Set();
 
   allRows.forEach((row, rowIdx) => {
     const status = row['Status'] || '';
@@ -380,6 +391,7 @@ function render(){
     }
 
     const e = toNum(row['Easting']), n = toNum(row['Northing']);
+    if (e === null || n === null) return;
     const ll = convertToLatLon(e, n);
     if (!ll) return;
 
@@ -387,35 +399,32 @@ function render(){
     shown++;
 
     const isSelected = profileSelectedIdx.includes(rowIdx);
-    const color = isSelected ? '#b91c1c' : colorFor(status);
-    const radius = isSelected ? 8 : 6;
+    const marker = L.marker([ll.lat, ll.lon], { icon: makeIcon(status, pkg) });
 
-    const marker = L.circleMarker([ll.lat, ll.lon], {
-      radius: radius,
-      color: isSelected ? '#ffffff' : '#ffffff',
-      weight: isSelected ? 2.5 : 1.5,
-      fillColor: color,
-      fillOpacity: 0.95
-    });
-
-    marker.bindPopup(() => popupHtml(row, rowIdx), { maxWidth: 860, minWidth: 640 });
-    marker.bindTooltip(name, { direction: 'top', offset: [0, -6], className: 'bh-label', permanent: true });
-
+    marker.bindPopup(popupHtml(row, rowIdx), { maxWidth: 860, minWidth: 800, className: 'wide-popup' });
     marker.on('click', () => {
       if (profileSelectMode) {
         toggleProfileSelection(rowIdx);
       }
     });
 
+    const cleanPkgName = pkg.trim();
+    if (cleanPkgName && !labeledPackages.has(cleanPkgName)) {
+      marker.bindTooltip(`📦 ${cleanPkgName}`, { permanent: true, direction: 'top', offset: [0, -9], className: 'pkg-label' });
+      labeledPackages.add(cleanPkgName);
+    } else {
+      marker.bindTooltip(name, { permanent: true, direction: 'top', offset: [0, -9], className: 'bh-label' });
+    }
+
     markersLayer.addLayer(marker);
     markers.push(marker);
   });
 
-  const countEl = document.getElementById('visible-count');
-  if (countEl) countEl.textContent = `Showing ${shown} of ${allRows.length} boreholes`;
+  const countEl = document.getElementById('count');
+  if (countEl) countEl.textContent = `${shown} of ${allRows.length} boreholes shown`;
 
   if (bounds.length > 0 && !window.__MAP_INITIALIZED_VIEW__) {
-    map.fitBounds(bounds, { padding: [30, 30] });
+    map.fitBounds(bounds, { padding: [40, 40], maxZoom: 16 });
     window.__MAP_INITIALIZED_VIEW__ = true;
   }
 }
@@ -438,7 +447,7 @@ function popupHtml(row, rowIdx){
   const tableRows = rows.map(([k,v]) => `<tr><td class="k">${k}</td><td>${v}</td></tr>`).join('');
   const pdfUrl = (row['PDF Link'] || row['Log PDF'] || row['Borehole Log'] || '').trim();
   const pdfButton = pdfUrl ? `<a href="${pdfUrl}" target="_blank" rel="noopener" class="pdf-link-btn" style="margin-top:6px;">📄 View Borehole Log PDF</a>` : '';
-  const profileBtn = `<button onclick="toggleProfileSelection(${rowIdx})" style="width:100%; margin-top:8px; padding:7px; background:linear-gradient(135deg, var(--brand-teal), var(--brand-teal-dark)); color:#fff; border:none; border-radius:6px; font-weight:700; font-size:11px; cursor:pointer; box-shadow:0 1px 3px rgba(0,0,0,0.15);">📐 Add / Remove from 2D Profile</button>`;
+  const profileBtn = `<button onclick="toggleProfileSelection(${rowIdx})" style="width:100%; margin-top:8px; padding:7px; background:linear-gradient(135deg, var(--brand-teal, #1c2b2a), var(--brand-teal-dark, #131e1d)); color:#fff; border:none; border-radius:6px; font-weight:700; font-size:11px; cursor:pointer; box-shadow:0 1px 3px rgba(0,0,0,0.15);">📐 Add / Remove from 2D Profile</button>`;
 
   const logHtml = buildBoreholeLogMarkup(levels, getBHLayers(row), row);
 
