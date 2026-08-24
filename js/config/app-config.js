@@ -1,17 +1,19 @@
 /* ============================================================
    NBRI GEOTECHNICAL GIS — APPLICATION CONFIGURATION (app-config.js)
+   Single source of truth for global configuration, endpoints, and shared state.
    ============================================================ */
 
-const APP_VERSION = "2.5.0"; // Major: Foliation Structural Projection, Geotechnical Rules Registry, System Hub & Version Center
+// Software Version & Release
+const APP_VERSION = "2.5.0";
 const LOCAL_BOREHOLES_CSV = "CEP 3  Rambukkana-Galagedara - BoreholesDetails (2).csv";
 
-// Data Source Endpoints
+// Data Source Endpoints (Google Sheets Published CSV Feeds)
 const SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS8PKkh7RDdd1g5boTWjdryadGLVhDkvKUMEjScApNAeWA7TrPrcetA1YiccjQvhPfnZ8ewg1NQugfv/pub?gid=364501395&single=true&output=csv";
 const LOG_SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS8PKkh7RDdd1g5boTWjdryadGLVhDkvKUMEjScApNAeWA7TrPrcetA1YiccjQvhPfnZ8ewg1NQugfv/pub?output=csv";
 const BH_PROFILE_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS8PKkh7RDdd1g5boTWjdryadGLVhDkvKUMEjScApNAeWA7TrPrcetA1YiccjQvhPfnZ8ewg1NQugfv/pub?output=csv&gid=1914424732";
 const CEP4_BH_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS8PKkh7RDdd1g5boTWjdryadGLVhDkvKUMEjScApNAeWA7TrPrcetA1YiccjQvhPfnZ8ewg1NQugfv/pub?output=csv&gid=1030712797";
-const CEP4_SHEET_CSV_URL = "PASTE_PUBLISHED_CSV_LINK_FOR_GID_1030712797_HERE";
-const PROGRESS_SHEET_CSV_URL = "PASTE_PUBLISHED_CSV_LINK_FOR_GID_1476293361_HERE";
+const CEP4_SHEET_CSV_URL = "";
+const PROGRESS_SHEET_CSV_URL = "";
 const AUTO_REFRESH_MS = 5 * 60 * 1000;
 
 // Coordinate Projection Definition: Sri Lanka National Grid (Kandawala / SLD99 - EPSG:5235)
@@ -50,3 +52,32 @@ function getBustedUrl(url) {
   const sep = url.includes('?') ? '&' : '?';
   return `${url}${sep}_v=${APP_VERSION}_t=${Date.now()}`;
 }
+
+// ── GLOBAL SHARED STATE VARIABLES ─────────────────────────────
+var allRows = [];
+var markers = [];
+var markersLayer = null;
+var map = null;
+var baseLayers = {};
+var layersControl = null;
+var cep4Layer = null;
+
+var bhDatesLookup = {};
+var profileLayersByBH = {};
+var profileWeatheringByBH = {};
+var profileTestsByBH = {};
+
+var profileSelectMode = false;
+var profileSelectedIdx = [];
+
+var isMeasuring = false;
+var measurePoints = [];
+var measureLines = null;
+var measurePolygon = null;
+var measureMarkers = [];
+var timelineActiveDate = null;
+var progressSeries = [];
+var userLocationMarker = null;
+var userAccuracyCircle = null;
+var userLocationWatchId = null;
+var activeKmlLayers = [];
