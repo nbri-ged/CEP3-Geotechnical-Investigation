@@ -1,0 +1,52 @@
+/* ============================================================
+   NBRI GEOTECHNICAL GIS — APPLICATION CONFIGURATION (app-config.js)
+   ============================================================ */
+
+const APP_VERSION = "2.5.0"; // Major: Foliation Structural Projection, Geotechnical Rules Registry, System Hub & Version Center
+const LOCAL_BOREHOLES_CSV = "CEP 3  Rambukkana-Galagedara - BoreholesDetails (2).csv";
+
+// Data Source Endpoints
+const SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS8PKkh7RDdd1g5boTWjdryadGLVhDkvKUMEjScApNAeWA7TrPrcetA1YiccjQvhPfnZ8ewg1NQugfv/pub?gid=364501395&single=true&output=csv";
+const LOG_SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS8PKkh7RDdd1g5boTWjdryadGLVhDkvKUMEjScApNAeWA7TrPrcetA1YiccjQvhPfnZ8ewg1NQugfv/pub?output=csv";
+const BH_PROFILE_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS8PKkh7RDdd1g5boTWjdryadGLVhDkvKUMEjScApNAeWA7TrPrcetA1YiccjQvhPfnZ8ewg1NQugfv/pub?output=csv&gid=1914424732";
+const CEP4_BH_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS8PKkh7RDdd1g5boTWjdryadGLVhDkvKUMEjScApNAeWA7TrPrcetA1YiccjQvhPfnZ8ewg1NQugfv/pub?output=csv&gid=1030712797";
+const CEP4_SHEET_CSV_URL = "PASTE_PUBLISHED_CSV_LINK_FOR_GID_1030712797_HERE";
+const PROGRESS_SHEET_CSV_URL = "PASTE_PUBLISHED_CSV_LINK_FOR_GID_1476293361_HERE";
+const AUTO_REFRESH_MS = 5 * 60 * 1000;
+
+// Coordinate Projection Definition: Sri Lanka National Grid (Kandawala / SLD99 - EPSG:5235)
+if (typeof proj4 !== 'undefined') {
+  proj4.defs("EPSG:5235", "+proj=tmerc +lat_0=7.000480277777778 +lon_0=80.77171308333334 +k=0.9999238418 +x_0=500000 +y_0=500000 +ellps=evrst30 +towgs84=-0.293,766.95,87.713,0.195704,1.69507,3.47302,-0.039338 +units=m +no_defs");
+}
+
+// Sample fallback CSV snippet if offline and master file unavailable
+const SAMPLE_CSV = `BH Name,Easting,Northing,Elevation,TF,Status,Contractor,Difficulty,Lot,Package,Status-N,Termination Depth,Rock Coring,Groundwater Level
+BH-MT-08,457534.196,539950.47,99.929,TRUE,Completed,NBRI,Paddy Field,Lot 0,Package 2A,2,15,12,2
+BH-MT-07,457571.239,539966.16,100.505,TRUE,Completed,NBRI,Paddy Field,Lot 0,Package 2A,2,15,9,1`;
+
+// Color Palettes
+const STATUS_COLORS = {
+  "Completed": "#2f6f5e",
+  "Cancelled": "#c0523f",
+  "Ongoing": "#b3541e",
+  "In Progress": "#b3541e",
+  "Planned": "#8a8370",
+  "Pending": "#c9a227",
+  "default": "#4c6a72"
+};
+
+const PACKAGE_COLORS = {
+  "Package 1": "#2563eb",
+  "Package 2A": "#10b981",
+  "Package 2B": "#f59e0b",
+  "Package 3": "#8b5cf6",
+  "Package 4": "#ec4899",
+  "default": "#64748b"
+};
+
+// Cache busting URL helper
+function getBustedUrl(url) {
+  if (!url) return '';
+  const sep = url.includes('?') ? '&' : '?';
+  return `${url}${sep}_v=${APP_VERSION}_t=${Date.now()}`;
+}
