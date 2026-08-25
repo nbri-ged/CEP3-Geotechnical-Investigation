@@ -4,8 +4,18 @@
    ============================================================ */
 
 // Software Version & Release
-const APP_VERSION = "2.5.8";
+const APP_VERSION = "2.5.9";
 const LOCAL_BOREHOLES_CSV = "CEP 3  Rambukkana-Galagedara - BoreholesDetails (2).csv";
+
+// Scale meter rounder for grids and cross-sections
+function niceScaleMeters(target) {
+  const steps = [1, 2, 5, 10, 20, 25, 50, 100, 200, 250, 500, 1000, 2000, 5000, 10000];
+  let best = steps[0];
+  for (const s of steps) {
+    if (s <= target) best = s;
+  }
+  return best;
+}
 
 // Data Source Endpoints (Google Sheets Published CSV Feeds)
 const SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS8PKkh7RDdd1g5boTWjdryadGLVhDkvKUMEjScApNAeWA7TrPrcetA1YiccjQvhPfnZ8ewg1NQugfv/pub?gid=364501395&single=true&output=csv";
