@@ -343,6 +343,54 @@ const BS5930_GRAPHICS = {
   'Boulder': { label: 'Boulder / Corestone', color: '#b8aea0', isBoulder: true, isRock: false }
 };
 
+const GRAPHIC_CODE_INFO = {
+  // ---- Fine soils: CLAY (C) ----
+  'CL':  { label: 'Low Plasticity CLAY', color: '#bd6b46' },
+  'CI':  { label: 'Intermediate Plasticity CLAY', color: '#b04a8a' },
+  'CH':  { label: 'High Plasticity CLAY', color: '#8a4530' },
+  'CV':  { label: 'Very High Plasticity CLAY', color: '#6e3020' },
+  'CE':  { label: 'Extremely High Plasticity CLAY', color: '#521f14' },
+  'CS':  { label: 'Sandy CLAY', color: '#a56942' },
+  'CLO': { label: 'Low Plasticity CLAY (Organic)', color: '#7a5238' },
+  'CIO': { label: 'Intermediate Plasticity CLAY (Organic)', color: '#6f3a60' },
+  'CHO': { label: 'High Plasticity CLAY (Organic)', color: '#5c3020' },
+  'CVO': { label: 'Very High Plasticity CLAY (Organic)', color: '#4a2415' },
+  'CSO': { label: 'Sandy CLAY (Organic)', color: '#6f4a30' },
+
+  // ---- Fine soils: SILT (M) ----
+  'ML':  { label: 'Low Plasticity SILT', color: '#a8b06a' },
+  'MI':  { label: 'Intermediate Plasticity SILT', color: '#96a352' },
+  'MH':  { label: 'High Plasticity SILT', color: '#9a9e5a' },
+  'MV':  { label: 'Very High Plasticity SILT', color: '#7d8248' },
+  'ME':  { label: 'Extremely High Plasticity SILT', color: '#636836' },
+  'MS':  { label: 'Sandy SILT', color: '#c9a84e' },
+  'MG':  { label: 'Gravelly SILT', color: '#8f8f5a' },
+  'MLO': { label: 'Low Plasticity SILT (Organic)', color: '#6a5a40' },
+  'MHO': { label: 'High Plasticity SILT (Organic)', color: '#5a4d2c' },
+  'MEO': { label: 'Extremely High Plasticity SILT (Organic)', color: '#494024' },
+
+  // ---- Coarse soils: SAND (S) ----
+  'SW':  { label: 'Well Graded SAND', color: '#e8c85a' },
+  'SP':  { label: 'Poorly Graded SAND', color: '#f0d98a' },
+  'SM':  { label: 'Silty SAND', color: '#e0b23c' },
+  'SC':  { label: 'Clayey SAND', color: '#9c7a3a' },
+  'SPC': { label: 'Poorly Graded SAND with Clay', color: '#c9a55a' },
+  'SME': { label: 'Silty SAND (Extremely High Plasticity fines)', color: '#b8963c' },
+
+  // ---- Coarse soils: GRAVEL (G) ----
+  'GW':  { label: 'Well Graded GRAVEL', color: '#726352' },
+  'GP':  { label: 'Poorly Graded GRAVEL', color: '#8a7a63' },
+  'GM':  { label: 'Silty GRAVEL', color: '#8a7a63' },
+  'GC':  { label: 'Clayey GRAVEL', color: '#5f5240' },
+  'GPG': { label: 'Poorly Graded GRAVEL (Gravelly fines)', color: '#6e6250' },
+
+  // ---- Other / project-specific ----
+  'OL':  { label: 'Organic SILT/CLAY', color: '#6a5a40' },
+  'OH':  { label: 'Organic CLAY', color: '#5a4030' },
+  'FILL':{ label: 'Engineered Fill', color: '#d9a05b' },
+  'WEATHERED ROCK': { label: 'Weathered Rock / Saprolite', color: '#a39c87' }
+};
+
 function isBoulderCode(code) {
   if (!code) return false;
   const c = code.toLowerCase();
@@ -357,9 +405,11 @@ function isRockCode(code) {
 
 function getGraphicInfo(code) {
   if (!code) return { label: 'Soil Stratum', color: '#d4a373', isRock: false };
-  if (BS5930_GRAPHICS[code]) return BS5930_GRAPHICS[code];
+  const upper = String(code).trim().toUpperCase();
   if (isBoulderCode(code)) return { label: 'Boulder / Corestone', color: '#b8aea0', isBoulder: true, isRock: false };
-  if (isRockCode(code)) return { label: formatTitleCase(code), color: '#71717a', isRock: true };
+  if (isRockCode(code)) return { label: formatTitleCase(code), color: '#8f8f95', isRock: true };
+  if (GRAPHIC_CODE_INFO[upper]) return { label: GRAPHIC_CODE_INFO[upper].label, color: GRAPHIC_CODE_INFO[upper].color, isRock: false };
+  if (typeof BS5930_GRAPHICS !== 'undefined' && BS5930_GRAPHICS[code]) return BS5930_GRAPHICS[code];
   return { label: formatTitleCase(code), color: graphicHashColor(code), isRock: false };
 }
 

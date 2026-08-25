@@ -4,7 +4,7 @@
    ============================================================ */
 
 // Software Version & Release
-const APP_VERSION = "2.6.0";
+const APP_VERSION = "2.7.0";
 const LOCAL_BOREHOLES_CSV = "CEP 3  Rambukkana-Galagedara - BoreholesDetails (2).csv";
 
 // Scale meter rounder for grids and cross-sections
@@ -22,9 +22,16 @@ const SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS8PKkh7R
 const LOG_SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS8PKkh7RDdd1g5boTWjdryadGLVhDkvKUMEjScApNAeWA7TrPrcetA1YiccjQvhPfnZ8ewg1NQugfv/pub?output=csv";
 const BH_PROFILE_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS8PKkh7RDdd1g5boTWjdryadGLVhDkvKUMEjScApNAeWA7TrPrcetA1YiccjQvhPfnZ8ewg1NQugfv/pub?output=csv&gid=1914424732";
 const CEP4_BH_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS8PKkh7RDdd1g5boTWjdryadGLVhDkvKUMEjScApNAeWA7TrPrcetA1YiccjQvhPfnZ8ewg1NQugfv/pub?output=csv&gid=1030712797";
-const CEP4_SHEET_CSV_URL = "";
-const PROGRESS_SHEET_CSV_URL = "";
+const CEP4_SHEET_CSV_URL = "PASTE_PUBLISHED_CSV_LINK_FOR_GID_1030712797_HERE";
+const PROGRESS_SHEET_CSV_URL = "PASTE_PUBLISHED_CSV_LINK_FOR_GID_1476293361_HERE";
 const AUTO_REFRESH_MS = 5 * 60 * 1000;
+
+// Permanent Road Corridor & Vector Overlays Configuration
+const PERMANENT_OVERLAYS = [ { name: "CEP3 Road Corridor", url: "Polyline_cep32.zip" } ];
+let roadCorridorGeoJSON = null;
+let overlayCount = 0;
+const ACI_COLORS = { 1:"#ff0000",2:"#ffff00",3:"#00ff00",4:"#00ffff",5:"#0000ff",6:"#ff00ff",7:"#1a1a1a",8:"#808080",9:"#c0c0c0" };
+const OVERLAY_LINE_WEIGHT_PX = 2.0;
 
 // Coordinate Projection Definition: Sri Lanka National Grid (Kandawala / SLD99 - EPSG:5235)
 if (typeof proj4 !== 'undefined') {
