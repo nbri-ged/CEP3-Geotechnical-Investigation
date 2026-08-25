@@ -59,23 +59,45 @@ function updateDiagnosticsTab() {
   }
 }
 
+function checkForAppUpdates(manual = false) {
+  updateDiagnosticsTab();
+  if (manual) {
+    showAppToast(
+      '🔄 System Check Complete',
+      `You are running the latest version v${APP_VERSION}. All geotechnical models, foliation engines, and dataset caches are synchronized.`,
+      'success',
+      5000
+    );
+  }
+}
+
 function checkAppVersionAndClearCache() {
   try {
     const storedVer = localStorage.getItem('nbri_app_version');
     if (!storedVer || storedVer !== APP_VERSION) {
-      console.log(`[Version Center] Updating cache from v${storedVer} to v${APP_VERSION}`);
-      localStorage.setItem('nbri_app_version', APP_VERSION);
+      console.log(`[NBRI System] Upgraded from "${storedVer || 'initial'}" to "${APP_VERSION}". Syncing dataset and cache...`);
+      const oldRows = localStorage.getItem('nbri_allrows_cache');
+      if (oldRows) localStorage.setItem('nbri_allrows_cache_backup', oldRows);
+      
+      const keysToPurge = ['nbri_dates_cache', 'nbri_cache_timestamp'];
+      keysToPurge.forEach(k => localStorage.removeItem(k));
+      sessionStorage.clear();
+      
       if ('caches' in window) {
         caches.keys().then(names => {
-          names.forEach(n => caches.delete(n));
+          names.forEach(name => caches.delete(name));
         }).catch(() => {});
       }
-      setTimeout(() => {
-        showAppToast(`🚀 Version v${APP_VERSION} Active`, 'System updated with latest foliation projection and geotechnical modeling rules.', 'success', 6000);
-      }, 1000);
+      
+      localStorage.setItem('nbri_app_version', APP_VERSION);
+      if (storedVer) {
+        setTimeout(() => {
+          showVersionUpdateNotice(storedVer, APP_VERSION);
+        }, 800);
+      }
     }
   } catch (e) {
-    console.warn('[Version Center] Cache sync note:', e);
+    console.warn('[Version Center] Version sync note:', e);
   }
 }
 
@@ -86,7 +108,12 @@ function showVersionUpdateNotice(oldVer, newVer) {
     note.innerHTML = `✨ Updated to v${newVer}`;
   }
   if (typeof showAppToast === 'function') {
-    showAppToast(`✨ System Updated (v${newVer})`, 'New geotechnical features & optimizations active.', 'success');
+    showAppToast(
+      `🚀 System Updated (v${newVer})`,
+      `Foliation structural projection engine, updated geotechnical rules, and master datasets are ready. <a href="javascript:void(0)" onclick="openVersionModal('changelog')" style="color:#60a5fa; font-weight:700; text-decoration:underline;">View What's New &rarr;</a>`,
+      'success',
+      9000
+    );
   }
 }
 

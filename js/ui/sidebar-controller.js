@@ -86,7 +86,13 @@ function initSidebarController() {
 
   if (kmlBhBtn) kmlBhBtn.addEventListener('click', () => { if (typeof exportKML === 'function') exportKML(false); });
   if (kmlRoadBtn) kmlRoadBtn.addEventListener('click', () => { if (typeof exportKML === 'function') exportKML(true); });
-  if (pdfMapBtn) pdfMapBtn.addEventListener('click', () => { if (typeof downloadMapSnapshotPDF === 'function') downloadMapSnapshotPDF(); });
+  if (pdfMapBtn) pdfMapBtn.addEventListener('click', () => {
+    if (typeof exportMapPDF === 'function') {
+      exportMapPDF();
+    } else if (typeof downloadMapSnapshotPDF === 'function') {
+      downloadMapSnapshotPDF();
+    }
+  });
   if (exportCsvBtn) exportCsvBtn.addEventListener('click', () => {
     if (!allRows || allRows.length === 0) { alert("No structured rows loaded."); return; }
     const csvString = Papa.unparse(allRows);
@@ -101,4 +107,15 @@ function initSidebarController() {
   });
   if (pkgReportBtn) pkgReportBtn.addEventListener('click', () => { if (typeof generatePackageReportPDF === 'function') generatePackageReportPDF(); });
   if (refreshBtn) refreshBtn.addEventListener('click', () => { if (typeof fetchData === 'function') fetchData(); });
+
+  // Vector Overlay Upload Listener
+  const overlayFileInput = document.getElementById('overlay-file');
+  if (overlayFileInput) {
+    overlayFileInput.addEventListener('change', (e) => {
+      if (typeof loadOverlayFile === 'function') {
+        Array.from(e.target.files).forEach(loadOverlayFile);
+        e.target.value = '';
+      }
+    });
+  }
 }
