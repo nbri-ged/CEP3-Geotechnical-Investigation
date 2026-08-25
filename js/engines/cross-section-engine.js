@@ -1921,13 +1921,14 @@ function buildProfileSvg(rows, options = {}, arg3 = null, arg4 = null) {
   // a transported, locally-bounded deposit. Drawn after the tabular units so
   // lenses visually sit correctly relative to the surrounding stratigraphy.
   svg += `<!-- Lens-family layers (Alluvium/Colluvium/Made Ground): fixed half-width, non-pinching -->`;
+  const maxLensHalfWidth = (typeof LENS_MAX_HALF_WIDTH_M !== 'undefined' ? LENS_MAX_HALF_WIDTH_M : 15);
   lensLayers.forEach(lens => {
     const i = lens.bhIdx;
     const xCenter = distances[i];
     const leftNeighborDist = i > 0 ? (distances[i] - distances[i - 1]) / 2 : Infinity;
     const rightNeighborDist = i < distances.length - 1 ? (distances[i + 1] - distances[i]) / 2 : Infinity;
-    const halfW_left = Math.min(LENS_MAX_HALF_WIDTH_M, leftNeighborDist);
-    const halfW_right = Math.min(LENS_MAX_HALF_WIDTH_M, rightNeighborDist);
+    const halfW_left = Math.min(maxLensHalfWidth, leftNeighborDist);
+    const halfW_right = Math.min(maxLensHalfWidth, rightNeighborDist);
 
     // Also clamp to the plotted distance range so a lens near the first/last
     // borehole doesn't try to draw past the section's edge.
