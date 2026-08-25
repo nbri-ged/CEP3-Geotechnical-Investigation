@@ -4,7 +4,7 @@
    ============================================================ */
 
 // Software Version & Release
-const APP_VERSION = "2.5.9";
+const APP_VERSION = "2.6.0";
 const LOCAL_BOREHOLES_CSV = "CEP 3  Rambukkana-Galagedara - BoreholesDetails (2).csv";
 
 // Scale meter rounder for grids and cross-sections

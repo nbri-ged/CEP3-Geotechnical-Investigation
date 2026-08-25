@@ -148,6 +148,7 @@ const ORIGIN_FAMILY_MAP = {
 };
 
 const LENS_ORIGIN_FAMILIES = new Set(['alluvium', 'colluvium', 'made_ground']);
+const LENS_MAX_HALF_WIDTH_M = 15; // rule 3: fixed max lateral half-width for lens-type origins
 
 function originFamilyOf(rawOrigin) {
   const clean = (rawOrigin || '').trim().toLowerCase();
