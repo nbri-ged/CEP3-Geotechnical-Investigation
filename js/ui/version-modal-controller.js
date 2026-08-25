@@ -79,6 +79,17 @@ function checkAppVersionAndClearCache() {
   }
 }
 
+function showVersionUpdateNotice(oldVer, newVer) {
+  const note = document.getElementById('version-update-pill');
+  if (note) {
+    note.style.display = 'inline-flex';
+    note.innerHTML = `✨ Updated to v${newVer}`;
+  }
+  if (typeof showAppToast === 'function') {
+    showAppToast(`✨ System Updated (v${newVer})`, 'New geotechnical features & optimizations active.', 'success');
+  }
+}
+
 function forceHardRefreshAndPurge() {
   try {
     localStorage.clear();
