@@ -7,6 +7,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // 1. Version & Cache Validation
   checkAppVersionAndClearCache();
+  autoRefreshCacheOnStartup();
 
   // 2. Initialize GIS Map
   initMapEngine();
