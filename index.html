@@ -42,9 +42,10 @@
         <span id="status-dot"></span>
         <span id="status-text">Loading dataset&hellip;</span>
       </div>
-      <button id="version-badge-btn" class="version-badge-btn" onclick="openVersionModal()" title="View Version v2.5.0, Changelog, Active Rules &amp; Copyright Details">
+      <span id="version-update-pill" style="display:none; font-size:11px; background:#dcfce7; color:#15803d; padding:2px 8px; border-radius:999px; font-weight:700;"></span>
+      <button id="version-badge-btn" class="version-badge-btn" onclick="openVersionModal()" title="View Version v2.7.0, Changelog, Active Rules &amp; Copyright Details">
         <span class="version-pulse-dot"></span>
-        <span>v2.5.0 System Hub</span>
+        <span>v2.7.0 System Hub</span>
       </button>
     </div>
   </header>
@@ -156,6 +157,16 @@
         <button id="kml-bh-road" class="kml-btn">🛣️ KML &mdash; BH locations + Road trace</button>
         <button id="pdf-map-btn" class="kml-btn">📄 PDF Map Snapshot (current view)</button>
         <button id="export-csv-btn" class="kml-btn">📊 Export Master Dataset to Excel / CSV</button>
+
+        <div class="filter-group" style="margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--line);">
+          <label for="report-package-select">Executive Summary Report PDF</label>
+          <select id="report-package-select">
+            <option value="">Select Package...</option>
+          </select>
+          <button id="pkg-report-btn" class="kml-btn" style="margin-top: 8px; background: linear-gradient(135deg, var(--brand-blue), #3b82f6); color: #ffffff; border: none; font-weight: 800; justify-content: center; text-align: center;">
+            📄 Generate Package Report
+          </button>
+        </div>
       </div>
 
       <!-- Vector Overlays -->
@@ -219,6 +230,7 @@
           <input id="az-input" type="number" min="0" max="360" step="0.5" value="45" title="Section line bearing (degrees from North, clockwise)" onchange="updateApparentDipDisplay()">
           <span style="color: #64748b; font-size: 11px; font-weight: 600;">° N</span>
           <button id="az-auto-btn" onclick="autoDetectAzimuth()" title="Auto-detect azimuth from selected boreholes">⟳ Auto-detect</button>
+          <span id="az-offset-info" style="font-size: 10.5px; color: #64748b; font-style: italic; margin-left: 4px;"></span>
         </div>
 
         <div id="foliation-panel" style="display: flex; align-items: center; gap: 6px; margin-left: 4px; background: #e0f2fe; padding: 3px 10px; border-radius: var(--radius-sm); border: 1px solid #bae6fd;">
@@ -295,6 +307,7 @@
       </div>
       
       <div class="dxf-body">
+        <!-- Section 1: Subsurface Strata & Boundary Lines -->
         <div class="dxf-section">
           <div class="dxf-section-title"><span>📐 Subsurface Strata &amp; Contact Lines</span></div>
           <div class="dxf-grid">
@@ -310,45 +323,93 @@
             </label>
             <label class="dxf-checkbox-label">
               <input type="checkbox" id="dxf-opt-soil-lines" checked>
-              <span>Soil Strata Boundaries</span>
+              <span>Soil Stratigraphy &amp; Pinch-outs</span>
               <span class="dxf-layer-pill">GEOL_SOIL_STRATA</span>
             </label>
             <label class="dxf-checkbox-label">
+              <input type="checkbox" id="dxf-opt-rock-lines" checked>
+              <span>Dipping Bedrock Horizons</span>
+              <span class="dxf-layer-pill">GEOL_BEDROCK</span>
+            </label>
+            <label class="dxf-checkbox-label">
+              <input type="checkbox" id="dxf-opt-origin-lines" checked>
+              <span>Soil Origin Transition Lines</span>
+              <span class="dxf-layer-pill">GEOL_ORIGIN_BOUND</span>
+            </label>
+            <label class="dxf-checkbox-label">
               <input type="checkbox" id="dxf-opt-gwt" checked>
-              <span>Groundwater Table (GWT)</span>
+              <span>Groundwater Table (GWT) Line</span>
               <span class="dxf-layer-pill">GEOL_GWT</span>
             </label>
           </div>
         </div>
 
+        <!-- Section 2: Fills, Hatches & Color Codes -->
         <div class="dxf-section">
-          <div class="dxf-section-title"><span>📍 Borehole Exploration &amp; In-Situ Data</span></div>
+          <div class="dxf-section-title"><span>🎨 Hatches, Fills &amp; Color Coding</span></div>
           <div class="dxf-grid">
             <label class="dxf-checkbox-label">
-              <input type="checkbox" id="dxf-opt-pillars" checked>
-              <span>Borehole Pillars &amp; ID Labels</span>
-              <span class="dxf-layer-pill">GEOL_BOREHOLES</span>
+              <input type="checkbox" id="dxf-opt-soil-hatches" checked>
+              <span>BS 5930 Soil Hatches (Sand/Clay/Gravel)</span>
+              <span class="dxf-layer-pill">GEOL_HATCH_SOIL</span>
             </label>
             <label class="dxf-checkbox-label">
-              <input type="checkbox" id="dxf-opt-spt" checked>
-              <span>SPT N-Value Bars &amp; Text</span>
-              <span class="dxf-layer-pill">GEOL_SPT</span>
+              <input type="checkbox" id="dxf-opt-rock-hatches" checked>
+              <span>Bedrock Foliation &amp; Lithology Hatches</span>
+              <span class="dxf-layer-pill">GEOL_HATCH_ROCK</span>
             </label>
             <label class="dxf-checkbox-label">
-              <input type="checkbox" id="dxf-opt-grid" checked>
-              <span>Elevation &amp; Chainage Grid</span>
-              <span class="dxf-layer-pill">GEOL_GRID</span>
+              <input type="checkbox" id="dxf-opt-truecolor" checked>
+              <span>24-bit TrueColor RGB &amp; ACI Codes</span>
+              <span class="dxf-layer-pill">TRUECOLOR 420</span>
             </label>
             <label class="dxf-checkbox-label">
-              <input type="checkbox" id="dxf-opt-titleblock" checked>
-              <span>Geological Title Block</span>
-              <span class="dxf-layer-pill">GEOL_TITLE</span>
+              <input type="checkbox" id="dxf-opt-cwr-hatches" checked>
+              <span>CWR Grade V Transition Hatch Overlay</span>
+              <span class="dxf-layer-pill">GEOL_HATCH_CWR</span>
             </label>
           </div>
         </div>
 
+        <!-- Section 3: Geotechnical In-Situ Test Data -->
         <div class="dxf-section">
-          <div class="dxf-section-title"><span>📏 Vertical Exaggeration Scale</span></div>
+          <div class="dxf-section-title"><span>📊 In-Situ Geotechnical Test Data</span></div>
+          <div class="dxf-grid">
+            <label class="dxf-checkbox-label">
+              <input type="checkbox" id="dxf-opt-spt" checked>
+              <span>SPT N-Value Columns &amp; Text Annotations</span>
+              <span class="dxf-layer-pill">GEOL_SPT_DATA</span>
+            </label>
+            <label class="dxf-checkbox-label">
+              <input type="checkbox" id="dxf-opt-rqd" checked>
+              <span>RQD % &amp; Core Recovery (CR %) Bars</span>
+              <span class="dxf-layer-pill">GEOL_RQD_DATA</span>
+            </label>
+            <label class="dxf-checkbox-label">
+              <input type="checkbox" id="dxf-opt-pillars" checked>
+              <span>Borehole Core Pillars &amp; Depth Ranges</span>
+              <span class="dxf-layer-pill">GEOL_BOREHOLES</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Section 4: Grid, Dimensions & Drawing Scale -->
+        <div class="dxf-section">
+          <div class="dxf-section-title"><span>📏 Dimensions, Grid &amp; Drawing Scale</span></div>
+          <div class="dxf-grid" style="margin-bottom: 12px;">
+            <label class="dxf-checkbox-label">
+              <input type="checkbox" id="dxf-opt-grid" checked>
+              <span>Elevation &amp; Chainage Dimension Grid</span>
+              <span class="dxf-layer-pill">GEOL_GRID_AXIS</span>
+            </label>
+            <label class="dxf-checkbox-label">
+              <input type="checkbox" id="dxf-opt-titleblock" checked>
+              <span>Title Block &amp; Structural Geology Info</span>
+              <span class="dxf-layer-pill">GEOL_TITLEBLOCK</span>
+            </label>
+          </div>
+
+          <div style="font-weight: 700; color: var(--slate-800); margin-bottom: 6px; font-size: 11.5px;">CAD Coordinate Scale:</div>
           <div style="display: flex; gap: 20px; font-size: 12px; color: var(--slate-700);">
             <label class="dxf-checkbox-label">
               <input type="radio" name="dxf-scale-choice" value="1" checked>
@@ -387,7 +448,7 @@
 
       <div class="vmodal-hero">
         <div>
-          <span class="vmodal-version-tag">🚀 v2.5.0 Modular</span>
+          <span class="vmodal-version-tag">🚀 v2.7.0 Modular Master</span>
           <span style="font-size: 11.5px; color:#16a34a; font-weight:700; margin-left: 8px;">Active &amp; Synchronized</span>
         </div>
         <div style="font-size: 11.5px; color: var(--slate-600);">
@@ -408,15 +469,16 @@
         <div class="vmodal-tab-pane active" id="vtab-changelog">
           <div class="changelog-card" style="border-left:4px solid #2563eb;">
             <div class="changelog-card-header">
-              <div class="changelog-ver-title"><span>Version 2.5.0 &mdash; Modular Engine Architecture &amp; Rules Registry</span></div>
+              <div class="changelog-ver-title"><span>Version 2.7.0 &mdash; Full Feature Restoration &amp; Master Suite</span></div>
               <span class="changelog-pill latest">Current Master</span>
             </div>
             <div class="changelog-body">
               <strong>Key Upgrades:</strong>
               <ul>
-                <li><strong>Modular Multi-Engine Architecture:</strong> Monolithic index split into dedicated GIS, Stratigraphy, Cross-Section, and CAD DXF engines.</li>
-                <li><strong>Structural Foliation Projection Engine:</strong> Dynamic apparent dip calculation along section azimuth: <code>tan(&alpha;<sub>app</sub>) = tan(&alpha;<sub>true</sub>) &times; |cos(&theta;<sub>sec</sub> - &theta;<sub>dip</sub>)|</code>.</li>
-                <li><strong>Geotechnical Rules Catalog (Rules 1&ndash;19):</strong> Codified rules registry with dynamic UI synchronization and technical Markdown specification.</li>
+                <li><strong>Vector Overlays (KML / GeoJSON / Shapefile ZIP):</strong> Real-time file upload, permanent CEP3 Road Corridor auto-layering, and styled CAD lines.</li>
+                <li><strong>Professional Cartographic Map Sheet PDF:</strong> Full title block, north arrow, scale bar, borehole dots, status legend box, and vector corridor trace.</li>
+                <li><strong>Executive Summary Report PDF:</strong> Package-level multi-page PDF generation with borehole listings and mini graphical depth columns.</li>
+                <li><strong>CAD DXF Export Studio (14 Layers):</strong> Complete granular control over soil/rock lines, BS 5930 hatches, TrueColor RGB, and in-situ test bars.</li>
               </ul>
             </div>
           </div>
@@ -455,12 +517,15 @@
         <!-- Tab 4: Diagnostics -->
         <div class="vmodal-tab-pane" id="vtab-diagnostics">
           <div class="diag-grid">
-            <div class="diag-card"><div class="diag-label">App Version</div><div id="diag-app-version" class="diag-val">v2.5.0</div></div>
+            <div class="diag-card"><div class="diag-label">App Version</div><div id="diag-app-version" class="diag-val">v2.7.0</div></div>
             <div class="diag-card"><div class="diag-label">Network Status</div><div id="diag-net-status" class="diag-val">Online</div></div>
             <div class="diag-card"><div class="diag-label">Cache Sync</div><div id="diag-cache-ver" class="diag-val">Synchronized</div></div>
             <div class="diag-card"><div class="diag-label">Embedded Backup</div><div id="diag-embedded-status" class="diag-val">Ready</div></div>
           </div>
-          <div style="text-align: right;">
+          <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 14px;">
+            <button id="btn-check-updates" onclick="checkForAppUpdates(true)" class="kml-btn" style="background:#0284c7; color:#fff; font-weight:700; padding:6px 14px; display:inline-flex; width:auto;">
+              🔄 Check for Updates Now
+            </button>
             <button onclick="forceHardRefreshAndPurge()" class="kml-btn" style="background:#dc2626; color:#fff; font-weight:700; padding:6px 14px; display:inline-flex; width:auto;">
               🧹 Clear All Cache &amp; Hard Reload
             </button>
@@ -483,29 +548,29 @@
   <script src="https://unpkg.com/tokml@0.4.0/tokml.js"></script>
   <script src="https://unpkg.com/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
   <script src="https://unpkg.com/leaflet-image@0.0.4/leaflet-image.js"></script>
-  <script src="data_master.js?v=2.6.0"></script>
+  <script src="data_master.js?v=2.7.0"></script>
 
   <!-- Modular Config & Standards -->
-  <script src="js/config/app-config.js?v=2.6.0"></script>
-  <script src="js/config/geotech-rules.js?v=2.6.0"></script>
-  <script src="js/config/soil-rock-definitions.js?v=2.6.0"></script>
+  <script src="js/config/app-config.js?v=2.7.0"></script>
+  <script src="js/config/geotech-rules.js?v=2.7.0"></script>
+  <script src="js/config/soil-rock-definitions.js?v=2.7.0"></script>
 
   <!-- UI & Feedback Services -->
-  <script src="js/ui/toast-service.js?v=2.6.0"></script>
+  <script src="js/ui/toast-service.js?v=2.7.0"></script>
 
   <!-- Modular Computational Engines -->
-  <script src="js/engines/data-pipeline.js?v=2.6.0"></script>
-  <script src="js/engines/gis-engine.js?v=2.6.0"></script>
-  <script src="js/engines/geotech-log-engine.js?v=2.6.0"></script>
-  <script src="js/engines/cross-section-engine.js?v=2.6.0"></script>
-  <script src="js/engines/cad-dxf-engine.js?v=2.6.0"></script>
-  <script src="js/engines/export-engine.js?v=2.6.0"></script>
+  <script src="js/engines/data-pipeline.js?v=2.7.0"></script>
+  <script src="js/engines/gis-engine.js?v=2.7.0"></script>
+  <script src="js/engines/geotech-log-engine.js?v=2.7.0"></script>
+  <script src="js/engines/cross-section-engine.js?v=2.7.0"></script>
+  <script src="js/engines/cad-dxf-engine.js?v=2.7.0"></script>
+  <script src="js/engines/export-engine.js?v=2.7.0"></script>
 
   <!-- UI Controllers -->
-  <script src="js/ui/sidebar-controller.js?v=2.6.0"></script>
-  <script src="js/ui/version-modal-controller.js?v=2.6.0"></script>
+  <script src="js/ui/sidebar-controller.js?v=2.7.0"></script>
+  <script src="js/ui/version-modal-controller.js?v=2.7.0"></script>
 
   <!-- Application Bootstrap -->
-  <script src="js/app.js?v=2.6.0"></script>
+  <script src="js/app.js?v=2.7.0"></script>
 </body>
 </html>
