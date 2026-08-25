@@ -9,9 +9,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,500;1,700&family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-
-  <!-- Modular Design System -->
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,500;1,700&family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">  <!-- Modular Design System -->
   <link rel="stylesheet" href="css/base.css">
   <link rel="stylesheet" href="css/header-dashboard.css">
   <link rel="stylesheet" href="css/sidebar.css">
@@ -19,6 +17,7 @@
   <link rel="stylesheet" href="css/borehole-popup.css">
   <link rel="stylesheet" href="css/cross-section-modal.css">
   <link rel="stylesheet" href="css/dxf-modal.css">
+  <link rel="stylesheet" href="css/geological-editor.css">
   <link rel="stylesheet" href="css/version-hub.css">
 </head>
 <body>
@@ -60,22 +59,6 @@
     <div class="dash-stat dash-progress"><span class="dash-label">📈 Progress Rate</span><span id="dash-progress" class="dash-value">&mdash;</span></div>
   </div>
 
-  <div id="sidebar-backdrop"></div>
-
-  <!-- 3. App Main Layout -->
-  <div id="app">
-    
-    <!-- Sidebar -->
-    <div id="sidebar">
-      
-      <!-- Search & Filters -->
-      <div class="block">
-        <h2>🔍 Search &amp; Filter</h2>
-        <div class="search-wrapper">
-          <span class="search-icon">🔎</span>
-          <input id="search" type="text" placeholder="Search by BH ID, Lot, Package, Contractor&hellip;" />
-        </div>
-        
         <div style="margin-top: 12px;">
           <div class="filter-group">
             <label for="f-status">Status</label>
@@ -200,6 +183,9 @@
       <div id="profile-modal-header">
         <span>📐 Engineering Geological Cross-Section Studio</span>
         <div style="display: flex; gap: 6px; align-items: center; flex-wrap: nowrap;">
+          <button onclick="openGeologicalEditor()" title="Open Interactive Geological Interpretation &amp; Profile Editing Studio" class="kml-btn" style="padding: 4px 11px; font-size: 11px; font-weight: 800; background: linear-gradient(135deg, #2563eb, #1d4ed8); color: #fff; border: 1px solid #60a5fa; border-radius: var(--radius-sm); cursor: pointer; display: inline-flex; align-items: center; gap: 5px; box-shadow: 0 2px 4px rgba(37,99,235,0.3);">
+            <span>✏️ Geological Editor</span>
+          </button>
           <button onclick="downloadProfilePNG()" title="Download PNG" class="kml-btn" style="padding: 4px 9px; font-size: 11px; background: #2e7d6e; color: #fff; border: none; border-radius: var(--radius-sm); cursor: pointer;">🖼 PNG</button>
           <button onclick="downloadProfileSVG()" title="Download SVG" class="kml-btn" style="padding: 4px 9px; font-size: 11px; background: #4a6572; color: #fff; border: none; border-radius: var(--radius-sm); cursor: pointer;">⚡ SVG</button>
           <button onclick="openDxfExportModal()" title="Export to AutoCAD / Civil 3D DXF (Vector CAD with Layers, Hatches &amp; Test Data)" class="kml-btn" style="padding: 4px 9px; font-size: 11px; background: #27ae60; color: #fff; border: none; border-radius: var(--radius-sm); cursor: pointer;">📐 DXF (CAD)</button>
@@ -536,6 +522,266 @@
     </div>
   </div>
 
+  <!-- 5. CAD DXF Export Studio Modal -->
+  <div id="dxf-modal-backdrop" onclick="if(event.target===this) closeDxfModal()">
+    <div id="dxf-modal">
+      <div class="dxf-header">
+        <div class="dxf-title">
+          <span>📐 AutoCAD / Civil 3D DXF Export Studio</span>
+          <span style="font-size: 11px; font-weight: 700; background: #059669; color: #fff; padding: 2px 8px; border-radius: 999px;">Vector CAD</span>
+        </div>
+        <button onclick="closeDxfModal()" style="background: transparent; border: none; color: #fff; font-size: 20px; cursor: pointer; line-height: 1;">&times;</button>
+      </div>
+
+      <div class="dxf-body">
+        
+        <!-- Section 1: Contact Lines & Geological Surfaces -->
+        <div class="dxf-section">
+          <div class="dxf-section-title"><span>🌐 Contact Lines &amp; Geological Surfaces</span></div>
+          <div class="dxf-grid">
+            <label class="dxf-checkbox-label">
+              <input type="checkbox" id="dxf-opt-ground" checked>
+              <span>Natural Ground Terrain</span>
+              <span class="dxf-layer-pill">GEOL_GROUND_SURFACE</span>
+            </label>
+            <label class="dxf-checkbox-label">
+              <input type="checkbox" id="dxf-opt-rockhead" checked>
+              <span>Rockhead Interface (Weathering Front)</span>
+              <span class="dxf-layer-pill">GEOL_ROCKHEAD</span>
+            </label>
+            <label class="dxf-checkbox-label">
+              <input type="checkbox" id="dxf-opt-soil-lines" checked>
+              <span>BS 5930 Soil Strata Contact Lines</span>
+              <span class="dxf-layer-pill">GEOL_SOIL_STRATA</span>
+            </label>
+            <label class="dxf-checkbox-label">
+              <input type="checkbox" id="dxf-opt-rock-lines" checked>
+              <span>Dipping Bedrock Formation Contacts</span>
+              <span class="dxf-layer-pill">GEOL_BEDROCK_STRATA</span>
+            </label>
+            <label class="dxf-checkbox-label">
+              <input type="checkbox" id="dxf-opt-origin-lines" checked>
+              <span>Genetic Origin Boundaries (Alluvium Base)</span>
+              <span class="dxf-layer-pill">GEOL_ORIGIN_BOUNDARIES</span>
+            </label>
+            <label class="dxf-checkbox-label">
+              <input type="checkbox" id="dxf-opt-gwt" checked>
+              <span>Groundwater Piezometric Table (GWT)</span>
+              <span class="dxf-layer-pill">GEOL_GWT</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Section 2: Stratigraphic 3DFACE Meshes & BS 5930 Hatches -->
+        <div class="dxf-section">
+          <div class="dxf-section-title"><span>🎨 Stratigraphic Meshes &amp; CAD Hatches</span></div>
+          <div class="dxf-grid">
+            <label class="dxf-checkbox-label">
+              <input type="checkbox" id="dxf-opt-soil-hatches" checked>
+              <span>BS 5930 Soil Strata 3DFACE Meshes</span>
+              <span class="dxf-layer-pill">GEOL_HATCH_SOIL</span>
+            </label>
+            <label class="dxf-checkbox-label">
+              <input type="checkbox" id="dxf-opt-rock-hatches" checked>
+              <span>Dipping Bedrock Lithology Meshes</span>
+              <span class="dxf-layer-pill">GEOL_HATCH_ROCK</span>
+            </label>
+            <label class="dxf-checkbox-label">
+              <input type="checkbox" id="dxf-opt-cwr-hatches" checked>
+              <span>Completely Weathered Rock (CWR) Bands</span>
+              <span class="dxf-layer-pill">GEOL_HATCH_CWR</span>
+            </label>
+            <label class="dxf-checkbox-label">
+              <input type="checkbox" id="dxf-opt-truecolor" checked>
+              <span>AutoCAD 24-bit TrueColor RGB Colors</span>
+              <span class="dxf-layer-pill">Group 420 RGB</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Section 3: Borehole Exploratory Columns & In-Situ Test Data -->
+        <div class="dxf-section">
+          <div class="dxf-section-title"><span>🔬 Exploratory Boreholes &amp; In-Situ Test Data</span></div>
+          <div class="dxf-grid">
+            <label class="dxf-checkbox-label">
+              <input type="checkbox" id="dxf-opt-pillars" checked>
+              <span>Borehole Pillars &amp; Collar / Term Labels</span>
+              <span class="dxf-layer-pill">GEOL_BOREHOLES</span>
+            </label>
+            <label class="dxf-checkbox-label">
+              <input type="checkbox" id="dxf-opt-spt" checked>
+              <span>SPT N-Value Resistance Bar Charts &amp; Values</span>
+              <span class="dxf-layer-pill">GEOL_SPT_BARS</span>
+            </label>
+            <label class="dxf-checkbox-label">
+              <input type="checkbox" id="dxf-opt-rqd" checked>
+              <span>Rock Mass Quality (RQD % &amp; CR %) Columns</span>
+              <span class="dxf-layer-pill">GEOL_RQD_BARS</span>
+            </label>
+            <label class="dxf-checkbox-label">
+              <input type="checkbox" id="dxf-opt-grid" checked>
+              <span>Elevation (RL) &amp; Chainage Dimension Grid</span>
+              <span class="dxf-layer-pill">GEOL_GRID_AXIS</span>
+            </label>
+            <label class="dxf-checkbox-label">
+              <input type="checkbox" id="dxf-opt-titleblock" checked>
+              <span>Title Block, Foliation Azimuth &amp; Metadata</span>
+              <span class="dxf-layer-pill">GEOL_TITLEBLOCK</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Section 4: Vertical Scale & Coordinate Projection -->
+        <div class="dxf-section">
+          <div class="dxf-section-title"><span>📐 CAD Drawing Scale &amp; Vertical Exaggeration</span></div>
+          <div style="display: flex; gap: 20px; flex-wrap: wrap;">
+            <label class="dxf-checkbox-label">
+              <input type="radio" name="dxf-scale-choice" value="1" checked>
+              <span>1:1 Natural Scale (True Horizontal &amp; Vertical Meters)</span>
+            </label>
+            <label class="dxf-checkbox-label">
+              <input type="radio" name="dxf-scale-choice" value="ve">
+              <span>5&times; Vertical Exaggeration (Enhanced Strata Visibility)</span>
+            </label>
+          </div>
+        </div>
+
+      </div>
+
+      <div class="dxf-footer">
+        <button onclick="closeDxfModal()" class="kml-btn" style="background: #e2e8f0; color: #334155; font-weight: 700; border: none; padding: 8px 16px;">Cancel</button>
+        <button onclick="executeDxfExport()" class="kml-btn" style="background: #059669; color: #fff; font-weight: 800; border: none; padding: 8px 20px; font-size: 13px; display: inline-flex; align-items: center; gap: 6px;">
+          <span>💾 Generate &amp; Download DXF</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 6. Geological Interpretation & Profile Editing Studio Modal (Full-Screen Studio) -->
+  <div id="geo-editor-modal-backdrop" onclick="if(event.target===this) closeGeologicalEditor()">
+    <div id="geo-editor-modal">
+      
+      <!-- Studio Header Bar -->
+      <div class="geo-editor-header">
+        <div class="geo-editor-title-group">
+          <div class="geo-editor-title">
+            <span>🛠️ Geological Interpretation &amp; Cross-Section Studio</span>
+          </div>
+          <span id="geo-editor-status-badge" class="geo-status-badge">🟢 Baseline (Auto)</span>
+        </div>
+
+        <div class="geo-editor-actions">
+          <button onclick="executeUndo()" class="geo-btn" title="Undo (Ctrl+Z)"><span>↩️ Undo</span></button>
+          <button onclick="executeRedo()" class="geo-btn" title="Redo (Ctrl+Y)"><span>↪️ Redo</span></button>
+          <button onclick="resetAllToAuto()" class="geo-btn geo-btn-danger" title="Reset All to Pure Algorithmic Baseline"><span>🔄 Reset to Auto</span></button>
+          <button onclick="exportOverridesJson()" class="geo-btn" title="Export Interpreted Profile Overrides as JSON file"><span>📥 Export JSON</span></button>
+          <label class="geo-btn" style="cursor: pointer;" title="Import Interpreted Profile Overrides JSON">
+            <span>📤 Import JSON</span>
+            <input type="file" accept=".json" style="display: none;" onchange="importOverridesJson(this)">
+          </label>
+          <button onclick="openDxfExportModal()" class="geo-btn" style="background: #047857;" title="Export Interpreted Profile to AutoCAD DXF"><span>📐 CAD DXF</span></button>
+          <button onclick="saveAndApplyGeologicalEditor()" class="geo-btn geo-btn-success" title="Save Interpretations &amp; Apply to Section"><span>💾 Save &amp; Apply</span></button>
+          <button onclick="closeGeologicalEditor()" class="geo-btn" style="background: transparent; border: none; font-size: 20px; line-height: 1; padding: 2px 6px;">&times;</button>
+        </div>
+      </div>
+
+      <!-- Studio Body: Left Tool Palette, Central Canvas, Right Properties -->
+      <div class="geo-editor-body">
+        
+        <!-- Tool Palette -->
+        <div class="geo-tool-palette">
+          <button class="geo-tool-btn active" data-tool="reshape" onclick="setEditorTool('reshape')" title="Reshape Boundary Control Knots (R)">
+            <span>📍</span>
+            <span class="tool-label">Reshape</span>
+          </button>
+          <button class="geo-tool-btn" data-tool="add_point" onclick="setEditorTool('add_point')" title="Insert New Boundary Knot (Click on curve)">
+            <span>➕</span>
+            <span class="tool-label">Add Pt</span>
+          </button>
+          <button class="geo-tool-btn" data-tool="select" onclick="setEditorTool('select')" title="Pan &amp; Navigate Viewport (V)">
+            <span>👆</span>
+            <span class="tool-label">Pan</span>
+          </button>
+          <div style="width: 36px; height: 1px; background: #334155; margin: 4px 0;"></div>
+          <button class="geo-tool-btn" data-tool="draw_fault" onclick="setEditorTool('draw_fault')" title="Draw Inferred Fault / Shear Zone (F)">
+            <span>⚡</span>
+            <span class="tool-label">Fault</span>
+          </button>
+          <button class="geo-tool-btn" data-tool="add_callout" onclick="setEditorTool('add_callout')" title="Place Engineering Callout / Note Pin (T)">
+            <span>🏷️</span>
+            <span class="tool-label">Callout</span>
+          </button>
+        </div>
+
+        <!-- Central Interactive Canvas -->
+        <div id="geo-canvas-container" class="geo-canvas-container">
+          <div id="geo-editor-svg-wrapper"></div>
+          <div id="geo-canvas-hud" class="geo-canvas-hud">
+            <span>Chainage: <b>0.0m</b></span>
+            <span>Elevation: <b>100.00m RL</b></span>
+          </div>
+        </div>
+
+        <!-- Right Properties Sidebar -->
+        <div class="geo-props-sidebar">
+          
+          <!-- Boundary Selector -->
+          <div class="geo-props-section">
+            <div class="geo-props-section-title">
+              <span>Selected Geological Layer</span>
+            </div>
+            <div class="geo-field-group">
+              <label class="geo-field-label">Active Boundary Line</label>
+              <select id="geo-boundary-select" class="geo-field-select" onchange="selectEditorBoundary(this.value)">
+                <option value="rockhead">Rockhead Weathering Front</option>
+                <option value="ground">Natural Ground Surface</option>
+                <option value="alluv_base">Alluvium / Colluvium Base</option>
+                <option value="gwt">Groundwater Table (GWT)</option>
+              </select>
+            </div>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 6px;">
+              <span id="geo-prop-boundary-status" style="font-size: 11px; font-weight: 700; color: #93c5fd;">🟢 Pure Baseline</span>
+              <button onclick="resetBoundaryToAuto(activeEditorState.selectedBoundaryKey)" class="geo-btn" style="padding: 2px 8px; font-size: 10px; background: #475569;">↩ Reset Layer</button>
+            </div>
+          </div>
+
+          <!-- Knots & Vertices List -->
+          <div class="geo-props-section" style="flex: 1; overflow-y: auto;">
+            <div class="geo-props-section-title">
+              <span>Boundary Knots (Spline Vertices)</span>
+            </div>
+            <p style="font-size: 11px; color: #94a3b8; margin: 0 0 6px 0; line-height: 1.3;">
+              Drag round handles directly on the canvas to raise/lower or pinch geological boundaries.
+            </p>
+            <table class="geo-knot-table">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Chainage</th>
+                  <th>Elev (RL)</th>
+                  <th>Type</th>
+                </tr>
+              </thead>
+              <tbody id="geo-knot-tbody">
+                <!-- Dynamically Populated -->
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Engineer Interpretation Notes -->
+          <div class="geo-props-section">
+            <div class="geo-props-section-title">
+              <span>Geological Audit Log &amp; Notes</span>
+            </div>
+            <textarea id="geo-editor-notes" class="geo-field-textarea" placeholder="Describe rationale for manual adjustments (e.g. outcrop observed at Ch. 2+450, bedding trace)..." oninput="if(activeEditorState) activeEditorState.notes = this.value;"></textarea>
+          </div>
+
+        </div>
+
+      </div>
+    </div>
+  </div>
+
   <!-- Dynamic Toast Container -->
   <div id="app-toast-container"></div>
 
@@ -563,6 +809,7 @@
   <script src="js/engines/gis-engine.js?v=2.7.0"></script>
   <script src="js/engines/geotech-log-engine.js?v=2.7.0"></script>
   <script src="js/engines/cross-section-engine.js?v=2.7.0"></script>
+  <script src="js/engines/geological-editor-engine.js?v=2.7.0"></script>
   <script src="js/engines/cad-dxf-engine.js?v=2.7.0"></script>
   <script src="js/engines/export-engine.js?v=2.7.0"></script>
 
