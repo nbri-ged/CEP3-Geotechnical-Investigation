@@ -112,16 +112,22 @@ function extractBoreholeChainage(row, bhName) {
 }
 
 function computeProfilePositions(rows){
-  const points = rows.map(row => {
-    const e = toNum(row['Easting']), n = toNum(row['Northing']);
-    const ll = (e !== null && n !== null) ? convertToLatLon(e, n) : null;
-    return { row, latlng: ll ? L.latLng(ll.lat, ll.lon) : null };
-  });
   let cumDist = 0;
   const positions = [];
-  points.forEach((p, i) => {
-    if (i > 0 && points[i-1].latlng && p.latlng){
-      cumDist += points[i-1].latlng.distanceTo(p.latlng);
+  rows.forEach((row, i) => {
+    if (i > 0) {
+      const e1 = toNum(rows[i-1]['Easting']), n1 = toNum(rows[i-1]['Northing']);
+      const e2 = toNum(row['Easting']), n2 = toNum(row['Northing']);
+      if (e1 !== null && n1 !== null && e2 !== null && n2 !== null) {
+        cumDist += Math.sqrt((e2 - e1)**2 + (n2 - n1)**2);
+      } else if (typeof L !== 'undefined' && L.latLng) {
+        const ll1 = convertToLatLon(e1, n1);
+        const ll2 = convertToLatLon(e2, n2);
+        if (ll1 && ll2) cumDist += L.latLng(ll1.lat, ll1.lon).distanceTo(L.latLng(ll2.lat, ll2.lon));
+        else cumDist += 50;
+      } else {
+        cumDist += 50;
+      }
     }
     positions.push(cumDist);
   });
@@ -790,8 +796,18 @@ function buildProfileSvg(rows, options = {}, arg3 = null, arg4 = null) {
 
 
 
-  const groundPts = rows.map((r, i) => ({ x: distances[i], y: levelsArr[i].elevation !== null ? levelsArr[i].elevation : maxElev }));
-  const rockPts = rows.map((r, i) => ({ x: distances[i], y: effectiveRockLevel[i] !== null ? effectiveRockLevel[i] : groundPts[i].y - 5 }));
+  const secIdentity = (typeof getSectionIdentityKey === 'function') ? getSectionIdentityKey(rows) : 'default_section';
+  const secOverride = (typeof profileOverrides !== 'undefined' && profileOverrides) ? profileOverrides[secIdentity] : null;
+
+  let groundPts = rows.map((r, i) => ({ x: distances[i], y: levelsArr[i].elevation !== null ? levelsArr[i].elevation : maxElev }));
+  let rockPts = rows.map((r, i) => ({ x: distances[i], y: effectiveRockLevel[i] !== null ? effectiveRockLevel[i] : groundPts[i].y - 5 }));
+
+  if (secOverride?.boundaries?.ground?.isOverridden && secOverride.boundaries.ground.knots?.length) {
+    groundPts = secOverride.boundaries.ground.knots.map(k => ({ x: k.d, y: k.z }));
+  }
+  if (secOverride?.boundaries?.rockhead?.isOverridden && secOverride.boundaries.rockhead.knots?.length) {
+    rockPts = secOverride.boundaries.rockhead.knots.map(k => ({ x: k.d, y: k.z }));
+  }
 
   const gwDepthPts = rows.map((r, i) => {
     const lv = levelsArr[i];
@@ -935,7 +951,7 @@ function buildProfileSvg(rows, options = {}, arg3 = null, arg4 = null) {
     return Math.min(Math.max(zBase, zR), zG);
   }
 
-  // Natural depositional undulations for internal soil layer boundaries (when opts.showRoughSoil is active)
+  // Natural depositional undulations for transported soil layer boundaries (Alluvium/Colluvium)
   function calcNaturalSoilBoundaryRoughness(k, d) {
     if (!opts.showRoughSoil) return 0;
     if (d <= distances[0] || d >= distances[distances.length - 1]) {
@@ -960,6 +976,44 @@ function buildProfileSvg(rows, options = {}, arg3 = null, arg4 = null) {
     return envelope * maxAmp * (wave1 + wave2);
   }
 
+  // Foliation-guided structural undulations for in-situ residual soil & CWR layer boundaries
+  function calcFoliationSoilBoundaryRoughness(k, d) {
+    if (!opts.showRoughSoil) return 0;
+    const dirSign = appDip.directionStr === '← A' ? -1 : (appDip.directionStr === '→ B' ? 1 : 0);
+    const dipFactor = Math.sin((appDip.angle * Math.PI) / 180);
+
+    if (d <= distances[0] || d >= distances[distances.length - 1]) {
+      const distFromEdge = d < distances[0] ? (distances[0] - d) : (d - distances[distances.length - 1]);
+      const extEnvelope = Math.sin(Math.min(distFromEdge / 12, 1) * Math.PI / 2);
+      const phase = (d * (dirSign || 1)) / 7.0 + k * 0.8;
+      const saw = (phase % 1 + 1) % 1;
+      const sawWave = saw < 0.65 ? (saw / 0.65) * 2 - 1 : (1 - (saw - 0.65) / 0.35) * 2 - 1;
+      return extEnvelope * (0.05 * sawWave + 0.02 * Math.sin(d / 2.0));
+    }
+
+    let j = 0;
+    for (let s = 0; s < distances.length - 1; s++) {
+      if (d >= distances[s] - 1e-4 && d <= distances[s + 1] + 1e-4) {
+        j = s;
+        break;
+      }
+    }
+    const d0 = distances[j], d1 = distances[j + 1];
+    const spanLen = Math.max(d1 - d0, 1);
+    const t = (d - d0) / spanLen;
+    const envelope = Math.pow(Math.sin(t * Math.PI), 1.25);
+    const maxAmp = Math.min(0.12, spanLen * 0.006) * (0.5 + 0.5 * Math.max(dipFactor, 0.3));
+
+    // Foliation-stepped anisotropic wave for saprolite/residual soil
+    const waveLambda = 6.0;
+    const phase = (d * (dirSign || 1)) / waveLambda + k * 0.6;
+    const saw = (phase % 1 + 1) % 1;
+    const sawWave = saw < 0.65 ? (saw / 0.65) * 2 - 1 : (1 - (saw - 0.65) / 0.35) * 2 - 1;
+    const harmWave = 0.25 * Math.sin(phase * Math.PI * 2 * 2.0 + k);
+
+    return envelope * maxAmp * (sawWave + harmWave);
+  }
+
   // Intra-Alluvial Boundary Evaluation (0 = Ground, K_alluv = Alluvium Base)
   function getAlluvBoundaryZ(k, d) {
     const zTop = getZGround(d);
@@ -976,6 +1030,7 @@ function buildProfileSvg(rows, options = {}, arg3 = null, arg4 = null) {
   }
 
   // Intra-Residual / CWR Boundary Evaluation (0 = Alluvium Base, K_res = Rockhead)
+  // Metamorphic Rule: In-situ residual soil layers & saprolite contacts follow the foliation apparent dip
   function getResBoundaryZ(k, d) {
     const zTop = getZAlluvBase(d);
     const zBase = getZRock(d);
@@ -985,8 +1040,27 @@ function buildProfileSvg(rows, options = {}, arg3 = null, arg4 = null) {
     if (k === K_res) return zBase;
     const pts = rows.map((r, i) => ({ x: distances[i], y: bhResCumBoundaries[i][k] }));
     const val = d <= pts[0].x ? pts[0].y : (d >= pts[pts.length - 1].x ? pts[pts.length - 1].y : interpolateSpline(pts, d));
-    const f = Math.min(Math.max(val, 0.0), 1.0);
-    const roughness = calcNaturalSoilBoundaryRoughness(k + K_alluv, d);
+    let f = Math.min(Math.max(val, 0.0), 1.0);
+
+    // Apply structural foliation inclination bias across the borehole span
+    if (appDip && appDip.angle > 1.0 && distances.length >= 2) {
+      let j = 0;
+      for (let s = 0; s < distances.length - 1; s++) {
+        if (d >= distances[s] - 1e-4 && d <= distances[s + 1] + 1e-4) {
+          j = s;
+          break;
+        }
+      }
+      const d0 = distances[j], d1 = distances[j + 1];
+      const spanLen = Math.max(d1 - d0, 1);
+      const t = (d - d0) / spanLen;
+      const dirSign = appDip.directionStr === '→ B' ? 1 : (appDip.directionStr === '← A' ? -1 : 0);
+      const slope = -Math.tan((appDip.angle * Math.PI) / 180) * dirSign;
+      const folOffset = (slope * spanLen * t * (1 - t) * 0.18) / Math.max(thick, 1.0);
+      f = Math.min(Math.max(f + folOffset, 0.0), 1.0);
+    }
+
+    const roughness = calcFoliationSoilBoundaryRoughness(k + K_alluv, d);
     return Math.min(Math.max(zTop - f * thick + roughness, zBase), zTop);
   }
 
@@ -1407,7 +1481,10 @@ function buildProfileSvg(rows, options = {}, arg3 = null, arg4 = null) {
       Math.abs(Math.atan(Math.tan(appDip.angle * Math.PI / 180) * ((plotH / elevRange) / ((xFrameRight - xFrameLeft) / distSpan))) * 180 / Math.PI),
       appDip.directionStr
     )}
-    ${buildOriginHatchDefs()}
+    ${buildOriginHatchDefs(
+      Math.abs(Math.atan(Math.tan(appDip.angle * Math.PI / 180) * ((plotH / elevRange) / ((xFrameRight - xFrameLeft) / distSpan))) * 180 / Math.PI),
+      appDip.directionStr
+    )}
   </defs>`;
 
   // Compute rockhead points array (reused for bedrock polygon and rockhead line)
@@ -2392,22 +2469,13 @@ function buildProfileSvg(rows, options = {}, arg3 = null, arg4 = null) {
         const pillX = trackX + Math.max(crW, rqdW) + 2;
         let pillY = barY + Math.max(h, 4) / 2 - pillH / 2;
         if (pillY < lastRqdY + pillH + 1.5) {
-          pillY = lastRqdY + pillH + 1.5;
-        }
-        lastRqdY = pillY;
-
-        // Translucent pill container so underlying bedrock mass shows through
-        svg += `<rect x="${pillX.toFixed(1)}" y="${pillY.toFixed(1)}" width="${pillW.toFixed(1)}" height="${pillH}" fill="rgba(255,255,255,0.70)" stroke="#cbd5e1" stroke-width="0.6" rx="2"/>`;
-        svg += `<text x="${(pillX + pillW / 2).toFixed(1)}" y="${(pillY + 7.5).toFixed(1)}" font-size="7" fill="${rqdVal > 0 ? rqdColor : '#64748b'}" font-weight="700" text-anchor="middle">${rqdTxt}</text>`;
-      });
-    }
-
     // BH labels are placed in a vertical-stagger second pass below
     const offVal = (meta.offsets && meta.offsets[i] !== undefined) ? meta.offsets[i] : null;
     const hasOff = offVal !== null && Math.abs(offVal) >= 0.1;
     const offText = hasOff ? `Off: ${offVal >= 0 ? '+' : ''}${offVal.toFixed(1)}m ${offVal >= 0 ? 'R' : 'L'}` : '';
     const chText = extractBoreholeChainage(r, bhName);
-    bhLabelInfo.push({ x, yG, bhName, glText: `GL ${zG.toFixed(1)}m`, offText, chText });
+    const glStr = (zG !== null && zG !== undefined && !isNaN(zG)) ? `GL ${zG.toFixed(1)}m` : 'GL —';
+    bhLabelInfo.push({ x, yG, bhName, glText: glStr, offText, chText });
 
     // Termination labels ALSO use a deferred vertical-stagger pass (see
     // below, mirrors the BH header label collision-avoidance) — previously
@@ -2421,57 +2489,42 @@ function buildProfileSvg(rows, options = {}, arg3 = null, arg4 = null) {
   // ── VERTICAL-STAGGER BH HEADER LABELS (second pass) ─────────────────────
   // Each BH label is placed directly above its borehole at the same X.
   // If it would vertically collide with an already-placed label nearby, it
-  // is bumped UP by one row (labelRowH pixels). We allow up to 4 vertical
-  // rows so even densely packed profiles stay readable.
+  // is bumped UP by one row (into the generous padTop margin).
   //
-  // "Collision" is defined as: another label whose X centre is within
-  // (boxW/2 + otherBoxW/2 + 6) pixels — i.e. the boxes would touch or overlap.
+  // Crucially, it ALWAYS keeps the same X position as its borehole pillar —
+  // labels never wander horizontally to the left or right, preventing the
+  // severe horizontal drift bug where labels ended up above the wrong borehole.
   {
-    const charW  = 6.3;   // px per char at font-size 9.5
-    const glCW   = 5.1;   // px per char at font-size 8
-    const offCW  = 4.8;
+    const boxH = 34;
+    const rowH = boxH + 4; // 38px per row
     const maxRows = 5;
-
-    // placed = array of { x, cx, yTop, boxW }
-    const placed = [];
+    const placed = []; // { x, cx, yTop, boxW }
 
     bhLabelInfo.forEach(({ x, yG, bhName, glText, offText, chText }) => {
-      const nameW = bhName.length * charW + 14;
-      const glW   = glText.length * glCW  + 10;
-      const offW  = offText ? offText.length * offCW + 10 : 0;
-      const chW   = chText ? chText.length * glCW + 10 : 0;
-      const boxW  = Math.max(nameW, glW, offW, chW);
-      const boxH  = (offText && chText) ? 44 : ((offText || chText) ? 36 : 26);
-      const rowH  = boxH + 6;
-      const cx    = x; // always keep same X — vertical only
+      const bhCW = 6.2; // px per char for BH name
+      const subCW = 4.8; // px per char for GL/offset
+      const maxChars = Math.max(bhName.length, (chText ? chText.length : 0), glText.length, offText.length);
+      const boxW = Math.max(maxChars * bhCW + 14, 60);
+      const cx = x; // ALWAYS keep same X as the borehole — never offset sideways
 
-      // Find the lowest row (closest to ground) that doesn't collide
       let row = 0;
-      let collision = true;
-      let targetYTop = yG - (row + 1) * rowH - 8;
-      while (collision && row < maxRows) {
-        targetYTop = yG - (row + 1) * rowH - 8;
-        collision = placed.some(p => {
-          const minDist = (boxW + p.boxW) / 2 + 4;
-          return Math.abs(cx - p.cx) < minDist && Math.abs(targetYTop - p.yTop) < boxH + 2;
-        });
-        if (collision) row++;
-      }
-
-      // Hard ceiling clamp: NEVER allow yTop to go above 84 (title banner boundary is y <= 78)
-      const minAllowedYTop = 84;
-      let yTop = Math.max(targetYTop, minAllowedYTop);
+      let yTop = yG - 8 - boxH;
       let targetCX = cx;
 
-      // If vertical stacking was clamped at the ceiling and collides horizontally:
-      if (yTop === minAllowedYTop) {
-        let xShift = 0;
-        let xCollision = placed.some(p => Math.abs(targetCX - p.cx) < (boxW + p.boxW)/2 + 4 && Math.abs(yTop - p.yTop) < boxH + 2);
-        while (xCollision && Math.abs(xShift) < 140) {
-          xShift = (xShift >= 0) ? -(xShift + 25) : -xShift;
-          targetCX = cx + xShift;
-          xCollision = placed.some(p => Math.abs(targetCX - p.cx) < (boxW + p.boxW)/2 + 4 && Math.abs(yTop - p.yTop) < boxH + 2);
-        }
+      let xCollision = placed.some(p => Math.abs(targetCX - p.cx) < (boxW + p.boxW)/2 + 4 && Math.abs(yTop - p.yTop) < boxH + 2);
+      while (xCollision && row < maxRows) {
+        row++;
+        yTop = yG - 8 - boxH - row * rowH;
+        xCollision = placed.some(p => Math.abs(targetCX - p.cx) < (boxW + p.boxW)/2 + 4 && Math.abs(yTop - p.yTop) < boxH + 2);
+      }
+
+      if (xCollision && row >= maxRows) {
+        let leftTry = cx - 18;
+        let rightTry = cx + 18;
+        let leftCol = placed.some(p => Math.abs(leftTry - p.cx) < (boxW + p.boxW)/2 + 4 && Math.abs(yTop - p.yTop) < boxH + 2);
+        let rightCol = placed.some(p => Math.abs(rightTry - p.cx) < (boxW + p.boxW)/2 + 4 && Math.abs(yTop - p.yTop) < boxH + 2);
+        if (!leftCol) targetCX = leftTry;
+        else if (!rightCol) targetCX = rightTry;
       }
 
       placed.push({ x, cx: targetCX, yTop, boxW });
@@ -2503,18 +2556,9 @@ function buildProfileSvg(rows, options = {}, arg3 = null, arg4 = null) {
     });
   }
 
-  // ── VERTICAL-STAGGER TERMINATION LABELS (mirrors BH header label pass) ──
-  // Each "Term X.Xm" label is placed directly below its borehole's
-  // termination point, at the same X. If it would collide horizontally with
-  // an already-placed termination label nearby, it is bumped DOWN by one row
-  // (away from the pillars, since these sit at the BOTTOM of the profile —
-  // the opposite stacking direction from the BH header labels, which stack
-  // upward toward the top). Previously these were drawn immediately with a
-  // fixed offset and no collision checking at all, so two boreholes
-  // terminating at similar depths close together produced overlapping boxes
-  // — this was a real, confirmed bug, not a style choice.
+  // ── VERTICAL-STAGGER TERMINATION LABELS ──
   {
-    const termCW = 5.2; // px per char at font-size 8.5, matches original sizing
+    const termCW = 5.2;
     const boxH = 15;
     const rowH = boxH + 4;
     const maxRows = 5;
