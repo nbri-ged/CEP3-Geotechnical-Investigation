@@ -4,10 +4,7 @@
    with exploratory borehole visualization guidelines.
    ============================================================ */
 
-function formatTitleCase(str) {
-  if (!str) return '';
-  return str.trim().split(/\s+/).map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
-}
+
 
 function formatWeatheringGradeLabel(gradeRaw) {
   if (!gradeRaw) return '';
@@ -21,25 +18,57 @@ function formatWeatheringGradeLabel(gradeRaw) {
 }
 
 function formatSoilLayerDisplay(layer) {
-  const info = getGraphicInfo(layer.graphic);
-  const consistencyStr = layer.consistency ? `${formatTitleCase(layer.consistency)} ` : '';
-  const originStr = layer.origin ? ` (${formatTitleCase(layer.origin)})` : '';
-  let title = `${consistencyStr}${info.label}${originStr}`.trim();
-  if (info.isBoulder) title = 'Boulder / Corestone Obstruction';
+  const code = (layer.graphic || '').trim().toUpperCase();
+  const bscsEntry = (typeof GRAPHIC_CODE_INFO !== 'undefined') ? GRAPHIC_CODE_INFO[code] : null;
+  let baseLabel = bscsEntry ? bscsEntry.label : (code ? code : 'Soil Layer');
+  const consistency = layer.consistency ? formatTitleCase(layer.consistency) : '';
+  let title = baseLabel;
+  if (consistency) {
+    title = `${consistency} ${baseLabel}`;
+  }
+  if (code && !title.includes(`(${code})`) && !title.endsWith(code)) {
+    title = `${title} (${code})`;
+  }
+  const origin = layer.origin ? formatTitleCase(layer.origin) : 'Soil Horizon';
   const d = toNum(layer.depth) || 0;
   const b = toNum(layer.bottom) || d;
-  const subtitle = `Depth ${d.toFixed(2)}–${b.toFixed(2)}m (Thickness ${(b - d).toFixed(2)}m)`;
+  const subtitle = `${origin} (${d.toFixed(2)}–${b.toFixed(2)}m)`;
+  const info = getGraphicInfo(layer.graphic);
   return { title, subtitle, color: info.color };
 }
 
-function formatRockLayerDisplay(layer, row, readings) {
-  let rockName = layer.rockType || (row ? (row['Rock Type Name'] || row['Rock Type'] || row['Lithology']) : '') || 'Bedrock';
-  rockName = formatTitleCase(rockName);
-  const gradeStr = formatWeatheringGradeLabel(layer.grade || (layer.rawGrade || ''));
-  const title = gradeStr ? `${gradeStr} ${rockName}` : rockName;
+function formatRockLayerDisplay(layer, bhRow, allWeatherReadings) {
+  let rockName = layer.rawRockType || layer.rockType;
+  let grade = layer.grade || layer.rawGrade;
+  
+  if (!rockName && allWeatherReadings && allWeatherReadings.length) {
+    let best = null, bestDist = Infinity;
+    allWeatherReadings.forEach(w => {
+      const d = Math.abs(w.depth - layer.depth);
+      if (d < bestDist) { bestDist = d; best = w; }
+    });
+    if (best) {
+      rockName = best.rawRockType || best.rockType;
+      if (!grade) grade = best.grade || best.rawGrade;
+    }
+  }
+  
+  if (!rockName && bhRow) {
+    rockName = bhRow['Rock Type Name'] || bhRow['Rock Type'] || bhRow['Lithology'] || bhRow['Bedrock Lithology'];
+  }
+  
+  rockName = rockName ? formatTitleCase(rockName) : 'Bedrock';
+  const gradeLabel = formatWeatheringGradeLabel(grade);
+  let title = rockName;
+  if (gradeLabel) {
+    if (!rockName.toLowerCase().includes(gradeLabel.toLowerCase())) {
+      title = `${gradeLabel} ${rockName}`;
+    }
+  }
+  
   const d = toNum(layer.depth) || 0;
   const b = toNum(layer.bottom) || d;
-  const subtitle = `Depth ${d.toFixed(2)}–${b.toFixed(2)}m (Cored ${(b - d).toFixed(2)}m)`;
+  const subtitle = `Bedrock Core (${d.toFixed(2)}–${b.toFixed(2)}m)`;
   return { title, subtitle, color: '#8f8f95' };
 }
 

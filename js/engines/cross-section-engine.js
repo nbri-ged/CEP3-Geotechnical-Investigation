@@ -144,14 +144,7 @@ profileOptions = {
   showRoughRockhead: false
 };
 
-function originFamilyStackPriority(family) {
-  if (family === 'made_ground') return 0;   // human-placed fill, always at/near surface
-  if (family === 'alluvium') return 1;      // transported, surface/near-surface deposit
-  if (family === 'colluvium') return 1;     // transported, surface/near-surface deposit
-  if (family === 'unknown') return 2;       // unclassified soil — treated as ordinary overburden
-  if (family === 'residual') return 3;      // in-situ weathering profile (Residual + CWR)
-  return 2; // any other named origin (Aeolian, Estuarine, etc.)
-}
+
 
 // Monotonic Piecewise Cubic Hermite Interpolating Polynomial (PCHIP)
 // Preserves monotonicity between data points to prevent unphysical overshoots or artificial bedrock spires
@@ -201,6 +194,23 @@ function interpolateSpline(points, xTarget) {
     }
   }
   return points[points.length - 1].y;
+}
+
+function getDominantRockType(layers, fallback = 'Biotite Gneiss') {
+  if (!layers || !layers.length) return fallback;
+  const totalThicknessByRock = {};
+  layers.forEach(l => {
+    const thick = Math.abs(l.zTop - l.zBot);
+    totalThicknessByRock[l.rockType] = (totalThicknessByRock[l.rockType] || 0) + thick;
+  });
+  let bestType = layers[0].rockType, maxThick = -1;
+  Object.keys(totalThicknessByRock).forEach(rType => {
+    if (totalThicknessByRock[rType] > maxThick) {
+      maxThick = totalThicknessByRock[rType];
+      bestType = rType;
+    }
+  });
+  return bestType;
 }
 
 function detectBHTrendAzimuth(rows) {
@@ -778,55 +788,7 @@ function buildProfileSvg(rows, options = {}, arg3 = null, arg4 = null) {
     return d;
   }
 
-  // Monotonic Piecewise Cubic Hermite Interpolating Polynomial (PCHIP)
-  // Preserves monotonicity between data points to prevent unphysical overshoots or artificial bedrock spires
-  function interpolateSpline(points, xTarget) {
-    if (!points || !points.length) return 0;
-    if (points.length === 1) return points[0].y;
-    if (xTarget <= points[0].x) return points[0].y;
-    if (xTarget >= points[points.length - 1].x) return points[points.length - 1].y;
 
-    const n = points.length;
-    const h = [];
-    const delta = [];
-    for (let i = 0; i < n - 1; i++) {
-      const dx = points[i + 1].x - points[i].x;
-      h.push(dx);
-      delta.push(dx > 1e-6 ? (points[i + 1].y - points[i].y) / dx : 0);
-    }
-
-    const d = new Array(n);
-    d[0] = delta[0];
-    d[n - 1] = delta[n - 2];
-
-    for (let i = 1; i < n - 1; i++) {
-      if (delta[i - 1] * delta[i] <= 0) {
-        d[i] = 0; // Local extremum: tangent set flat to prevent overshoot
-      } else {
-        const w1 = 2 * h[i] + h[i - 1];
-        const w2 = h[i] + 2 * h[i - 1];
-        d[i] = (w1 + w2) / (w1 / delta[i - 1] + w2 / delta[i]);
-      }
-    }
-
-    for (let i = 0; i < n - 1; i++) {
-      if (xTarget >= points[i].x && xTarget <= points[i + 1].x) {
-        const dx = h[i];
-        if (dx <= 1e-6) return points[i].y;
-        const t = (xTarget - points[i].x) / dx;
-        const t2 = t * t;
-        const t3 = t2 * t;
-
-        const h00 = 2 * t3 - 3 * t2 + 1;
-        const h10 = t3 - 2 * t2 + t;
-        const h01 = -2 * t3 + 3 * t2;
-        const h11 = t3 - t2;
-
-        return h00 * points[i].y + h10 * dx * d[i] + h01 * points[i + 1].y + h11 * dx * d[i + 1];
-      }
-    }
-    return points[points.length - 1].y;
-  }
 
   const groundPts = rows.map((r, i) => ({ x: distances[i], y: levelsArr[i].elevation !== null ? levelsArr[i].elevation : maxElev }));
   const rockPts = rows.map((r, i) => ({ x: distances[i], y: effectiveRockLevel[i] !== null ? effectiveRockLevel[i] : groundPts[i].y - 5 }));
@@ -1277,23 +1239,6 @@ function buildProfileSvg(rows, options = {}, arg3 = null, arg4 = null) {
     }
     return layers;
   });
-
-  function getDominantRockType(layers) {
-    if (!layers || !layers.length) return 'Biotite Gneiss';
-    const totalThicknessByRock = {};
-    layers.forEach(l => {
-      const thick = Math.abs(l.zTop - l.zBot);
-      totalThicknessByRock[l.rockType] = (totalThicknessByRock[l.rockType] || 0) + thick;
-    });
-    let bestType = layers[0].rockType, maxThick = -1;
-    Object.keys(totalThicknessByRock).forEach(rType => {
-      if (totalThicknessByRock[rType] > maxThick) {
-        maxThick = totalThicknessByRock[rType];
-        bestType = rType;
-      }
-    });
-    return bestType;
-  }
 
   const dominantRockPerBH = rows.map((r, i) => getDominantRockType(rockLayersPerBH[i]));
   const sectionRockTypes = new Set(dominantRockPerBH);
@@ -2058,21 +2003,7 @@ function buildProfileSvg(rows, options = {}, arg3 = null, arg4 = null) {
     const dirSign = appDip.directionStr === '← A' ? -1 : (appDip.directionStr === '→ B' ? 1 : 0);
     const dipSlope = Math.tan((appDip.angle * Math.PI) / 180) * dirSign;
 
-    // Helper: get dominant regional rock type of a borehole
-    function getDominantRockType(layers) {
-      if (!layers || !layers.length) return masterRockList[0] || 'Biotite Gneiss';
-      let bestType = layers[0].rockType, maxThick = -1;
-      layers.forEach(l => {
-        const thick = Math.abs(l.zTop - l.zBot);
-        if (thick > maxThick) {
-          maxThick = thick;
-          bestType = l.rockType;
-        }
-      });
-      return bestType;
-    }
-
-    const dominantRockPerBH = rows.map((r, i) => getDominantRockType(rockLayersPerBH[i]));
+    const dominantRockPerBH = rows.map((r, i) => getDominantRockType(rockLayersPerBH[i], masterRockList[0] || 'Biotite Gneiss'));
 
     // ── DIP-ORIENTED BEDROCK FORMATION HORIZON ENGINE ──
     // Map all logged rock layers into Apparent-Dip Structural Horizon coordinates: H = z + dipSlope * d
@@ -3287,118 +3218,5 @@ function toggleProfileOption(key, val) {
   syncProfileOption(key, val);
 }
 
-document.getElementById('profile-close-btn').addEventListener('click', () => {
-  document.getElementById('profile-modal-backdrop').classList.remove('open');
-});
-document.getElementById('profile-modal-backdrop').addEventListener('click', (e) => {
-  if (e.target.id === 'profile-modal-backdrop'){
-    document.getElementById('profile-modal-backdrop').classList.remove('open');
-  }
-});
 
-function downloadProfilePNG() {
-  const svgEl = document.querySelector('#profile-modal-body svg');
-  if (!svgEl) return;
-  const svgData = new XMLSerializer().serializeToString(svgEl);
-  const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
-  const url = URL.createObjectURL(svgBlob);
-  const img = new Image();
-  img.onload = () => {
-    const canvas = document.createElement('canvas');
-    canvas.width = svgEl.viewBox.baseVal.width * 2;
-    canvas.height = svgEl.viewBox.baseVal.height * 2;
-    const ctx = canvas.getContext('2d');
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.scale(2, 2);
-    ctx.drawImage(img, 0, 0);
-    URL.revokeObjectURL(url);
-    canvas.toBlob(blob => {
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = 'CEP3_Borehole_Profile_' + new Date().toISOString().slice(0,10) + '.png';
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-    });
-  };
-  img.src = url;
-}
-
-function downloadProfileSVG() {
-  const svgEl = document.querySelector('#profile-modal-body svg');
-  if (!svgEl) return;
-  const svgData = new XMLSerializer().serializeToString(svgEl);
-  const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(svgBlob);
-  a.download = 'CEP3_Borehole_Profile_' + new Date().toISOString().slice(0,10) + '.svg';
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-}
-
-function downloadProfilePDF(paperSize = 'a4') {
-  const svgEl = document.querySelector('#profile-modal-body svg');
-  if (!svgEl) return;
-  
-  const format = paperSize === 'a3' ? 'a3' : 'a4';
-  const pdfWidth = paperSize === 'a3' ? 420 : 297;  // mm
-  const pdfHeight = paperSize === 'a3' ? 297 : 210; // mm
-
-  const svgData = new XMLSerializer().serializeToString(svgEl);
-  const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
-  const url = URL.createObjectURL(svgBlob);
-  const img = new Image();
-
-  img.onload = () => {
-    const canvas = document.createElement('canvas');
-    const scale = paperSize === 'a3' ? 3.5 : 2.5;
-    canvas.width = svgEl.viewBox.baseVal.width * scale;
-    canvas.height = svgEl.viewBox.baseVal.height * scale;
-    const ctx = canvas.getContext('2d');
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.scale(scale, scale);
-    ctx.drawImage(img, 0, 0);
-    URL.revokeObjectURL(url);
-
-    const imgData = canvas.toDataURL('image/png', 1.0);
-    
-    if (!window.jspdf || !window.jspdf.jsPDF) {
-      alert('PDF generator library loading... Please try again in a moment.');
-      return;
-    }
-    const { jsPDF } = window.jspdf;
-    const doc = new jsPDF({
-      orientation: 'landscape',
-      unit: 'mm',
-      format: format
-    });
-
-    const margin = 8;
-    const availW = pdfWidth - (margin * 2);
-    const availH = pdfHeight - (margin * 2);
-
-    const imgAspect = canvas.width / canvas.height;
-    let renderW = availW;
-    let renderH = renderW / imgAspect;
-
-    if (renderH > availH) {
-      renderH = availH;
-      renderW = renderH * imgAspect;
-    }
-
-    const xPos = margin + (availW - renderW) / 2;
-    const yPos = margin + (availH - renderH) / 2;
-
-    doc.addImage(imgData, 'PNG', xPos, yPos, renderW, renderH);
-    doc.save(`CEP3_Geology_Profile_${format.toUpperCase()}_` + new Date().toISOString().slice(0,10) + '.pdf');
-  };
-  img.src = url;
-}
-
-/* ============================================================
-   AUTOCAD / CIVIL 3D DXF VECTOR EXPORTER STUDIO
-   ============================================================ */
 

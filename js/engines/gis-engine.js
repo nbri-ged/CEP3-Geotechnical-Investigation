@@ -104,15 +104,7 @@ function initMapEngine() {
   initMeasurementHandlers();
 }
 
-function setStatus(text, cls){
-  const el = document.getElementById('status-text');
-  const dot = document.getElementById('status-dot');
-  if (el) el.textContent = text;
-  if (dot) {
-    dot.className = '';
-    if (cls) dot.classList.add(cls);
-  }
-}
+
 
 /* ── DATA FETCHING & SYNCHRONIZATION ── */
 function fetchData() {
@@ -136,7 +128,10 @@ function fetchData() {
     } catch(e){}
   }
 
-  // 3. Offline Mode check
+  // 3. Load permanent project overlays (Road corridor Polyline_cep32.zip)
+  loadPermanentOverlays();
+
+  // 4. Offline Mode check
   if (!navigator.onLine) {
     const localRowsData = localStorage.getItem('nbri_allrows_cache');
     const localDatesData = localStorage.getItem('nbri_dates_cache');
@@ -651,6 +646,163 @@ function geodesicArea(latLngs) {
     area = area * RADIUS * RADIUS / 2;
   }
   return Math.abs(area);
+}
+
+/* ── VECTOR OVERLAY (KML, GeoJSON, Shapefile ZIP) ENGINE ── */
+function dashArrayForLinetype(lt) {
+  const s = String(lt || '').toLowerCase();
+  if (s.includes('dash') || s.includes('hidden')) return '6, 5';
+  if (s.includes('dot')) return '1, 5';
+  if (s.includes('center')) return '10, 4, 2, 4';
+  return null;
+}
+
+function styleForOverlayFeature(feature) {
+  const props = feature.properties || {};
+  let color = '#b3541e';
+  if (props.Color !== undefined) {
+    const aci = parseInt(props.Color);
+    if (!isNaN(aci) && ACI_COLORS[aci]) color = ACI_COLORS[aci];
+  } else if (props.stroke) {
+    color = props.stroke;
+  }
+  const lt = props.Linetype || props.EntLinetyp || '';
+  return {
+    color: color,
+    weight: typeof OVERLAY_LINE_WEIGHT_PX !== 'undefined' ? OVERLAY_LINE_WEIGHT_PX : 2.0,
+    dashArray: dashArrayForLinetype(lt),
+    opacity: 0.95,
+    fillColor: color,
+    fillOpacity: 0.15
+  };
+}
+
+function addOverlayLayer(name, geojson, fitToBounds = true) {
+  let layer;
+  try {
+    layer = L.geoJSON(geojson, {
+      style: styleForOverlayFeature,
+      pointToLayer: (feature, latlng) => {
+        const s = styleForOverlayFeature(feature);
+        return L.circleMarker(latlng, { radius: 5, color: s.color, weight: 1.5, fillColor: s.color, fillOpacity: 0.85 });
+      }
+    });
+  } catch (err) {
+    alert('Could not draw "' + name + '": ' + err.message);
+    return;
+  }
+  overlayCount++;
+  const label = overlayCount + '. ' + name;
+  layer.addTo(map);
+  if (layersControl) layersControl.addOverlay(layer, label);
+  if (fitToBounds) {
+    try {
+      const b = layer.getBounds();
+      if (b.isValid()) map.fitBounds(b, { padding: [40, 40] });
+    } catch (e) {}
+  }
+}
+
+function loadOverlayFile(file) {
+  const ext = file.name.split('.').pop().toLowerCase();
+  if (ext === 'kml') {
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const dom = new DOMParser().parseFromString(reader.result, 'text/xml');
+        if (typeof toGeoJSON !== 'undefined' && toGeoJSON.kml) {
+          addOverlayLayer(file.name, toGeoJSON.kml(dom));
+        } else {
+          alert('KML parser not loaded.');
+        }
+      } catch (err) {
+        alert('Could not parse KML: ' + err.message);
+      }
+    };
+    reader.readAsText(file);
+  } else if (ext === 'geojson' || ext === 'json') {
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        addOverlayLayer(file.name, JSON.parse(reader.result));
+      } catch (err) {
+        alert('Could not parse GeoJSON: ' + err.message);
+      }
+    };
+    reader.readAsText(file);
+  } else if (ext === 'zip') {
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof shp !== 'undefined') {
+        shp(reader.result).then(geojson => addOverlayLayer(file.name, geojson)).catch(err => alert('Zipped Shapefile error: ' + err.message));
+      } else {
+        alert('Shapefile library (shpjs) not ready.');
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  }
+}
+
+function loadPermanentOverlays() {
+  if (typeof PERMANENT_OVERLAYS === 'undefined' || !PERMANENT_OVERLAYS.length) return;
+  PERMANENT_OVERLAYS.forEach(o => {
+    fetch(o.url)
+      .then(r => {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.arrayBuffer();
+      })
+      .then(buf => {
+        if (typeof shp !== 'undefined') return shp(buf);
+        throw new Error('shpjs not loaded');
+      })
+      .then(geojson => {
+        roadCorridorGeoJSON = geojson;
+        addOverlayLayer(o.name, geojson, false);
+      })
+      .catch(err => console.warn('Permanent overlay note (' + o.name + '):', err.message));
+  });
+}
+
+/* ── VISIBLE FILTERED ROWS (FOR CARTOGRAPHIC MAP PDF) ── */
+function getVisibleFilteredRows() {
+  const out = [];
+  if (!map || !allRows) return out;
+  const bounds = map.getBounds();
+  const searchInput = document.getElementById('search');
+  const searchTerm = searchInput ? searchInput.value.trim().toLowerCase() : '';
+  const fStatusEl = document.getElementById('f-status');
+  const fContractorEl = document.getElementById('f-contractor');
+  const fLotEl = document.getElementById('f-lot');
+  const fPackageEl = document.getElementById('f-package');
+
+  const fStatus = fStatusEl ? fStatusEl.value : '';
+  const fContractor = fContractorEl ? fContractorEl.value : '';
+  const fLot = fLotEl ? fLotEl.value : '';
+  const fPackage = fPackageEl ? fPackageEl.value : '';
+
+  allRows.forEach(row => {
+    const status = row['Status'] || '';
+    const contractor = row['Contractor Done'] || row['Contractor'] || '';
+    const lot = row['Lot'] || '';
+    const pkg = row['Package'] || '';
+    const name = row['BH Name'] || '';
+
+    if (fStatus && status !== fStatus) return;
+    if (fContractor && contractor !== fContractor) return;
+    if (fLot && lot !== fLot) return;
+    if (fPackage && pkg !== fPackage) return;
+    if (searchTerm) {
+      const hay = `${name} ${lot} ${pkg} ${contractor}`.toLowerCase();
+      if (!hay.includes(searchTerm)) return;
+    }
+    const e = toNum(row['Easting']), n = toNum(row['Northing']);
+    if (e === null || n === null) return;
+    const ll = convertToLatLon(e, n);
+    if (!ll) return;
+    if (!bounds.contains([ll.lat, ll.lon])) return;
+    out.push({ row, lat: ll.lat, lon: ll.lon, status });
+  });
+  return out;
 }
 
 function setupPwaCache() {}

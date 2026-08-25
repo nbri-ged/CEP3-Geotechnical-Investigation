@@ -4,35 +4,7 @@
    stratigraphic parsing, weathering grade mapping, and offline caching.
    ============================================================ */
 
-/* ── VERSION CHECK & CACHE PURGE ENGINE ── */
-function checkAppVersionAndClearCache() {
-  const storedVer = localStorage.getItem('nbri_app_version');
-  if (storedVer !== APP_VERSION) {
-    console.log(`[NBRI System] Upgraded from "${storedVer || 'initial'}" to "${APP_VERSION}". Syncing dataset and cache...`);
-    try {
-      const oldRows = localStorage.getItem('nbri_allrows_cache');
-      if (oldRows) localStorage.setItem('nbri_allrows_cache_backup', oldRows);
-      
-      const keysToPurge = ['nbri_dates_cache', 'nbri_cache_timestamp'];
-      keysToPurge.forEach(k => localStorage.removeItem(k));
-      sessionStorage.clear();
-      
-      if ('caches' in window) {
-        caches.keys().then(names => {
-          names.forEach(name => caches.delete(name));
-        });
-      }
-    } catch(e) {
-      console.warn('Cache purge non-fatal error:', e);
-    }
-    localStorage.setItem('nbri_app_version', APP_VERSION);
-    if (storedVer && storedVer !== APP_VERSION) {
-      setTimeout(() => {
-        showVersionUpdateNotice(storedVer, APP_VERSION);
-      }, 800);
-    }
-  }
-}
+
 
 function autoRefreshCacheOnStartup() {
   try {
@@ -43,6 +15,11 @@ function autoRefreshCacheOnStartup() {
       caches.keys().then(names => { names.forEach(n => caches.delete(n)); }).catch(() => {});
     }
     console.log('[NBRI System] Cache memory automatically refreshed on startup.');
+    setTimeout(() => {
+      if (typeof showAppToast === 'function') {
+        showAppToast('⚡ Fresh Cache Synchronized', 'Real-time dataset connection established with live cache busting.', 'info', 3500);
+      }
+    }, 1200);
   } catch(e) {
     console.warn('[NBRI System] Auto-refresh cache note:', e);
   }
@@ -194,17 +171,7 @@ function cleanBHKey(key) {
   return (key || '').trim().toUpperCase().replace(/[\s\-_]/g, '');
 }
 
-function colorFor(status) {
-  if (!status) return STATUS_COLORS.default;
-  const s = status.trim();
-  return STATUS_COLORS[s] || STATUS_COLORS.default;
-}
 
-function colorForPackage(pkg) {
-  if (!pkg) return PACKAGE_COLORS.default;
-  const p = pkg.trim();
-  return PACKAGE_COLORS[p] || PACKAGE_COLORS.default;
-}
 
 /* ── COORDINATE CONVERSION: EPSG:5235 (SLD99) -> WGS84 ── */
 function convertToLatLon(easting, northing) {
@@ -261,42 +228,7 @@ function rockLevelDisplay(levels) {
   return '—';
 }
 
-function extractBoreholeChainage(row, bhName) {
-  if (!row && !bhName) return '';
-  const clean = (bhName || '').trim();
-  const m = clean.match(/(\d+)\+(\d+)/);
-  if (m) return `Ch. ${m[1]}+${m[2]}`;
-  const chRaw = row ? (row['Chainage'] || row['Station'] || '') : '';
-  if (chRaw) return `Ch. ${chRaw}`;
-  return '';
-}
 
-/* ── SPATIAL AUTO-SORTING OF BOREHOLES ALONG SECTION ── */
-function sortBoreholesByMapPosition(rows) {
-  if (!rows || rows.length < 2) return rows || [];
-  
-  const pts = rows.map((r, i) => {
-    const e = toNum(r['Easting']), n = toNum(r['Northing']);
-    return { idx: i, e: e !== null ? e : 0, n: n !== null ? n : 0, row: r };
-  });
-
-  const validPts = pts.filter(p => p.e !== 0 && p.n !== 0);
-  if (validPts.length < 2) return rows;
-
-  const origin = validPts[0];
-  const last = validPts[validPts.length - 1];
-  const dx = last.e - origin.e;
-  const dy = last.n - origin.n;
-  const len = Math.sqrt(dx * dx + dy * dy) || 1;
-  const ux = dx / len, uy = dy / len;
-
-  pts.forEach(p => {
-    p.proj = (p.e - origin.e) * ux + (p.n - origin.n) * uy;
-  });
-
-  pts.sort((a, b) => a.proj - b.proj);
-  return pts.map(p => p.row);
-}
 
 /* ── PROCESS STRATIGRAPHIC & WEATHERING PROFILES (BH Profile.csv) ── */
 function processBHProfileData(data) {
