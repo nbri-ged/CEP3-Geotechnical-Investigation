@@ -97,7 +97,7 @@ const GEOTECHNICAL_RULES = [
     id: 16,
     category: "Structural Geology",
     title: "Foliation Projection & Apparent Dip Engine",
-    desc: "Apparent dip along cross-section lines is mathematically computed from true foliation strike/dip. Gneissic rock textures and formation boundaries rotate to match apparent dip."
+    desc: "Apparent dip along cross-section lines is mathematically computed from true foliation strike/dip. Gneissic bedrock textures, formation boundaries, and in-situ metamorphic-derived soil horizons (Residual Soil & CWR / Saprolite) rotate and incline to follow apparent dip, reflecting relict fabric and preferential weathering planes."
   },
   {
     id: 17,

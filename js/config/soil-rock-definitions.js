@@ -178,7 +178,10 @@ const ORIGIN_HATCH_INFO = {
   completely_weathered_rock: { patternId: 'pat-origin-cwr', label: 'Completely Weathered Rock' }
 };
 
-function buildOriginHatchDefs() {
+function buildOriginHatchDefs(apparentDipAngle = 45, apparentDipDirectionStr = '→ B') {
+  const rot = Math.round(apparentDipDirectionStr === '← A' ? -apparentDipAngle : (apparentDipDirectionStr === '→ B' ? apparentDipAngle : 0));
+  const clampedRot = Math.max(-75, Math.min(75, rot));
+
   return `
     <pattern id="pat-origin-made-ground" width="16" height="16" patternUnits="userSpaceOnUse">
       <line x1="0" y1="0" x2="16" y2="16" stroke="#3a3a3a" stroke-width="0.5" opacity="0.22"/>
@@ -191,19 +194,18 @@ function buildOriginHatchDefs() {
       <line x1="0" y1="0" x2="0" y2="6" stroke="#6b4a2a" stroke-width="0.6" opacity="0.25"/>
       <line x1="8" y1="8" x2="8" y2="14" stroke="#6b4a2a" stroke-width="0.6" opacity="0.25"/>
     </pattern>
-    <pattern id="pat-origin-residual" width="16" height="16" patternUnits="userSpaceOnUse">
-      <!-- Residual Soil: Distinctive fine plus / stipple cross markers -->
-      <line x1="2" y1="5" x2="6" y2="5" stroke="#5a4632" stroke-width="0.8" opacity="0.45"/>
-      <line x1="4" y1="3" x2="4" y2="7" stroke="#5a4632" stroke-width="0.8" opacity="0.45"/>
-      <line x1="10" y1="13" x2="14" y2="13" stroke="#5a4632" stroke-width="0.8" opacity="0.45"/>
-      <line x1="12" y1="11" x2="12" y2="15" stroke="#5a4632" stroke-width="0.8" opacity="0.45"/>
+    <pattern id="pat-origin-residual" width="16" height="16" patternUnits="userSpaceOnUse" patternTransform="rotate(${clampedRot})">
+      <!-- Residual Soil (Grade VI): Metamorphic foliation-aligned relict fabric & structural cross markers -->
+      <line x1="2" y1="5" x2="14" y2="5" stroke="#5a4632" stroke-width="0.8" opacity="0.45"/>
+      <line x1="8" y1="2" x2="8" y2="8" stroke="#5a4632" stroke-width="0.8" opacity="0.45"/>
+      <line x1="2" y1="13" x2="14" y2="13" stroke="#5a4632" stroke-width="0.8" opacity="0.45"/>
+      <line x1="8" y1="10" x2="8" y2="16" stroke="#5a4632" stroke-width="0.8" opacity="0.45"/>
     </pattern>
-    <pattern id="pat-origin-cwr" width="18" height="18" patternUnits="userSpaceOnUse">
-      <!-- Completely Weathered Rock (Grade V): Angular rock clasts & corestone fragments -->
-      <polygon points="3,3 8,2 7,7 2,6" fill="#8f8578" stroke="#332a1e" stroke-width="0.8" opacity="0.65"/>
-      <polygon points="11,10 16,9 15,15 10,14" fill="#8f8578" stroke="#332a1e" stroke-width="0.65"/>
-      <line x1="3" y1="13" x2="6" y2="16" stroke="#332a1e" stroke-width="0.85" opacity="0.55"/>
-      <line x1="12" y1="3" x2="15" y2="6" stroke="#332a1e" stroke-width="0.85" opacity="0.55"/>
+    <pattern id="pat-origin-cwr" width="18" height="18" patternUnits="userSpaceOnUse" patternTransform="rotate(${clampedRot})">
+      <!-- Completely Weathered Rock (Grade V): Relict foliation planar clasts & corestone fragments -->
+      <polygon points="3,3 10,2 9,7 2,6" fill="#8f8578" stroke="#332a1e" stroke-width="0.8" opacity="0.65"/>
+      <polygon points="11,10 18,9 17,15 10,14" fill="#8f8578" stroke="#332a1e" stroke-width="0.65"/>
+      <line x1="0" y1="9" x2="18" y2="9" stroke="#332a1e" stroke-width="1.0" opacity="0.6" stroke-dasharray="3,3"/>
     </pattern>`;
 }
 
