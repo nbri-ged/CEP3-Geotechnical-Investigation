@@ -120,71 +120,135 @@ function initEditorGeometry(rows, existingOverride) {
   maxElev = Math.ceil(maxElev + 4);
   minElev = Math.floor(minElev - 4);
 
-  // Compute Baseline Knots for Boundaries
+  // Compute Baseline Knots for All Geotechnical & Soil Origin Boundaries
   const groundKnots = [];
-  const rockheadKnots = [];
+  const madeGroundKnots = [];
   const alluvBaseKnots = [];
+  const colluvBaseKnots = [];
+  const residualBaseKnots = [];
+  const rockheadKnots = [];
   const gwtKnots = [];
 
   sorted.forEach((r, i) => {
     const d = distances[i];
     const lv = levelsArr[i];
+    const lys = layersArr[i] || [];
     const zG = (lv.elevation !== null && !isNaN(lv.elevation)) ? lv.elevation : maxElev - 2;
     groundKnots.push({ d: d, z: zG, isBH: true, name: (r['BH Name'] || r['PointID'] || `BH ${i+1}`).trim() });
 
-    // Effective Rock Level
-    let zR = lv.rockLevel !== null ? lv.rockLevel : zG - 6;
-    const lys = layersArr[i];
-    if (lys && lys.length) {
-      const rockLayer = lys.find(l => getGraphicInfo(l.graphic).isRock);
-      if (rockLayer) zR = zG - rockLayer.depth;
-    }
-    rockheadKnots.push({ d: d, z: zR, isBH: true });
+    // 1. Made Ground / Engineered Fill Base
+    let maxMadeGround = 0;
+    lys.forEach(l => {
+      const fam = originFamilyOf(l.origin);
+      if (fam === 'made_ground') {
+        if (l.bottom > maxMadeGround) maxMadeGround = l.bottom;
+      }
+    });
+    const zMadeGround = maxMadeGround > 0 ? (zG - maxMadeGround) : zG;
+    madeGroundKnots.push({ d: d, z: zMadeGround, isBH: true });
 
-    // Alluvium Base Level
+    // 2. Alluvium Base Contact (Alluvium vs in-situ Residual Soil)
     let maxAlluv = 0;
-    if (lys && lys.length) {
-      lys.forEach(l => {
-        const fam = originFamilyOf(l.origin);
-        if (fam === 'alluvium' || fam === 'colluvium' || fam === 'made_ground') {
-          if (l.bottom > maxAlluv) maxAlluv = l.bottom;
-        }
-      });
-    }
-    const zAlluv = maxAlluv > 0 ? zG - maxAlluv : zG;
+    lys.forEach(l => {
+      const fam = originFamilyOf(l.origin);
+      if (fam === 'alluvium' || fam === 'made_ground') {
+        if (l.bottom > maxAlluv) maxAlluv = l.bottom;
+      }
+    });
+    const zAlluv = maxAlluv > 0 ? (zG - maxAlluv) : zMadeGround;
     alluvBaseKnots.push({ d: d, z: zAlluv, isBH: true });
 
-    // GWT Level
+    // 3. Colluvium Base Contact (Hill wash / Slope scree)
+    let maxColluv = 0;
+    lys.forEach(l => {
+      const fam = originFamilyOf(l.origin);
+      if (fam === 'colluvium' || fam === 'alluvium' || fam === 'made_ground') {
+        if (l.bottom > maxColluv) maxColluv = l.bottom;
+      }
+    });
+    const zColluv = maxColluv > 0 ? (zG - maxColluv) : zAlluv;
+    colluvBaseKnots.push({ d: d, z: zColluv, isBH: true });
+
+    // 4. Residual Soil Base Contact (Grade VI Residual Soil vs Grade V CWR / Bedrock)
+    let zR = (lv.rockLevel !== null && !isNaN(lv.rockLevel)) ? lv.rockLevel : zG - 6;
+    let zResidual = zR;
+
+    if (lys.length) {
+      const rockLayer = lys.find(l => getGraphicInfo(l.graphic).isRock);
+      if (rockLayer) zR = zG - rockLayer.depth;
+
+      // Check for Completely Weathered Rock (CWR Grade V)
+      const cwrLayer = lys.find(l => {
+        const orig = (l.origin || '').toLowerCase();
+        return orig.includes('cwr') || orig.includes('completely weathered');
+      });
+      if (cwrLayer) {
+        zResidual = zG - cwrLayer.depth;
+      } else {
+        zResidual = zR;
+      }
+    }
+    residualBaseKnots.push({ d: d, z: zResidual, isBH: true });
+    rockheadKnots.push({ d: d, z: zR, isBH: true });
+
+    // 5. GWT (Groundwater Piezometric Level)
     if (lv.gwtLevel !== null && !isNaN(lv.gwtLevel)) {
       gwtKnots.push({ d: d, z: lv.gwtLevel, isBH: true });
     } else if (lv.gwtDepth !== null && !isNaN(lv.gwtDepth)) {
       gwtKnots.push({ d: d, z: zG - lv.gwtDepth, isBH: true });
+    } else {
+      gwtKnots.push({ d: d, z: zG - 2.5, isBH: true });
     }
   });
 
-  // Check for existing overridden boundaries
+  // Comprehensive Geotechnical & Soil Origin Boundaries
   const boundaries = {
-    ground: {
-      name: 'Natural Ground Surface',
-      color: '#00bcd4',
-      isOverridden: !!existingOverride?.boundaries?.ground?.isOverridden,
-      knots: existingOverride?.boundaries?.ground?.knots ? JSON.parse(JSON.stringify(existingOverride.boundaries.ground.knots)) : groundKnots
-    },
-    rockhead: {
-      name: 'Rockhead Weathering Front',
-      color: '#b71c1c',
-      isOverridden: !!existingOverride?.boundaries?.rockhead?.isOverridden,
-      knots: existingOverride?.boundaries?.rockhead?.knots ? JSON.parse(JSON.stringify(existingOverride.boundaries.rockhead.knots)) : rockheadKnots
+    made_ground_base: {
+      name: 'Made Ground / Fill Base Contact',
+      category: 'soil_origin',
+      color: '#9333ea', // Purple
+      isOverridden: !!existingOverride?.boundaries?.made_ground_base?.isOverridden,
+      knots: existingOverride?.boundaries?.made_ground_base?.knots ? JSON.parse(JSON.stringify(existingOverride.boundaries.made_ground_base.knots)) : madeGroundKnots
     },
     alluv_base: {
-      name: 'Alluvial / Colluvial Base Contact',
-      color: '#64748b',
+      name: 'Alluvial Base Contact (Alluvium vs Residual)',
+      category: 'soil_origin',
+      color: '#0284c7', // Sky Blue
       isOverridden: !!existingOverride?.boundaries?.alluv_base?.isOverridden,
       knots: existingOverride?.boundaries?.alluv_base?.knots ? JSON.parse(JSON.stringify(existingOverride.boundaries.alluv_base.knots)) : alluvBaseKnots
     },
+    colluvium_base: {
+      name: 'Colluvium / Slope-Wash Base Contact',
+      category: 'soil_origin',
+      color: '#b45309', // Amber
+      isOverridden: !!existingOverride?.boundaries?.colluvium_base?.isOverridden,
+      knots: existingOverride?.boundaries?.colluvium_base?.knots ? JSON.parse(JSON.stringify(existingOverride.boundaries.colluvium_base.knots)) : colluvBaseKnots
+    },
+    residual_base: {
+      name: 'Residual Soil Base Contact (Saprolite / CWR Top)',
+      category: 'soil_origin',
+      color: '#d97706', // Orange-Brown
+      isOverridden: !!existingOverride?.boundaries?.residual_base?.isOverridden,
+      knots: existingOverride?.boundaries?.residual_base?.knots ? JSON.parse(JSON.stringify(existingOverride.boundaries.residual_base.knots)) : residualBaseKnots
+    },
+    rockhead: {
+      name: 'Rockhead Weathering Front (Bedrock Contact)',
+      category: 'bedrock',
+      color: '#b71c1c', // Crimson
+      isOverridden: !!existingOverride?.boundaries?.rockhead?.isOverridden,
+      knots: existingOverride?.boundaries?.rockhead?.knots ? JSON.parse(JSON.stringify(existingOverride.boundaries.rockhead.knots)) : rockheadKnots
+    },
+    ground: {
+      name: 'Natural Ground Surface Profile',
+      category: 'terrain',
+      color: '#00bcd4', // Cyan
+      isOverridden: !!existingOverride?.boundaries?.ground?.isOverridden,
+      knots: existingOverride?.boundaries?.ground?.knots ? JSON.parse(JSON.stringify(existingOverride.boundaries.ground.knots)) : groundKnots
+    },
     gwt: {
-      name: 'Groundwater Piezometric Table (GWT)',
-      color: '#2563eb',
+      name: 'Groundwater Table (GWT) Piezometric Level',
+      category: 'hydro',
+      color: '#2563eb', // Blue
       isOverridden: !!existingOverride?.boundaries?.gwt?.isOverridden,
       knots: existingOverride?.boundaries?.gwt?.knots ? JSON.parse(JSON.stringify(existingOverride.boundaries.gwt.knots)) : gwtKnots
     }
@@ -436,8 +500,11 @@ function renderEditorCanvas() {
     svg += `<text x="${x}" y="${padT + plotH + 20}" font-size="11" font-weight="700" fill="#64748b" text-anchor="middle">${Math.round(d)}m</text>`;
   }
 
-  // 1. Render Strata Solid Fills
+  // 1. Render Strata Solid Fills (Genetic Soil Origin Horizons + Bedrock)
   const groundKnots = geom.boundaries.ground.knots;
+  const madeGroundKnots = geom.boundaries.made_ground_base.knots;
+  const alluvKnots = geom.boundaries.alluv_base.knots;
+  const residualKnots = geom.boundaries.residual_base.knots;
   const rockheadKnots = geom.boundaries.rockhead.knots;
 
   function evalKnots(knots, d) {
@@ -449,21 +516,51 @@ function renderEditorCanvas() {
   const sDists = [];
   for (let s = 0; s <= nS; s++) sDists.push((s / nS) * totalDist);
 
-  // Bedrock Polygon Fill
+  // A. Bedrock Polygon Fill (Below Rockhead)
   let rockPoly = `M ${toSvgX(0)} ${toSvgY(minElev)} `;
   sDists.forEach(d => { rockPoly += `L ${toSvgX(d)} ${toSvgY(evalKnots(rockheadKnots, d))} `; });
   rockPoly += `L ${toSvgX(totalDist)} ${toSvgY(minElev)} Z`;
-  svg += `<path d="${rockPoly}" fill="#94a3b8" fill-opacity="0.35"/>`;
+  svg += `<path d="${rockPoly}" fill="#94a3b8" fill-opacity="0.30"/>`;
 
-  // Soil Overburden Polygon Fill
-  let soilPoly = `M ${toSvgX(0)} ${toSvgY(evalKnots(rockheadKnots, 0))} `;
-  sDists.forEach(d => { soilPoly += `L ${toSvgX(d)} ${toSvgY(evalKnots(groundKnots, d))} `; });
+  // B. Completely Weathered Rock (CWR Grade V) Transition Band (Between Rockhead and Residual Base)
+  let cwrPoly = `M ${toSvgX(0)} ${toSvgY(evalKnots(rockheadKnots, 0))} `;
+  sDists.forEach(d => { cwrPoly += `L ${toSvgX(d)} ${toSvgY(evalKnots(residualKnots, d))} `; });
   for (let s = sDists.length - 1; s >= 0; s--) {
     const d = sDists[s];
-    soilPoly += `L ${toSvgX(d)} ${toSvgY(evalKnots(rockheadKnots, d))} `;
+    cwrPoly += `L ${toSvgX(d)} ${toSvgY(evalKnots(rockheadKnots, d))} `;
   }
-  soilPoly += `Z`;
-  svg += `<path d="${soilPoly}" fill="#fde68a" fill-opacity="0.35"/>`;
+  cwrPoly += `Z`;
+  svg += `<path d="${cwrPoly}" fill="#d97706" fill-opacity="0.22"/>`;
+
+  // C. In-situ Residual Soil Horizon (Grade VI) (Between Residual Base and Alluvium/Ground)
+  let resPoly = `M ${toSvgX(0)} ${toSvgY(evalKnots(residualKnots, 0))} `;
+  sDists.forEach(d => { resPoly += `L ${toSvgX(d)} ${toSvgY(evalKnots(alluvKnots, d))} `; });
+  for (let s = sDists.length - 1; s >= 0; s--) {
+    const d = sDists[s];
+    resPoly += `L ${toSvgX(d)} ${toSvgY(evalKnots(residualKnots, d))} `;
+  }
+  resPoly += `Z`;
+  svg += `<path d="${resPoly}" fill="#fde68a" fill-opacity="0.35"/>`;
+
+  // D. Transported Alluvium / Colluvium Deposits (Between Alluvial Base and Made Ground/Ground)
+  let alluvPoly = `M ${toSvgX(0)} ${toSvgY(evalKnots(alluvKnots, 0))} `;
+  sDists.forEach(d => { alluvPoly += `L ${toSvgX(d)} ${toSvgY(evalKnots(madeGroundKnots, d))} `; });
+  for (let s = sDists.length - 1; s >= 0; s--) {
+    const d = sDists[s];
+    alluvPoly += `L ${toSvgX(d)} ${toSvgY(evalKnots(alluvKnots, d))} `;
+  }
+  alluvPoly += `Z`;
+  svg += `<path d="${alluvPoly}" fill="#bae6fd" fill-opacity="0.35"/>`;
+
+  // E. Made Ground / Fill Horizon (Between Made Ground Base and Ground)
+  let fillPoly = `M ${toSvgX(0)} ${toSvgY(evalKnots(madeGroundKnots, 0))} `;
+  sDists.forEach(d => { fillPoly += `L ${toSvgX(d)} ${toSvgY(evalKnots(groundKnots, d))} `; });
+  for (let s = sDists.length - 1; s >= 0; s--) {
+    const d = sDists[s];
+    fillPoly += `L ${toSvgX(d)} ${toSvgY(evalKnots(madeGroundKnots, d))} `;
+  }
+  fillPoly += `Z`;
+  svg += `<path d="${fillPoly}" fill="#e9d5ff" fill-opacity="0.40"/>`;
 
   // 2. Render Inferred Faults
   activeEditorState.inferredFaults.forEach((flt, fIdx) => {
@@ -473,16 +570,37 @@ function renderEditorCanvas() {
     svg += `<text x="${(x1 + x2)/2 + 8}" y="${(y1 + y2)/2}" font-size="11" font-weight="800" fill="#dc2626">${flt.name || 'Fault'}</text>`;
   });
 
-  // 3. Render Boundary Lines
+  // 3. Render Boundary Lines & Interactive Line Badges
   Object.keys(geom.boundaries).forEach(bKey => {
     const bObj = geom.boundaries[bKey];
     const isSelected = activeEditorState.selectedBoundaryKey === bKey;
     let pathD = `M ${toSvgX(0)} ${toSvgY(evalKnots(bObj.knots, 0))} `;
     sDists.forEach(d => { pathD += `L ${toSvgX(d)} ${toSvgY(evalKnots(bObj.knots, d))} `; });
 
-    const strokeW = isSelected ? 3.5 : 2.0;
+    const strokeW = isSelected ? 3.8 : 2.0;
     const strokeDash = bKey === 'gwt' ? '6 4' : (bObj.isOverridden ? '8 3' : 'none');
+    
+    // Glowing halo for selected boundary
+    if (isSelected) {
+      svg += `<path d="${pathD}" fill="none" stroke="${bObj.color}" stroke-width="8" stroke-opacity="0.3" stroke-linecap="round"/>`;
+    }
+
     svg += `<path d="${pathD}" fill="none" stroke="${bObj.color}" stroke-width="${strokeW}" stroke-dasharray="${strokeDash}" style="cursor:pointer;" onclick="selectEditorBoundary('${bKey}')"/>`;
+
+    // Boundary Label Badge along line
+    const labelD = totalDist * 0.35;
+    const labelX = toSvgX(labelD);
+    const labelY = toSvgY(evalKnots(bObj.knots, labelD)) - 4;
+    const shortNames = {
+      made_ground_base: '🚜 Fill Base',
+      alluv_base: '🌊 Alluvial Base',
+      colluvium_base: '⛰️ Colluvium Base',
+      residual_base: '🍂 Residual Soil Base (CWR Top)',
+      rockhead: '🪨 Rockhead (Bedrock)',
+      ground: '🌿 Ground Surface',
+      gwt: '💧 GWT'
+    };
+    svg += `<text x="${labelX}" y="${labelY}" font-size="9" font-weight="800" fill="${bObj.color}" style="cursor:pointer; paint-order:stroke; stroke:#fff; stroke-width:3px;" onclick="selectEditorBoundary('${bKey}')">${shortNames[bKey] || bObj.name}</text>`;
   });
 
   // 4. Render Borehole Exploratory Pillars
@@ -555,6 +673,11 @@ function updatePropertiesPanelUI() {
   const selB = activeEditorState.geom.boundaries[activeEditorState.selectedBoundaryKey];
   const nameEl = document.getElementById('geo-prop-boundary-name');
   if (nameEl) nameEl.innerText = selB?.name || 'None';
+
+  const bSelect = document.getElementById('geo-boundary-select');
+  if (bSelect && activeEditorState.selectedBoundaryKey) {
+    bSelect.value = activeEditorState.selectedBoundaryKey;
+  }
 
   const statusEl = document.getElementById('geo-prop-boundary-status');
   if (statusEl) statusEl.innerText = selB?.isOverridden ? '🟡 Overridden' : '🟢 Pure Baseline';

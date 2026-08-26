@@ -47,6 +47,7 @@ function initMapEngine() {
   markersLayer = L.layerGroup();
   map.addLayer(markersLayer);
 
+  profilePolyline = L.polyline([], { color: '#0d9488', weight: 4, dashArray: '8, 6', opacity: 0.95 }).addTo(map);
   measureLines = L.polyline([], { color: '#b3541e', weight: 3, dashArray: '6, 6' }).addTo(map);
   measurePolygon = L.polygon([], { color: '#b3541e', fillColor: '#b3541e', fillOpacity: 0.15 }).addTo(map);
 
@@ -108,23 +109,23 @@ function initMapEngine() {
 
 /* ── DATA FETCHING & SYNCHRONIZATION ── */
 function fetchData() {
-  // 1. Immediately bootstrap with embedded master dataset if empty
+  // 1. Immediately bootstrap synchronously with embedded master dataset if empty
   if (window.EMBEDDED_BOREHOLES_CSV && (!allRows || allRows.length === 0)) {
     try {
-      Papa.parse(window.EMBEDDED_BOREHOLES_CSV, {
-        header: true, skipEmptyLines: true,
-        complete: (r) => { if (r.data && r.data.length) loadRows(r.data); }
-      });
+      const r = Papa.parse(window.EMBEDDED_BOREHOLES_CSV, { header: true, skipEmptyLines: true });
+      if (r && r.data && r.data.length) {
+        loadRows(r.data);
+      }
     } catch(e){}
   }
 
-  // 2. Also load embedded profile layers immediately
+  // 2. Also load embedded profile layers immediately synchronously
   if (window.EMBEDDED_BH_PROFILE_CSV && (!profileLayersByBH || Object.keys(profileLayersByBH).length === 0)) {
     try {
-      Papa.parse(window.EMBEDDED_BH_PROFILE_CSV, {
-        header: false, skipEmptyLines: true,
-        complete: (r) => { if (r.data && r.data.length) processBHProfileData(r.data); }
-      });
+      const r = Papa.parse(window.EMBEDDED_BH_PROFILE_CSV, { header: false, skipEmptyLines: true });
+      if (r && r.data && r.data.length) {
+        processBHProfileData(r.data);
+      }
     } catch(e){}
   }
 
@@ -368,10 +369,25 @@ function colorForPackage(pkg) {
   return PACKAGE_PALETTE[Math.abs(hash) % PACKAGE_PALETTE.length];
 }
 
-function makeIcon(status, pkg) {
+function makeIcon(status, pkg, isSelected = false, selOrder = null) {
   const statusColor = colorFor(status);
   const pkgColor = colorForPackage(pkg);
   const opacity = (status === "Cancelled") ? "0.5" : "1.0";
+  
+  if (isSelected) {
+    return L.divIcon({
+      className: 'bh-marker-selected-wrap',
+      html: `
+        <div style="position:relative; width:28px; height:28px; display:flex; align-items:center; justify-content:center;">
+          <div style="position:absolute; inset:0; border-radius:50%; background:rgba(13,148,136,0.35); border:2px solid #0d9488; box-shadow:0 0 10px rgba(13,148,136,0.6);"></div>
+          <div class="bh-dot-package" style="position:absolute; top:5px; left:5px; width:18px; height:18px; border-radius:50%; background:${pkgColor}; border:2px solid #ffffff; box-shadow:0 0 0 2px ${pkgColor}, 0 2px 6px rgba(0,0,0,0.5); opacity:${opacity};"></div>
+          <div class="bh-dot-status" style="position:absolute; top:5px; left:5px; width:18px; height:18px; border-radius:50%; background:${statusColor}; border:2px solid #ffffff; box-shadow:0 0 0 2px ${statusColor}, 0 2px 6px rgba(0,0,0,0.5); opacity:${opacity};"></div>
+          ${selOrder ? `<div style="position:absolute; top:-6px; right:-6px; background:#0f766e; color:#ffffff; font-size:10px; font-weight:900; width:17px; height:17px; border-radius:50%; display:flex; align-items:center; justify-content:center; border:1.5px solid #ffffff; box-shadow:0 2px 4px rgba(0,0,0,0.4); z-index:10;">${selOrder}</div>` : ''}
+        </div>`,
+      iconSize: [28, 28], iconAnchor: [14, 14], popupAnchor: [0, -14]
+    });
+  }
+
   return L.divIcon({
     className: '',
     html: `
@@ -425,11 +441,14 @@ function render(){
     shown++;
 
     const isSelected = profileSelectedIdx.includes(rowIdx);
-    const marker = L.marker([ll.lat, ll.lon], { icon: makeIcon(status, pkg) });
+    const selOrder = isSelected ? (profileSelectedIdx.indexOf(rowIdx) + 1) : null;
+    const marker = L.marker([ll.lat, ll.lon], { icon: makeIcon(status, pkg, isSelected, selOrder) });
+    marker.rowIdx = rowIdx;
 
     marker.bindPopup(popupHtml(row, rowIdx), { maxWidth: 860, minWidth: 800, className: 'wide-popup' });
     marker.on('click', () => {
       if (profileSelectMode) {
+        marker.closePopup();
         toggleProfileSelection(rowIdx);
       }
     });
@@ -453,7 +472,71 @@ function render(){
     map.fitBounds(bounds, { padding: [40, 40], maxZoom: 16 });
     window.__MAP_INITIALIZED_VIEW__ = true;
   }
+
+  updateProfileMapVisuals();
 }
+
+function updateProfileMapVisuals() {
+  // 1. Update alignment polyline
+  if (profilePolyline && map && typeof allRows !== 'undefined') {
+    const latlngs = profileSelectedIdx.map(idx => {
+      const r = allRows[idx];
+      if (!r) return null;
+      const e = toNum(r['Easting']), n = toNum(r['Northing']);
+      if (e === null || n === null) return null;
+      const ll = convertToLatLon(e, n);
+      return ll ? [ll.lat, ll.lon] : null;
+    }).filter(Boolean);
+    profilePolyline.setLatLngs(latlngs);
+  }
+
+  // 2. Update marker icons on map
+  if (markers && markers.length && typeof allRows !== 'undefined') {
+    markers.forEach(marker => {
+      if (!marker || marker.rowIdx === undefined) return;
+      const r = allRows[marker.rowIdx];
+      if (!r) return;
+      const status = r['Status'] || '';
+      const pkg = r['Package'] || '';
+      const isSel = profileSelectedIdx.includes(marker.rowIdx);
+      const selOrder = isSel ? (profileSelectedIdx.indexOf(marker.rowIdx) + 1) : null;
+      marker.setIcon(makeIcon(status, pkg, isSel, selOrder));
+    });
+  }
+
+  // 3. Update any open popup profile button
+  if (typeof allRows !== 'undefined') {
+    allRows.forEach((row, rIdx) => {
+      const btn = document.getElementById(`popup-profile-btn-${rIdx}`);
+      if (btn) {
+        const isSel = profileSelectedIdx.includes(rIdx);
+        const selPos = isSel ? (profileSelectedIdx.indexOf(rIdx) + 1) : null;
+        if (isSel) {
+          btn.className = 'popup-profile-btn selected';
+          btn.style.background = 'linear-gradient(135deg, #d97706, #b45309)';
+          btn.innerHTML = `✓ Selected (#${selPos}) &mdash; Click to Remove`;
+        } else {
+          btn.className = 'popup-profile-btn';
+          btn.style.background = 'linear-gradient(135deg, var(--brand-teal, #0d9488), var(--brand-teal-dark, #0f766e))';
+          btn.innerHTML = `📐 Add to 2D Cross-Section`;
+        }
+      }
+    });
+  }
+
+  // 4. Update sidebar chips
+  if (typeof updateProfileChips === 'function') {
+    updateProfileChips();
+  }
+
+  // 5. Update modal manager if open
+  if (typeof updateModalBoreholeManager === 'function') {
+    updateModalBoreholeManager();
+  }
+}
+
+// Global window exports
+window.updateProfileMapVisuals = updateProfileMapVisuals;
 
 function popupHtml(row, rowIdx){
   const levels = computeBHLevels(row);
@@ -473,7 +556,12 @@ function popupHtml(row, rowIdx){
   const tableRows = rows.map(([k,v]) => `<tr><td class="k">${k}</td><td>${v}</td></tr>`).join('');
   const pdfUrl = (row['PDF Link'] || row['Log PDF'] || row['Borehole Log'] || '').trim();
   const pdfButton = pdfUrl ? `<a href="${pdfUrl}" target="_blank" rel="noopener" class="pdf-link-btn" style="margin-top:6px;">📄 View Borehole Log PDF</a>` : '';
-  const profileBtn = `<button onclick="toggleProfileSelection(${rowIdx})" style="width:100%; margin-top:8px; padding:7px; background:linear-gradient(135deg, var(--brand-teal, #1c2b2a), var(--brand-teal-dark, #131e1d)); color:#fff; border:none; border-radius:6px; font-weight:700; font-size:11px; cursor:pointer; box-shadow:0 1px 3px rgba(0,0,0,0.15);">📐 Add / Remove from 2D Profile</button>`;
+  
+  const isSel = profileSelectedIdx.includes(rowIdx);
+  const selPos = isSel ? (profileSelectedIdx.indexOf(rowIdx) + 1) : null;
+  const profileBtn = isSel
+    ? `<button id="popup-profile-btn-${rowIdx}" onclick="toggleProfileSelection(${rowIdx})" class="popup-profile-btn selected" style="width:100%; margin-top:8px; padding:8px 10px; background:linear-gradient(135deg, #d97706, #b45309); color:#fff; border:none; border-radius:6px; font-weight:800; font-size:11.5px; cursor:pointer; box-shadow:0 1px 3px rgba(0,0,0,0.15); transition:all 0.15s ease;">✓ Selected (#${selPos}) &mdash; Click to Remove</button>`
+    : `<button id="popup-profile-btn-${rowIdx}" onclick="toggleProfileSelection(${rowIdx})" class="popup-profile-btn" style="width:100%; margin-top:8px; padding:8px 10px; background:linear-gradient(135deg, var(--brand-teal, #0d9488), var(--brand-teal-dark, #0f766e)); color:#fff; border:none; border-radius:6px; font-weight:800; font-size:11.5px; cursor:pointer; box-shadow:0 1px 3px rgba(0,0,0,0.15); transition:all 0.15s ease;">📐 Add to 2D Cross-Section</button>`;
 
   const logHtml = buildBoreholeLogMarkup(levels, getBHLayers(row), row);
 

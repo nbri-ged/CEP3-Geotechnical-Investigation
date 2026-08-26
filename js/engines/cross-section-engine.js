@@ -1,5 +1,5 @@
 function toggleProfileSelection(rowIdx) {
-  if (typeof rowIdx !== 'number' || isNaN(rowIdx)) return;
+  if (typeof rowIdx !== 'number' || isNaN(rowIdx) || rowIdx < 0 || typeof allRows === 'undefined' || !allRows[rowIdx]) return;
   const idx = profileSelectedIdx.indexOf(rowIdx);
   const row = allRows[rowIdx];
   const bhName = row ? (row['BH Name'] || row['PointID'] || `BH #${rowIdx+1}`).trim() : `BH #${rowIdx+1}`;
@@ -15,15 +15,58 @@ function toggleProfileSelection(rowIdx) {
       showAppToast('📍 Borehole Removed', `Removed ${bhName} (${profileSelectedIdx.length} remaining)`, 'info');
     }
   }
+  
   updateProfileChips();
-  if (typeof render === 'function') render();
+  updateModalBoreholeManager();
+  
+  if (typeof updateProfileMapVisuals === 'function') {
+    updateProfileMapVisuals();
+  }
+
+  // If the 2D Cross-Section Modal is open, immediately refresh the profile view
+  const modalBackdrop = document.getElementById('profile-modal-backdrop');
+  if (modalBackdrop && modalBackdrop.classList.contains('open')) {
+    if (profileSelectedIdx.length >= 2) {
+      currentProfileRows = profileSelectedIdx.map(i => allRows[i]).filter(Boolean);
+      currentProfileRows = sortBoreholesByMapPosition(currentProfileRows);
+      recreateProfileDirect();
+    } else {
+      const body = document.getElementById('profile-modal-body');
+      if (body) {
+        body.innerHTML = `
+          <div style="padding: 60px 20px; text-align: center; color: #64748b;">
+            <div style="font-size: 36px; margin-bottom: 12px;">📍</div>
+            <div style="font-weight: 800; font-size: 16px; color: #1e293b; margin-bottom: 6px;">Select at least 2 boreholes</div>
+            <div style="font-size: 13px;">Please select more boreholes to generate the 2D cross-section profile.</div>
+          </div>`;
+      }
+    }
+  }
 }
 
-// Global window exports to guarantee fail-proof onclick resolution
-window.toggleProfileSelection = toggleProfileSelection;
-window.showProfileModal = showProfileModal;
-window.updateProfileChips = updateProfileChips;
-window.recreateProfile = recreateProfile;
+function addBoreholeToProfile(rowIdx) {
+  if (typeof rowIdx !== 'number' || isNaN(rowIdx) || typeof allRows === 'undefined' || !allRows[rowIdx]) return;
+  if (!profileSelectedIdx.includes(rowIdx)) {
+    toggleProfileSelection(rowIdx);
+  }
+}
+
+function removeBoreholeFromProfile(rowIdx) {
+  if (typeof rowIdx !== 'number' || isNaN(rowIdx)) return;
+  if (profileSelectedIdx.includes(rowIdx)) {
+    toggleProfileSelection(rowIdx);
+  }
+}
+
+function addSelectedBoreholeFromModal() {
+  const sel = document.getElementById('modal-add-bh-select');
+  if (!sel || !sel.value) return;
+  const rowIdx = parseInt(sel.value, 10);
+  if (!isNaN(rowIdx)) {
+    addBoreholeToProfile(rowIdx);
+    sel.value = '';
+  }
+}
 
 function updateProfileChips() {
   const wrap = document.getElementById('profile-selected-list');
@@ -37,12 +80,52 @@ function updateProfileChips() {
   chipsEl.innerHTML = profileSelectedIdx.map((rowIdx, i) => {
     const r = allRows[rowIdx];
     const n = r ? (r['BH Name'] || r['PointID'] || '').trim() : '(missing)';
-    return `<span class="profile-chip" data-idx="${rowIdx}">${i+1}. ${n} &times;</span>`;
+    return `<span class="profile-chip" data-idx="${rowIdx}" title="Click to remove ${n}">${i+1}. ${n} &times;</span>`;
   }).join('');
   chipsEl.querySelectorAll('.profile-chip').forEach(chip => {
     chip.addEventListener('click', () => toggleProfileSelection(parseInt(chip.getAttribute('data-idx'), 10)));
   });
 }
+
+function updateModalBoreholeManager() {
+  const countEl = document.getElementById('modal-bh-count');
+  const chipsEl = document.getElementById('modal-bh-chips');
+  const selectEl = document.getElementById('modal-add-bh-select');
+  
+  if (countEl) countEl.textContent = profileSelectedIdx.length;
+  
+  if (chipsEl && typeof allRows !== 'undefined') {
+    chipsEl.innerHTML = profileSelectedIdx.map((rowIdx, i) => {
+      const r = allRows[rowIdx];
+      const n = r ? (r['BH Name'] || r['PointID'] || `BH #${rowIdx+1}`).trim() : `BH #${rowIdx+1}`;
+      return `
+        <span class="profile-chip-modal" title="Click ✕ to remove ${n} from profile">
+          <span style="font-weight:800; color:#0f766e;">${i+1}.</span> ${n}
+          <button type="button" onclick="removeBoreholeFromProfile(${rowIdx})" title="Remove ${n}">&times;</button>
+        </span>`;
+    }).join('');
+  }
+  
+  if (selectEl && typeof allRows !== 'undefined') {
+    const unselectedRows = allRows
+      .map((r, idx) => ({ r, idx, name: (r['BH Name'] || r['PointID'] || `BH #${idx+1}`).trim() }))
+      .filter(item => item.name && !profileSelectedIdx.includes(item.idx))
+      .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
+      
+    selectEl.innerHTML = '<option value="">➕ Add Borehole to Section...</option>' +
+      unselectedRows.map(it => `<option value="${it.idx}">📍 ${it.name} (${it.r['Package'] || it.r['Lot'] || ''})</option>`).join('');
+  }
+}
+
+// Global window exports to guarantee fail-proof onclick resolution
+window.toggleProfileSelection = toggleProfileSelection;
+window.addBoreholeToProfile = addBoreholeToProfile;
+window.removeBoreholeFromProfile = removeBoreholeFromProfile;
+window.addSelectedBoreholeFromModal = addSelectedBoreholeFromModal;
+window.updateModalBoreholeManager = updateModalBoreholeManager;
+window.showProfileModal = showProfileModal;
+window.updateProfileChips = updateProfileChips;
+window.recreateProfile = recreateProfile;
 
 function sortBoreholesByMapPosition(rows) {
   // Convert all to lat/lon
@@ -932,10 +1015,14 @@ function buildProfileSvg(rows, options = {}, arg3 = null, arg4 = null) {
   }
 
   // ── TWO-TIER STRATIGRAPHIC BOUNDARY EVALUATION ──
-  const alluvBasePts = rows.map((r, i) => ({ x: distances[i], y: alluvBaseLevels[i] }));
+  let alluvBasePts = rows.map((r, i) => ({ x: distances[i], y: alluvBaseLevels[i] }));
+  if (secOverride?.boundaries?.alluv_base?.isOverridden && secOverride.boundaries.alluv_base.knots?.length) {
+    alluvBasePts = secOverride.boundaries.alluv_base.knots.map(k => ({ x: k.d, y: k.z }));
+  }
 
   function getZAlluvBase(d) {
-    const hasAnyAlluv = alluvBaseLevels.some((z, i) => {
+    const isExplicitlyOverridden = !!(secOverride?.boundaries?.alluv_base?.isOverridden && secOverride.boundaries.alluv_base.knots?.length);
+    const hasAnyAlluv = isExplicitlyOverridden || alluvBaseLevels.some((z, i) => {
       const zG = levelsArr[i].elevation !== null ? levelsArr[i].elevation : maxElev;
       return (zG - z) > 0.05;
     });
@@ -2315,8 +2402,8 @@ function buildProfileSvg(rows, options = {}, arg3 = null, arg4 = null) {
     const bhName = bhNames[i];
     const lv = levelsArr[i];
     const layers = layersArr[i];
-    const zG = lv.elevation !== null ? lv.elevation : maxElev;
-    const zTerm = effectiveTermLevel[i] !== null ? effectiveTermLevel[i] : zG - 15;
+    const zG = (lv && lv.elevation !== null && !isNaN(lv.elevation)) ? lv.elevation : maxElev;
+    const zTerm = (lv && lv.termLevel !== null && !isNaN(lv.termLevel)) ? lv.termLevel : (zG - (toNum(r['Termination Depth']) || 15));
     const yG = yPos(zG);
     const yTerm = yPos(zTerm);
 
@@ -2361,7 +2448,7 @@ function buildProfileSvg(rows, options = {}, arg3 = null, arg4 = null) {
         }
       });
     } else {
-      const zR = effectiveRockLevel[i] !== null ? effectiveRockLevel[i] : zG - 5;
+      const zR = (lv && lv.rockLevel !== null && !isNaN(lv.rockLevel)) ? lv.rockLevel : (zG - 5);
       const yR = yPos(zR);
       svg += `<rect x="${(x - colW / 2).toFixed(1)}" y="${yG.toFixed(1)}" width="${colW.toFixed(1)}" height="${Math.max(yR - yG, 0).toFixed(1)}" fill="#c9a876" stroke="#909090" stroke-width="0.5"/>`;
       if (yTerm > yR) {
@@ -2469,6 +2556,15 @@ function buildProfileSvg(rows, options = {}, arg3 = null, arg4 = null) {
         const pillX = trackX + Math.max(crW, rqdW) + 2;
         let pillY = barY + Math.max(h, 4) / 2 - pillH / 2;
         if (pillY < lastRqdY + pillH + 1.5) {
+          pillY = lastRqdY + pillH + 1.5;
+        }
+        lastRqdY = pillY;
+
+        svg += `<rect x="${pillX.toFixed(1)}" y="${pillY.toFixed(1)}" width="${pillW.toFixed(1)}" height="${pillH}" fill="rgba(255,255,255,0.70)" stroke="${rqdColor}" stroke-width="0.75" rx="2.5"/>`;
+        svg += `<text x="${(pillX + pillW / 2).toFixed(1)}" y="${(pillY + 7.8).toFixed(1)}" font-size="7" fill="${rqdColor}" font-weight="800" text-anchor="middle">${rqdTxt}</text>`;
+      });
+    }
+
     // BH labels are placed in a vertical-stagger second pass below
     const offVal = (meta.offsets && meta.offsets[i] !== undefined) ? meta.offsets[i] : null;
     const hasOff = offVal !== null && Math.abs(offVal) >= 0.1;
@@ -2477,11 +2573,7 @@ function buildProfileSvg(rows, options = {}, arg3 = null, arg4 = null) {
     const glStr = (zG !== null && zG !== undefined && !isNaN(zG)) ? `GL ${zG.toFixed(1)}m` : 'GL —';
     bhLabelInfo.push({ x, yG, bhName, glText: glStr, offText, chText });
 
-    // Termination labels ALSO use a deferred vertical-stagger pass (see
-    // below, mirrors the BH header label collision-avoidance) — previously
-    // these were drawn immediately at a fixed yTerm+4 offset with no
-    // collision checking at all, so two boreholes terminating at similar
-    // depths close together would produce overlapping "Term X.Xm" boxes.
+    // Termination labels ALSO use a deferred vertical-stagger pass
     termLabelInfo.push({ x, yTerm, zTerm });
   });
 
@@ -2565,7 +2657,8 @@ function buildProfileSvg(rows, options = {}, arg3 = null, arg4 = null) {
     const placed = [];
 
     termLabelInfo.forEach(({ x, yTerm, zTerm }) => {
-      const termText = `Term ${zTerm.toFixed(1)}m`;
+      const termStr = (zTerm !== null && zTerm !== undefined && !isNaN(zTerm)) ? Number(zTerm).toFixed(1) + 'm' : '—';
+      const termText = `Term ${termStr}`;
       const boxW = termText.length * termCW + 10;
       const cx = x; // always keep same X — vertical only, same as BH labels
 
@@ -3209,6 +3302,16 @@ function showProfileModal(rows){
   }
 
   currentProfileRows = rows;
+  if (rows && rows.length && typeof allRows !== 'undefined') {
+    const idxs = rows.map(r => allRows.indexOf(r)).filter(i => i !== -1);
+    if (idxs.length >= 2) {
+      profileSelectedIdx = idxs;
+      updateProfileChips();
+      if (typeof updateProfileMapVisuals === 'function') updateProfileMapVisuals();
+    }
+  }
+  updateModalBoreholeManager();
+
   const rockEl = document.getElementById('modal-opt-rocklithology');
   const sptEl  = document.getElementById('modal-opt-spt');
   const rqdEl  = document.getElementById('modal-opt-rqd');

@@ -77,6 +77,7 @@ function hexToDxfTrueColor(hex) {
 }
 
 function generateDxfString(customRows, options = {}) {
+  const opts = options || {};
   let rows = customRows;
   if (!rows || !rows.length) rows = currentProfileRows;
   if (!rows || !rows.length) {
@@ -151,7 +152,7 @@ function generateDxfString(customRows, options = {}) {
   const elevRange = Math.max(maxElev - minElev, 10);
 
   // Vertical scale
-  const vScale = options.scaleChoice === 've' ? 5.0 : 1.0;
+  const vScale = (opts && opts.scaleChoice === 've') ? 5.0 : 1.0;
   function cadX(d) { return d; }
   function cadY(z) { return z * vScale; }
 
@@ -372,9 +373,14 @@ function generateDxfString(customRows, options = {}) {
     return C;
   });
 
-  const alluvBasePts = sorted.map((r, i) => ({ x: distances[i], y: alluvBaseLevels[i] }));
+  let alluvBasePts = sorted.map((r, i) => ({ x: distances[i], y: alluvBaseLevels[i] }));
+  if (secOverride?.boundaries?.alluv_base?.isOverridden && secOverride.boundaries.alluv_base.knots?.length) {
+    alluvBasePts = secOverride.boundaries.alluv_base.knots.map(k => ({ x: k.d, y: k.z }));
+  }
+
   function getZAlluvBase(d) {
-    const hasAnyAlluv = alluvBaseLevels.some((z, i) => {
+    const isExplicitlyOverridden = !!(secOverride?.boundaries?.alluv_base?.isOverridden && secOverride.boundaries.alluv_base.knots?.length);
+    const hasAnyAlluv = isExplicitlyOverridden || alluvBaseLevels.some((z, i) => {
       const zG = levelsArr[i].elevation !== null ? levelsArr[i].elevation : maxElev;
       return (zG - z) > 0.05;
     });
