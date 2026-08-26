@@ -1,0 +1,63 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+  <script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.9.2/proj4.js"></script>
+  <script src="data_master.js"></script>
+  <script src="js/config/app-config.js"></script>
+  <script src="js/config/geotech-rules.js"></script>
+  <script src="js/config/soil-rock-definitions.js"></script>
+  <script src="js/ui/toast-service.js"></script>
+  <script src="js/engines/data-pipeline.js"></script>
+  <script src="js/engines/geotech-log-engine.js"></script>
+  <script src="js/engines/cross-section-engine.js"></script>
+  <script src="js/engines/cad-dxf-engine.js"></script>
+</head>
+<body>
+  <h1>Generating DXF...</h1>
+  <script>
+    window.addEventListener('load', async () => {
+      try {
+        const res = Papa.parse(window.EMBEDDED_BOREHOLES_CSV, { header: true, skipEmptyLines: true });
+        allRows = res.data.map(normalizeRow);
+        processBHProfileData(allRows);
+        const sampleRows = [allRows[1], allRows[2], allRows[4], allRows[9], allRows[10]].filter(Boolean);
+        currentProfileRows = sampleRows;
+
+        const dxfStr = generateDxfString(sampleRows, {
+          optGround: true,
+          optRockhead: true,
+          optSoilLines: true,
+          optRockLines: true,
+          optOriginLines: true,
+          optGWT: true,
+          optSoilHatches: true,
+          optRockHatches: true,
+          optTrueColor: true,
+          optCwrHatches: true,
+          optSPT: true,
+          optRQD: true,
+          optPillars: true,
+          optGrid: true,
+          optTitle: true,
+          scaleChoice: '1'
+        });
+
+        await fetch('/save', {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain' },
+          body: dxfStr
+        });
+        window.close();
+      } catch (err) {
+        await fetch('/save', {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain' },
+          body: 'ERROR: ' + err.stack
+        });
+        window.close();
+      }
+    });
+  </script>
+</body>
+</html>

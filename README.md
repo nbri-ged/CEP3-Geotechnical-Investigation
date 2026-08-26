@@ -25,6 +25,11 @@ It provides real-time geotechnical data visualization, automated borehole strati
   * Stacking hierarchy enforcement (Made Ground $\rightarrow$ Alluvium $\rightarrow$ Residual Soil $\rightarrow$ CWR $\rightarrow$ Bedrock).
   * Parabolic pinch-out lens modeling for transported deposits.
   * Continuous weathering fade (ISRM Grades I to IV).
+* 🛠️ **Geological Interpretation & Reshape Studio**:
+  * Interactive control knots allowing geotechnical engineers to raise, lower, pinch, or re-contour boundaries between boreholes.
+  * Explicit **Soil Origin Boundary Editing**: Made Ground / Fill Base, Alluvium Base, Colluvium Base, Residual Soil Base (Saprolite / CWR Top), Rockhead Weathering Front, Natural Ground Surface, and Groundwater Table (GWT).
+  * Live spline calculation with instant synchronization to 2D Cross-Sections and AutoCAD DXF outputs.
+  * Inferred fault planes, shear zone markers, callouts, undo/redo history, and `.json` override export/import.
 * 📐 **AutoCAD DXF Vector CAD Studio**: Generates layered `.dxf` CAD files with strata boundaries, borehole pillars, 3DFACE meshes/hatches, test data, and $1:1$ or $5\times$ vertical exaggeration.
 * 📄 **Multi-Format Export Suite**: Print-ready landscape A3 & A4 PDF cross-sections, SVG vector diagrams, PNG images, KML with HTML CDATA tables, and Master CSV datasets.
 * 🛡️ **4-Tier Data Resiliency**: Google Sheets live sync $\rightarrow$ Multiple CORS Proxies $\rightarrow$ Local CSV $\rightarrow$ Embedded offline dataset.
@@ -50,6 +55,7 @@ github/
 │   ├── borehole-popup.css                   # 820px wide dual-panel borehole log popup
 │   ├── cross-section-modal.css              # Cross-section viewer, azimuth & toolbar
 │   ├── dxf-modal.css                        # AutoCAD DXF export studio modal
+│   ├── geological-editor.css                # Full-screen Geological Interpretation Studio
 │   └── version-hub.css                      # System hub, rules catalog, diagnostics & toasts
 │
 ├── js/
@@ -63,6 +69,7 @@ github/
 │   │   ├── gis-engine.js                    # Leaflet map, EPSG:5235 transforms, vector importer
 │   │   ├── geotech-log-engine.js            # Single BH SVG column, SPT & RQD test charts
 │   │   ├── cross-section-engine.js          # Sequential/Projection math, apparent dip, spline strata
+│   │   ├── geological-editor-engine.js      # Reshape control knots, soil origin boundaries, fault planes
 │   │   ├── cad-dxf-engine.js                # AC1009 DXF generator, layers, 3DFACE meshes
 │   │   └── export-engine.js                 # PDF (A3/A4 landscape), SVG, PNG, KML, Master CSV
 │   │

@@ -255,6 +255,20 @@
         </button>
       </div>
 
+      <!-- Alignment Sequence & Borehole Manager Strip -->
+      <div id="profile-alignment-strip" style="background: #f8fafc; border-bottom: 1px solid var(--line); padding: 6px 14px; display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;">
+        <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+          <span style="font-size: 11px; font-weight: 800; color: #0f766e; white-space: nowrap;">📍 Boreholes in Section (<span id="modal-bh-count">0</span>):</span>
+          <div id="modal-bh-chips" style="display: flex; align-items: center; gap: 5px; flex-wrap: wrap;"></div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 6px;">
+          <select id="modal-add-bh-select" style="font-size: 11.5px; padding: 3px 8px; border: 1px solid #cbd5e1; border-radius: 4px; background: #ffffff; color: #1e293b; max-width: 240px;">
+            <option value="">➕ Add Borehole to Section...</option>
+          </select>
+          <button type="button" onclick="addSelectedBoreholeFromModal()" style="padding: 3px 10px; font-size: 11px; font-weight: 700; background: #0d9488; color: #fff; border: none; border-radius: 4px; cursor: pointer; box-shadow: 0 1px 2px rgba(0,0,0,0.1);">➕ Add</button>
+        </div>
+      </div>
+
       <!-- Profile Overlays Toolbar -->
       <div id="profile-modal-toolbar">
         <span style="font-weight: 800; color: var(--ink);">Profile Overlays:</span>
@@ -748,10 +762,17 @@
             <div class="geo-field-group">
               <label class="geo-field-label">Active Boundary Line</label>
               <select id="geo-boundary-select" class="geo-field-select" onchange="selectEditorBoundary(this.value)">
-                <option value="rockhead">Rockhead Weathering Front</option>
-                <option value="ground">Natural Ground Surface</option>
-                <option value="alluv_base">Alluvium / Colluvium Base</option>
-                <option value="gwt">Groundwater Table (GWT)</option>
+                <optgroup label="🌱 Soil Origin Boundaries (Genetic Units)">
+                  <option value="made_ground_base">🚜 Made Ground / Fill Base Contact</option>
+                  <option value="alluv_base">🌊 Alluvial Base Contact (Alluvium vs Residual)</option>
+                  <option value="colluvium_base">⛰️ Colluvium / Slope-Wash Base Contact</option>
+                  <option value="residual_base">🍂 Residual Soil Base (Saprolite / CWR Top)</option>
+                </optgroup>
+                <optgroup label="🪨 Weathering & Bedrock Contacts">
+                  <option value="rockhead" selected>🪨 Rockhead (Bedrock Weathering Front)</option>
+                  <option value="ground">🌿 Natural Ground Surface Profile</option>
+                  <option value="gwt">💧 Groundwater Table (GWT)</option>
+                </optgroup>
               </select>
             </div>
             <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 6px;">
