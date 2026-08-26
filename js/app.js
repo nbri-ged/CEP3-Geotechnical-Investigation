@@ -2,7 +2,7 @@
    NBRI GEOTECHNICAL GIS — MAIN ENTRY POINT (app.js)
    ============================================================ */
 
-document.addEventListener('DOMContentLoaded', () => {
+function bootstrapApp() {
   console.log(`[NBRI System] Initializing Geotechnical GIS v${APP_VERSION}...`);
 
   // 1. Version & Cache Validation
@@ -40,4 +40,10 @@ document.addEventListener('DOMContentLoaded', () => {
       if (profModalBackdrop) profModalBackdrop.classList.remove('open');
     });
   }
-});
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', bootstrapApp);
+} else {
+  bootstrapApp();
+}
