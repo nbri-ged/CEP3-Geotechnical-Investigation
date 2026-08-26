@@ -109,6 +109,7 @@ var measurePoints = [];
 var measureLines = null;
 var measurePolygon = null;
 var measureMarkers = [];
+var profilePolyline = null;
 var timelineActiveDate = null;
 var progressSeries = [];
 var userLocationMarker = null;
