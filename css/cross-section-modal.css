@@ -146,3 +146,46 @@
   overflow: auto;
   background: #f8fafc;
 }
+
+/* Modal Borehole Manager Chips */
+.profile-chip-modal {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #ffffff;
+  color: #0f766e;
+  border: 1px solid #99f6e4;
+  padding: 3px 8px 3px 10px;
+  border-radius: var(--radius-full);
+  font-size: 11.5px;
+  font-weight: 700;
+  box-shadow: 0 1px 3px rgba(15, 118, 110, 0.08);
+  transition: all 0.15s ease;
+}
+.profile-chip-modal:hover {
+  border-color: #0d9488;
+  box-shadow: 0 2px 6px rgba(15, 118, 110, 0.15);
+}
+.profile-chip-modal button {
+  background: #fee2e2;
+  border: 1px solid #fca5a5;
+  color: #b91c1c;
+  font-size: 13px;
+  line-height: 1;
+  width: 17px;
+  height: 17px;
+  border-radius: 50%;
+  cursor: pointer;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  transition: all 0.15s ease;
+}
+.profile-chip-modal button:hover {
+  background: #ef4444;
+  color: #ffffff;
+  border-color: #dc2626;
+  transform: scale(1.1);
+}
